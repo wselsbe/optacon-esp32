@@ -6,5 +6,7 @@
         "math.h": "c",
         "spi_master.h": "c"
     },
-    "idf.adapterTargetName": "esp32s3"
+    "idf.adapterTargetName": "esp32s3",
+    "idf.flashType": "UART",
+    "idf.portWin": "COM3"
 }

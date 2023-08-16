@@ -11,8 +11,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
-#include "esp_spi_flash.h"
-#include "driver/gpio.h"
 #include "esp_log.h"
 #include "driver/spi_master.h"
 #include "driver/i2c.h"
@@ -106,7 +104,7 @@ void drv_init() {
     i2c_master_write_byte(i2c_cmd, DRV_REGISTER_2, true);
     i2c_master_write_byte(i2c_cmd, DRV_RESET, true);
     i2c_master_stop(i2c_cmd);
-    ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_MASTER_NUM, i2c_cmd, pdMS_TO_TICKS(10000)));
+    ESP_ERROR_CHECK(i2c_master_cmd_begin(I2C_MASTER_NUM, i2c_cmd, pdMS_TO_TICKS(5000)));
     i2c_cmd_link_delete(i2c_cmd);
 }
 
@@ -211,7 +209,7 @@ void app_main(void)
             (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
     printf("Minimum free heap size: %d bytes\n", esp_get_minimum_free_heap_size());
-    fflush(stdout);
+    
 
 
     float frequency = 250.0; // Desired frequency in Hz
