@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "*.txt": "plaintext",
+        "esp_spi_flash.h": "c",
+        "i2c.h": "c",
+        "math.h": "c",
+        "spi_master.h": "c"
+    },
+    "idf.adapterTargetName": "esp32s3"
+}
