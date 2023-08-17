@@ -1,2 +1,2 @@
-idf_component_register(SRCS "hello_world_main.c"
-                    INCLUDE_DIRS "")
+idf_component_register(SRCS "motherboard_main.c" "i2c_simple_main.c"
+                    INCLUDE_DIRS ".")
