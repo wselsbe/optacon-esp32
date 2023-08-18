@@ -7,11 +7,12 @@
 #define I2C_SDA_PIN   47
 
 #define DRV2665_ADDR    0x59
+
+// register 0
 #define DRV_REGISTER_0  0x00
+
+// register 1
 #define DRV_REGISTER_1  0x01
-#define DRV_REGISTER_2  0x02
-#define DRV_REGISTER_DATA  0x0B
-#define DRV_RESET       1 << 7
 
 #define _CHIPID_MASK 0b01111000
 
@@ -24,6 +25,11 @@
 #define GAIN_50V 1
 #define GAIN_75V 2
 #define GAIN_100V 3
+
+// register 2
+#define DRV_REGISTER_2  0x02
+
+#define DRV_RESET       1 << 7
 
 #define _STANDBY_MASK 0b01000000
 #define _STANDBY_FALSE 0 << 6
@@ -39,11 +45,18 @@
 #define ENABLE_AUTO 0 << 1
 #define ENABLE_OVERRIDE 1 << 1
 
+// data register
+#define DRV_REGISTER_DATA  0x0B
+
 #define FIFO_BUFFER_SIZE 100
 #define SAMPLE_RATE 8000 // 8 kHz
+
+esp_err_t drv_write_register(uint8_t register_address, uint8_t data);
 
 void drv_init();
 
 void drv_write_fifo(uint8_t* data, size_t data_len);
 
 void drv_enable_digital();
+
+void drv_enable_analog();
