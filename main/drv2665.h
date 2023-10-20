@@ -10,6 +10,8 @@
 
 // register 0
 #define DRV_REGISTER_0  0x00
+#define DRV_FIFO_FULL_MASK 0b00000001
+#define DRV_FIFO_EMPTY_MASK 0b00000010
 
 // register 1
 #define DRV_REGISTER_1  0x01
@@ -52,6 +54,8 @@
 #define SAMPLE_RATE 8000 // 8 kHz
 
 esp_err_t drv_write_register(uint8_t register_address, uint8_t data);
+
+uint8_t drv_read_register(uint8_t register_address);
 
 void drv_init();
 

@@ -7,6 +7,9 @@
 #include "freertos/FreeRTOS.h"
 #include "esp_system.h"
 
+
+static const char *TAG = "drv2665";
+
 void drv_init() {
     i2c_config_t i2c_conf;
     i2c_conf.mode = I2C_MODE_MASTER;
@@ -37,6 +40,23 @@ esp_err_t drv_write_register(uint8_t register_address, uint8_t data) {
     return ret;
 }
 
+
+uint8_t drv_read_register(uint8_t register_address) {
+    uint8_t data;
+    i2c_cmd_handle_t i2c_cmd = i2c_cmd_link_create();
+    i2c_master_start(i2c_cmd);
+    i2c_master_write_byte(i2c_cmd, (DRV2665_ADDR<<1)| I2C_MASTER_WRITE, true);
+    i2c_master_write_byte(i2c_cmd, register_address, true);
+    i2c_master_start(i2c_cmd);
+    i2c_master_write_byte(i2c_cmd, (DRV2665_ADDR << 1) | I2C_MASTER_READ, true);
+    i2c_master_read_byte(i2c_cmd, &data, I2C_MASTER_NACK);
+    i2c_master_stop(i2c_cmd);
+    esp_err_t ret = i2c_master_cmd_begin(I2C_MASTER_NUM, i2c_cmd, pdMS_TO_TICKS(1000));
+    ESP_ERROR_CHECK_WITHOUT_ABORT(ret);
+    i2c_cmd_link_delete(i2c_cmd);
+    return data;
+}
+
 void drv_write_fifo(uint8_t* data, size_t data_len) {
     i2c_cmd_handle_t i2c_cmd = i2c_cmd_link_create();
     i2c_master_start(i2c_cmd);
@@ -49,13 +69,13 @@ void drv_write_fifo(uint8_t* data, size_t data_len) {
 }
 
 void drv_enable_digital() {    
-    ESP_ERROR_CHECK(drv_write_register(DRV_REGISTER_1, INPUT_DIGITAL));    
-    ESP_ERROR_CHECK(drv_write_register(DRV_REGISTER_2,  _STANDBY_FALSE & ENABLE_AUTO));    
+    ESP_ERROR_CHECK(drv_write_register(DRV_REGISTER_1, INPUT_DIGITAL | GAIN_100V));    
+    ESP_ERROR_CHECK(drv_write_register(DRV_REGISTER_2,  _STANDBY_FALSE | ENABLE_AUTO));    
     vTaskDelay(2*portTICK_PERIOD_MS);
 }
 
 
 void drv_enable_analog() {    
-    ESP_ERROR_CHECK(drv_write_register(DRV_REGISTER_1, INPUT_ANALOG & GAIN_100V));    
-    ESP_ERROR_CHECK(drv_write_register(DRV_REGISTER_2,  _STANDBY_FALSE & ENABLE_OVERRIDE));
+    ESP_ERROR_CHECK(drv_write_register(DRV_REGISTER_1, INPUT_ANALOG | GAIN_100V));    
+    ESP_ERROR_CHECK(drv_write_register(DRV_REGISTER_2,  _STANDBY_FALSE | ENABLE_OVERRIDE));
 }
