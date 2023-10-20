@@ -16,6 +16,7 @@
 #include <math.h>
 #include "driver/i2s_pdm.h"
 #include "drv2665.h"
+#include "driver/gpio.h"
 
 static const char *TAG = "motherboard";
 
@@ -153,20 +154,24 @@ void spi_task(void *arg) {
         .mosi_io_num = SPI_MOSI,
         .miso_io_num = SPI_MISO,
         .sclk_io_num = SPI_SCK,
+
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
         .max_transfer_sz = 0,
     };
     spi_device_interface_config_t dev_config = {
-        .clock_speed_hz = 100 * 1000,
+        .clock_speed_hz = 10 * 1000,
         .mode = 0,                              // SPI mode 0
         .spics_io_num = SPI_CS,
         .queue_size = 1,
     };
 
     spi_device_handle_t spi;
-    spi_bus_initialize(SPI_BUS, &bus_config, 0);
-    spi_bus_add_device(SPI_BUS, &dev_config, &spi);
+    ESP_ERROR_CHECK(spi_bus_initialize(SPI_BUS, &bus_config, 0));
+    ESP_ERROR_CHECK(spi_bus_add_device(SPI_BUS, &dev_config, &spi));
+
+    // gpio_set_direction(SPI_CS, GPIO_MODE_OUTPUT);
+    // gpio_set_level(SPI_CS, 0);
 
     while (1) {
         for (int i = 0; i < 20; i++) {
@@ -196,6 +201,10 @@ void spi_task(void *arg) {
 
             ESP_LOGI(TAG, "shift registers pin %d data %x %x %x %x ", i, tx_data[0], tx_data[1], tx_data[2], tx_data[3]);
             spi_device_transmit(spi, &trans);
+            
+            // gpio_set_level(SPI_CS, 1);
+            // vTaskDelay(pdMS_TO_TICKS(1));
+            // gpio_set_level(SPI_CS, 0);
 
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
@@ -207,6 +216,13 @@ void writer_task(void *pvParameters) {
     size_t sine_wave_index = 0;
 
     while (1) {
+        // bool fifo_full = true;
+        // do {   
+        //    fifo_full = drv_read_register(DRV_REGISTER_0) & DRV_FIFO_FULL_MASK;
+        //    if (fifo_full) {
+        //        vTaskDelay(pdMS_TO_TICKS(1));
+        //    }
+        //} while (fifo_full);
         size_t write_size = 50;
         uint8_t buffer[write_size];
         for (size_t i = 0; i < write_size; i++) {
@@ -214,10 +230,13 @@ void writer_task(void *pvParameters) {
             sine_wave_index = (sine_wave_index + 1) % sine_wave_size;
         }
         drv_write_fifo(buffer, write_size);
-
         // Calculate write delay ticks based on write_size and sample rate
         TickType_t write_delay_ticks = (write_size / SAMPLE_RATE)* portTICK_PERIOD_MS * 1000;
-        vTaskDelay(write_delay_ticks);          
+        vTaskDelay(write_delay_ticks);   
+
+        //drv_write_register(DRV_REGISTER_DATA, sine_wave[sine_wave_index]);
+        //sine_wave_index = (sine_wave_index + 1) % sine_wave_size;
+
     }
     vTaskDelete(NULL);
 }
@@ -229,12 +248,18 @@ void app_main(void) {
 
     generate_sine_wave(frequency);
 
+    gpio_reset_pin(GPIO_NUM_4);
+    gpio_set_pull_mode(GPIO_NUM_4, GPIO_FLOATING);
+    gpio_reset_pin(GPIO_NUM_5);
+    gpio_set_pull_mode(GPIO_NUM_5, GPIO_FLOATING);
+
     ESP_LOGI(TAG, "Connecting to peripherals");
     drv_init();
     
     ESP_LOGI(TAG, "DRV2665 initialized successfully");
-    drv_enable_digital();
-    xTaskCreatePinnedToCore(writer_task, "writer_task", configMINIMAL_STACK_SIZE * 4, NULL, 1, NULL, 0);
+    // drv_enable_digital();
+    drv_enable_analog();
+    xTaskCreate(writer_task, "writer_task", configMINIMAL_STACK_SIZE * 4, NULL, 1, NULL);
     
     xTaskCreate(spi_task, "spi_task", 4096, NULL, 10, NULL);
     
