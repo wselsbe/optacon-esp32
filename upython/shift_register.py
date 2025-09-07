@@ -17,20 +17,21 @@ class ShiftRegister:
         self.cs.value(1)
         
         # Clear all outputs
-        self.clear()
+        self.clear(write=True)
     
-    def _update(self):
+    def update(self):
         """Send current state to shift registers"""
         self.cs.value(0)  # CS low to start transfer
         self.spi.write(self.state)
         self.cs.value(1)  # CS high to latch data
     
-    def set_pin(self, pin, value):
+    def set_pin(self, pin, value, write=False):
         """Set individual pin state
         
         Args:
             pin: Pin number (0-19)
             value: 0 or 1
+            write: If True, immediately write to shift registers
         """
         if pin < 0 or pin > 19:
             raise ValueError(f"Pin {pin} out of range (0-19)")
@@ -45,13 +46,15 @@ class ShiftRegister:
         else:
             self.state[byte_idx] &= ~(1 << bit_idx)
         
-        self._update()
+        if write:
+            self.update()
     
-    def set_all(self, value):
+    def set_all(self, value, write=False):
         """Set all 20 pins to the same value
         
         Args:
             value: 0 or 1
+            write: If True, immediately write to shift registers
         """
         if value:
             # Set bits 6-25
@@ -65,25 +68,17 @@ class ShiftRegister:
             self.state[2] = 0x00
             self.state[3] = 0x00
         
-        self._update()
+        if write:
+            self.update()
     
-    def clear(self):
-        """Clear all outputs (set to 0)"""
+    def clear(self, write=False):
+        """Clear all outputs (set to 0)
+        
+        Args:
+            write: If True, immediately write to shift registers
+        """
         for i in range(4):
             self.state[i] = 0x00
-        self._update()
-    
-    def test_pattern(self, delay_ms=100):
-        """Run a test pattern across all outputs"""
-        # Walking 1 across 20 pins
-        for i in range(20):
-            self.clear()
-            self.set_pin(i, 1)
-            time.sleep_ms(delay_ms)
         
-        # All on
-        self.set_all(1)
-        time.sleep_ms(delay_ms * 5)
-        
-        # All off
-        self.clear()
+        if write:
+            self.update()
