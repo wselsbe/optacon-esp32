@@ -1,0 +1,12 @@
+services:
+  dev:
+    build: .
+    volumes:
+      - .:/workspace
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+      - /dev/ttyACM0:/dev/ttyACM0
+    privileged: true
+    stdin_open: true
+    tty: true
+    command: sleep infinity
