@@ -1,4 +1,4 @@
-FROM espressif/idf:release-v5.5
+FROM espressif/idf:v5.5.1
 
 ARG MICROPYTHON_TAG=v1.27.0
 
