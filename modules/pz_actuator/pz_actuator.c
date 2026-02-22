@@ -2,6 +2,7 @@
 #include "py/obj.h"
 #include "py/objlist.h"
 #include "task.h"
+#include "driver/i2c_master.h"
 
 static pz_task_state_t g_state = {0};
 static bool g_initialized = false;
@@ -11,17 +12,33 @@ static bool g_initialized = false;
 static mp_obj_t pz_actuator_init(void) {
     if (g_initialized) return mp_const_none;
 
+    mp_printf(&mp_plat_print, "pz_actuator: initializing DRV2665 (I2C)...\n");
     esp_err_t err = drv2665_init(&g_state.drv);
-    if (err != ESP_OK) mp_raise_OSError(err);
+    if (err != ESP_OK) {
+        mp_printf(&mp_plat_print, "pz_actuator: DRV2665 init failed: %d (0x%03x)\n", err, err);
+        mp_raise_OSError(err);
+    }
 
+    mp_printf(&mp_plat_print, "pz_actuator: initializing shift register (SPI)...\n");
     err = shift_register_init(&g_state.sr);
-    if (err != ESP_OK) mp_raise_OSError(err);
+    if (err != ESP_OK) {
+        mp_printf(&mp_plat_print, "pz_actuator: shift register init failed: %d (0x%03x)\n", err, err);
+        drv2665_deinit(&g_state.drv);
+        mp_raise_OSError(err);
+    }
 
     waveform_init(&g_state.waveform, 250);  // default 250Hz
 
+    mp_printf(&mp_plat_print, "pz_actuator: enabling digital mode...\n");
     err = drv2665_enable_digital(&g_state.drv, DRV2665_GAIN_100V);  // default 100Vpp
-    if (err != ESP_OK) mp_raise_OSError(err);
+    if (err != ESP_OK) {
+        mp_printf(&mp_plat_print, "pz_actuator: enable digital failed: %d (0x%03x)\n", err, err);
+        shift_register_deinit(&g_state.sr);
+        drv2665_deinit(&g_state.drv);
+        mp_raise_OSError(err);
+    }
 
+    mp_printf(&mp_plat_print, "pz_actuator: initialized successfully\n");
     g_initialized = true;
     return mp_const_none;
 }
@@ -225,6 +242,54 @@ static mp_obj_t pz_actuator_is_running(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_is_running_obj, pz_actuator_is_running);
 
+// ─── 16. test_i2c() ──────────────────────────────────────────────────────────
+
+static mp_obj_t pz_actuator_test_i2c(void) {
+    mp_printf(&mp_plat_print, "=== I2C diagnostic ===\n");
+
+    for (int port = 0; port < 2; port++) {
+        mp_printf(&mp_plat_print, "Trying I2C port %d (SDA=%d, SCL=%d)...\n",
+                  port, DRV2665_I2C_SDA_PIN, DRV2665_I2C_SCL_PIN);
+        i2c_master_bus_config_t bus_cfg = {
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .i2c_port = port,
+            .scl_io_num = DRV2665_I2C_SCL_PIN,
+            .sda_io_num = DRV2665_I2C_SDA_PIN,
+            .glitch_ignore_cnt = 7,
+            .flags.enable_internal_pullup = true,
+        };
+        i2c_master_bus_handle_t bus = NULL;
+        esp_err_t err = i2c_new_master_bus(&bus_cfg, &bus);
+        mp_printf(&mp_plat_print, "  i2c_new_master_bus: err=%d (0x%03x) bus=%p\n", err, err, bus);
+        if (err == ESP_OK && bus) {
+            // Try adding a device at DRV2665 address
+            i2c_device_config_t dev_cfg = {
+                .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+                .device_address = DRV2665_I2C_ADDR,
+                .scl_speed_hz = DRV2665_I2C_CLK_HZ,
+            };
+            i2c_master_dev_handle_t dev = NULL;
+            err = i2c_master_bus_add_device(bus, &dev_cfg, &dev);
+            mp_printf(&mp_plat_print, "  i2c_master_bus_add_device(0x%02x): err=%d\n",
+                      DRV2665_I2C_ADDR, err);
+            if (err == ESP_OK && dev) {
+                // Try reading DRV2665 status register
+                uint8_t reg = 0x00;
+                uint8_t val = 0xFF;
+                err = i2c_master_transmit_receive(dev, &reg, 1, &val, 1, pdMS_TO_TICKS(100));
+                mp_printf(&mp_plat_print, "  read reg 0x00: err=%d val=0x%02x\n", err, val);
+                i2c_master_bus_rm_device(dev);
+            }
+            i2c_del_master_bus(bus);
+            mp_printf(&mp_plat_print, "  cleaned up OK\n");
+        }
+    }
+
+    mp_printf(&mp_plat_print, "=== done ===\n");
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_i2c_obj, pz_actuator_test_i2c);
+
 // ─── Module globals table ────────────────────────────────────────────────────
 
 static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
@@ -244,6 +309,7 @@ static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_get_polarity),          MP_ROM_PTR(&pz_actuator_get_polarity_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_gain),              MP_ROM_PTR(&pz_actuator_set_gain_obj) },
     { MP_ROM_QSTR(MP_QSTR_is_running),            MP_ROM_PTR(&pz_actuator_is_running_obj) },
+    { MP_ROM_QSTR(MP_QSTR_test_i2c),              MP_ROM_PTR(&pz_actuator_test_i2c_obj) },
 };
 static MP_DEFINE_CONST_DICT(pz_actuator_module_globals, pz_actuator_module_globals_table);
 

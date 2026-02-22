@@ -3,12 +3,27 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "py/mpprint.h"
 #include <string.h>
 #include <stdlib.h>
 
 static const char *TAG = "drv2665";
 
 esp_err_t drv2665_init(drv2665_t *dev) {
+    mp_printf(&mp_plat_print, "  drv2665: dev=%p i2c_bus=%p i2c_dev=%p\n", dev, dev->i2c_bus, dev->i2c_dev);
+
+    // Clean up any previous state (e.g. after soft reset)
+    if (dev->i2c_dev) {
+        mp_printf(&mp_plat_print, "  drv2665: cleaning up old i2c_dev\n");
+        i2c_master_bus_rm_device(dev->i2c_dev);
+        dev->i2c_dev = NULL;
+    }
+    if (dev->i2c_bus) {
+        mp_printf(&mp_plat_print, "  drv2665: cleaning up old i2c_bus\n");
+        i2c_del_master_bus(dev->i2c_bus);
+        dev->i2c_bus = NULL;
+    }
+
     i2c_master_bus_config_t bus_cfg = {
         .clk_source = I2C_CLK_SRC_DEFAULT,
         .i2c_port = I2C_NUM_0,
@@ -17,8 +32,11 @@ esp_err_t drv2665_init(drv2665_t *dev) {
         .glitch_ignore_cnt = 7,
         .flags.enable_internal_pullup = true,
     };
-    i2c_master_bus_handle_t bus;
+    mp_printf(&mp_plat_print, "  drv2665: calling i2c_new_master_bus(port=%d, sda=%d, scl=%d)...\n",
+              bus_cfg.i2c_port, bus_cfg.sda_io_num, bus_cfg.scl_io_num);
+    i2c_master_bus_handle_t bus = NULL;
     esp_err_t err = i2c_new_master_bus(&bus_cfg, &bus);
+    mp_printf(&mp_plat_print, "  drv2665: i2c_new_master_bus returned %d (0x%03x), bus=%p\n", err, err, bus);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to create I2C bus: %s", esp_err_to_name(err));
         return err;
@@ -32,22 +50,25 @@ esp_err_t drv2665_init(drv2665_t *dev) {
     };
     i2c_master_dev_handle_t i2c_dev;
     err = i2c_master_bus_add_device(bus, &dev_cfg, &i2c_dev);
+    mp_printf(&mp_plat_print, "  drv2665: add_device(0x%02x): err=%d\n", DRV2665_I2C_ADDR, err);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to add I2C device: %s", esp_err_to_name(err));
+        i2c_del_master_bus(bus);
+        dev->i2c_bus = NULL;
         return err;
     }
     dev->i2c_dev = i2c_dev;
     dev->gain = DRV2665_GAIN_100V;
 
-    vTaskDelay(pdMS_TO_TICKS(5));
-    err = drv2665_write_register(dev, DRV2665_REG_CTRL2, DRV2665_RESET);
+    // Verify communication by reading status register
+    uint8_t status;
+    err = drv2665_read_register(dev, DRV2665_REG_STATUS, &status);
+    mp_printf(&mp_plat_print, "  drv2665: read status: err=%d val=0x%02x\n", err, status);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to reset DRV2665: %s", esp_err_to_name(err));
+        drv2665_deinit(dev);
         return err;
     }
-    vTaskDelay(pdMS_TO_TICKS(5));
 
-    ESP_LOGI(TAG, "DRV2665 initialized");
+    mp_printf(&mp_plat_print, "  drv2665: init complete\n");
     return ESP_OK;
 }
 
@@ -65,11 +86,11 @@ esp_err_t drv2665_deinit(drv2665_t *dev) {
 
 esp_err_t drv2665_write_register(drv2665_t *dev, uint8_t reg, uint8_t value) {
     uint8_t buf[2] = {reg, value};
-    return i2c_master_transmit(dev->i2c_dev, buf, 2, pdMS_TO_TICKS(10));
+    return i2c_master_transmit(dev->i2c_dev, buf, 2, 100);
 }
 
 esp_err_t drv2665_read_register(drv2665_t *dev, uint8_t reg, uint8_t *value) {
-    return i2c_master_transmit_receive(dev->i2c_dev, &reg, 1, value, 1, pdMS_TO_TICKS(10));
+    return i2c_master_transmit_receive(dev->i2c_dev, &reg, 1, value, 1, 100);
 }
 
 esp_err_t drv2665_enable_digital(drv2665_t *dev, uint8_t gain) {
@@ -100,7 +121,7 @@ int drv2665_write_fifo(drv2665_t *dev, const int8_t *data, size_t len) {
     buf[0] = DRV2665_REG_DATA;
     memcpy(&buf[1], data, len);
 
-    esp_err_t err = i2c_master_transmit(dev->i2c_dev, buf, buf_len, pdMS_TO_TICKS(10));
+    esp_err_t err = i2c_master_transmit(dev->i2c_dev, buf, buf_len, 100);
     free(buf);
 
     if (err == ESP_OK) {
@@ -111,7 +132,7 @@ int drv2665_write_fifo(drv2665_t *dev, const int8_t *data, size_t len) {
     int written = 0;
     for (size_t i = 0; i < len; i++) {
         uint8_t single_buf[2] = {DRV2665_REG_DATA, (uint8_t)data[i]};
-        err = i2c_master_transmit(dev->i2c_dev, single_buf, 2, pdMS_TO_TICKS(5));
+        err = i2c_master_transmit(dev->i2c_dev, single_buf, 2, 100);
         if (err != ESP_OK) {
             break;
         }

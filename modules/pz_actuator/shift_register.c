@@ -2,38 +2,10 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "py/mpprint.h"
 #include <string.h>
 
 static const char *TAG = "shiftreg";
-
-// Pin-to-bit mapping: [byte_index, bit_mask]
-static const uint8_t pin_map[SHIFTREG_NUM_PINS][2] = {
-    {0, 1 << 1}, // pin 0
-    {0, 1 << 0}, // pin 1
-    {1, 1 << 7}, // pin 2
-    {1, 1 << 6}, // pin 3
-    {1, 1 << 5}, // pin 4
-    {1, 1 << 4}, // pin 5
-    {1, 1 << 3}, // pin 6
-    {1, 1 << 2}, // pin 7
-    {1, 1 << 1}, // pin 8
-    {1, 1 << 0}, // pin 9
-    {2, 1 << 7}, // pin 10
-    {2, 1 << 6}, // pin 11
-    {2, 1 << 5}, // pin 12
-    {2, 1 << 4}, // pin 13
-    {2, 1 << 3}, // pin 14
-    {2, 1 << 2}, // pin 15
-    {2, 1 << 1}, // pin 16
-    {2, 1 << 0}, // pin 17
-    {3, 1 << 7}, // pin 18
-    {3, 1 << 6}, // pin 19
-};
-
-static void clear_common_bits(uint8_t *data) {
-    data[0] &= ~SHIFTREG_COMMON_MASK_BYTE0;
-    data[3] &= ~SHIFTREG_COMMON_MASK_BYTE3;
-}
 
 esp_err_t shift_register_init(shift_register_t *sr) {
     memset(sr, 0, sizeof(shift_register_t));
@@ -97,38 +69,28 @@ esp_err_t shift_register_deinit(shift_register_t *sr) {
 
 void shift_register_set_pin(shift_register_t *sr, uint8_t pin, bool value) {
     if (pin >= SHIFTREG_NUM_PINS) return;
-    uint8_t byte_idx = pin_map[pin][0];
-    uint8_t bit_mask = pin_map[pin][1];
+    uint32_t mask = SHIFTREG_PIN_BIT(pin);
     if (value) {
-        sr->pending_state[byte_idx] |= bit_mask;
+        sr->pending_state |= mask;
     } else {
-        sr->pending_state[byte_idx] &= ~bit_mask;
+        sr->pending_state &= ~mask;
     }
 }
 
 bool shift_register_get_pin(const shift_register_t *sr, uint8_t pin) {
     if (pin >= SHIFTREG_NUM_PINS) return false;
-    uint8_t byte_idx = pin_map[pin][0];
-    uint8_t bit_mask = pin_map[pin][1];
-    return (sr->pending_state[byte_idx] & bit_mask) != 0;
+    return (sr->pending_state & SHIFTREG_PIN_BIT(pin)) != 0;
 }
 
 void shift_register_set_all(shift_register_t *sr, bool value) {
-    if (value) {
-        sr->pending_state[0] = 0x03;  // bits 0-1 only
-        sr->pending_state[1] = 0xFF;
-        sr->pending_state[2] = 0xFF;
-        sr->pending_state[3] = 0xC0;  // bits 6-7 only
-    } else {
-        memset(sr->pending_state, 0, SHIFTREG_DATA_BYTES);
-    }
+    sr->pending_state = value ? SHIFTREG_ALL_PINS_MASK : 0;
 }
 
 void shift_register_set_pins(shift_register_t *sr, const bool *values) {
-    memset(sr->pending_state, 0, SHIFTREG_DATA_BYTES);
+    sr->pending_state = 0;
     for (uint8_t i = 0; i < SHIFTREG_NUM_PINS; i++) {
         if (values[i]) {
-            sr->pending_state[pin_map[i][0]] |= pin_map[i][1];
+            sr->pending_state |= SHIFTREG_PIN_BIT(i);
         }
     }
 }
@@ -147,12 +109,20 @@ esp_err_t shift_register_commit(shift_register_t *sr) {
     }
 
     if (sr->pending_commit) {
-        memcpy(sr->active_state, sr->pending_state, SHIFTREG_DATA_BYTES);
-        clear_common_bits(sr->active_state);
+        sr->active_state = sr->pending_state & ~SHIFTREG_COMMON_MASK;
+        mp_printf(&mp_plat_print, "SR commit: 0x%08x\n", sr->active_state);
+
+        // Convert uint32_t to big-endian bytes for SPI (MSB first)
+        uint8_t tx_buf[SHIFTREG_DATA_BYTES] = {
+            (sr->active_state >> 24) & 0xFF,
+            (sr->active_state >> 16) & 0xFF,
+            (sr->active_state >> 8) & 0xFF,
+            sr->active_state & 0xFF,
+        };
 
         spi_transaction_t trans = {
             .length = SHIFTREG_DATA_BYTES * 8,
-            .tx_buffer = sr->active_state,
+            .tx_buffer = tx_buf,
         };
         esp_err_t err = spi_device_polling_transmit(sr->spi_dev, &trans);
         if (err != ESP_OK) {

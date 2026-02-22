@@ -30,4 +30,5 @@ def demo():
     finally:
         pz_actuator.stop()
 
-demo()
+# Auto-run disabled for debugging - call demo() manually from REPL
+# demo()

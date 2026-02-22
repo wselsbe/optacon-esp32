@@ -7,7 +7,7 @@
 
 // I2C configuration
 #define DRV2665_I2C_ADDR    0x59
-#define DRV2665_I2C_CLK_HZ  400000
+#define DRV2665_I2C_CLK_HZ  100000
 #define DRV2665_I2C_SDA_PIN 47
 #define DRV2665_I2C_SCL_PIN 21
 
