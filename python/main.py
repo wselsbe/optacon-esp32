@@ -1,6 +1,9 @@
 import pz_actuator
 import time
 
+# Reset DRV2665 to standby on boot — its state persists across ESP32 reboots
+pz_actuator.reset_drv()
+
 def demo():
     pz_actuator.init()
     pz_actuator.set_frequency(250)

@@ -381,7 +381,26 @@ static void test_delay_ms(uint32_t ms) {
     vTaskDelay(ticks);
 }
 
-// ─── 18. test_init_no_reset() ────────────────────────────────────────────────
+// ─── 18. reset_drv() ─────────────────────────────────────────────────────────
+
+static mp_obj_t pz_actuator_reset_drv(void) {
+    test_i2c_ctx_t ctx;
+    esp_err_t err = test_i2c_setup(&ctx);
+    if (err != ESP_OK) {
+        mp_raise_OSError(err);
+    }
+
+    err = i2c_master_transmit(ctx.dev, (uint8_t[]){DRV2665_REG_CTRL2, DRV2665_RESET}, 2, 100);
+    test_i2c_cleanup(&ctx);
+
+    if (err != ESP_OK) {
+        mp_raise_OSError(err);
+    }
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_reset_drv_obj, pz_actuator_reset_drv);
+
+// ─── 19. test_init_no_reset() ────────────────────────────────────────────────
 
 static mp_obj_t pz_actuator_test_init_no_reset(void) {
     mp_printf(&mp_plat_print, "=== test_init_no_reset (baseline) ===\n");
@@ -527,6 +546,7 @@ static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_set_gain),              MP_ROM_PTR(&pz_actuator_set_gain_obj) },
     { MP_ROM_QSTR(MP_QSTR_is_running),            MP_ROM_PTR(&pz_actuator_is_running_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_sync_trough),       MP_ROM_PTR(&pz_actuator_set_sync_trough_obj) },
+    { MP_ROM_QSTR(MP_QSTR_reset_drv),             MP_ROM_PTR(&pz_actuator_reset_drv_obj) },
     { MP_ROM_QSTR(MP_QSTR_test_i2c),              MP_ROM_PTR(&pz_actuator_test_i2c_obj) },
     { MP_ROM_QSTR(MP_QSTR_test_init_no_reset),    MP_ROM_PTR(&pz_actuator_test_init_no_reset_obj) },
     { MP_ROM_QSTR(MP_QSTR_test_init_reset_no_delay), MP_ROM_PTR(&pz_actuator_test_init_reset_no_delay_obj) },
