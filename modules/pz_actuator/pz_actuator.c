@@ -6,11 +6,12 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "tusb.h"
-#include "esp_private/periph_ctrl.h"
 #include "soc/rtc_cntl_reg.h"
-#include "soc/periph_defs.h"
 #include "esp_system.h"
 #include "esp_rom_sys.h"
+
+// Defined in ports/esp32/usb.c — switches USB PHY from OTG to Serial/JTAG
+extern void usb_usj_mode(void);
 
 static pz_task_state_t g_state = {0};
 static bool g_initialized = false;
@@ -542,7 +543,8 @@ static mp_obj_t pz_actuator_enter_bootloader(void) {
     }
     esp_rom_delay_us(100000);  // 100ms for host to process disconnect
 
-    periph_module_reset(PERIPH_USB_MODULE);
+    // Switch USB PHY from OTG to Serial/JTAG so ROM uses same path as physical BOOT+RST
+    usb_usj_mode();
 
     REG_WRITE(RTC_CNTL_OPTION1_REG, RTC_CNTL_FORCE_DOWNLOAD_BOOT);
 
