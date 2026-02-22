@@ -8,6 +8,8 @@
 #include "soc/rtc_cntl_reg.h"
 #include "esp_system.h"
 #include "esp_rom_sys.h"
+#include <stdlib.h>
+#include <string.h>
 
 // Defined in ports/esp32/usb.c — switches USB PHY from OTG to Serial/JTAG
 extern void usb_usj_mode(void);
@@ -35,9 +37,6 @@ static mp_obj_t pz_actuator_init(void) {
         mp_raise_OSError(err);
     }
 
-    waveform_init(&g_state.waveform, 250);  // default 250Hz
-    g_state.sync_trough = false;            // default: no trough sync
-
     mp_printf(&mp_plat_print, "pz_actuator: enabling digital mode...\n");
     err = drv2665_enable_digital(&g_state.drv, DRV2665_GAIN_100V);  // default 100Vpp
     if (err != ESP_OK) {
@@ -57,6 +56,7 @@ static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_init_obj, pz_actuator_init);
 
 static mp_obj_t pz_actuator_start(void) {
     if (!g_initialized) mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("not initialized"));
+    if (g_state.waveform_buf == NULL) mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("call set_waveform() first"));
     esp_err_t err = pz_task_start(&g_state);
     if (err != ESP_OK) mp_raise_OSError(err);
     return mp_const_none;
@@ -71,29 +71,38 @@ static mp_obj_t pz_actuator_stop(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_stop_obj, pz_actuator_stop);
 
-// ─── 4. set_frequency(hz) ────────────────────────────────────────────────────
+// ─── 4. set_waveform(buf) ────────────────────────────────────────────────────
 
-static mp_obj_t pz_actuator_set_frequency(mp_obj_t hz_obj) {
-    uint16_t hz = mp_obj_get_int(hz_obj);
-    if (hz < 50 || hz > 4000) {
-        mp_raise_ValueError(MP_ERROR_TEXT("frequency must be 50-4000 Hz"));
+static mp_obj_t pz_actuator_set_waveform(mp_obj_t buf_obj) {
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(buf_obj, &bufinfo, MP_BUFFER_READ);
+
+    if (bufinfo.len < 2 || bufinfo.len > 160) {
+        mp_raise_ValueError(MP_ERROR_TEXT("waveform must be 2-160 samples"));
     }
+
+    // Stop task if running (buffer pointer is about to change)
     if (g_state.running) {
-        g_state.target_frequency = hz;
-        g_state.frequency_changed = true;
-    } else {
-        waveform_set_frequency(&g_state.waveform, hz);
+        pz_task_stop(&g_state);
     }
+
+    // Copy waveform data into our own buffer so Python GC can't collect it
+    if (g_state.waveform_buf != NULL) {
+        free(g_state.waveform_buf);
+    }
+    g_state.waveform_buf = (int8_t *)malloc(bufinfo.len);
+    if (g_state.waveform_buf == NULL) {
+        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("failed to allocate waveform buffer"));
+    }
+    memcpy(g_state.waveform_buf, bufinfo.buf, bufinfo.len);
+    g_state.waveform_len = bufinfo.len;
+    g_state.write_index = 0;
+
+    mp_printf(&mp_plat_print, "set_waveform: %d samples (%dHz)\n",
+              (int)bufinfo.len, (int)(8000 / bufinfo.len));
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_frequency_obj, pz_actuator_set_frequency);
-
-// ─── 5. get_frequency() ──────────────────────────────────────────────────────
-
-static mp_obj_t pz_actuator_get_frequency(void) {
-    return mp_obj_new_int(g_state.waveform.frequency);
-}
-static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_get_frequency_obj, pz_actuator_get_frequency);
+static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_waveform_obj, pz_actuator_set_waveform);
 
 // ─── 6. set_pin(pin, value, flush=True) ──────────────────────────────────────
 
@@ -491,8 +500,7 @@ static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_init),                  MP_ROM_PTR(&pz_actuator_init_obj) },
     { MP_ROM_QSTR(MP_QSTR_start),                 MP_ROM_PTR(&pz_actuator_start_obj) },
     { MP_ROM_QSTR(MP_QSTR_stop),                  MP_ROM_PTR(&pz_actuator_stop_obj) },
-    { MP_ROM_QSTR(MP_QSTR_set_frequency),         MP_ROM_PTR(&pz_actuator_set_frequency_obj) },
-    { MP_ROM_QSTR(MP_QSTR_get_frequency),         MP_ROM_PTR(&pz_actuator_get_frequency_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_waveform),          MP_ROM_PTR(&pz_actuator_set_waveform_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_pin),               MP_ROM_PTR(&pz_actuator_set_pin_obj) },
     { MP_ROM_QSTR(MP_QSTR_get_pin),               MP_ROM_PTR(&pz_actuator_get_pin_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_pins),              MP_ROM_PTR(&pz_actuator_set_pins_obj) },

@@ -1,12 +1,23 @@
 import pz_actuator
+import math
 import time
 
 # Reset DRV2665 to standby on boot — its state persists across ESP32 reboots
 pz_actuator.reset_drv()
 
+def make_sine(freq_hz, sample_rate=8000):
+    """Generate one period of a sine wave as a bytearray (trough at index 0)."""
+    period = sample_rate // freq_hz
+    buf = bytearray(period)
+    for i in range(period):
+        phase = -math.pi / 2 + (2 * math.pi * i) / period
+        buf[i] = int(math.sin(phase) * 127) & 0xFF
+    return buf
+
 def demo():
     pz_actuator.init()
-    pz_actuator.set_frequency(250)
+    wave = make_sine(250)
+    pz_actuator.set_waveform(wave)
     pz_actuator.set_gain(100)
     pz_actuator.start()
 
