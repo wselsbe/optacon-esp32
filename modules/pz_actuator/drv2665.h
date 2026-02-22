@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "esp_err.h"
+#include "soft_i2c.h"
 
 // I2C configuration
 #define DRV2665_I2C_ADDR    0x59
@@ -43,8 +44,7 @@
 #define DRV2665_SAMPLE_RATE    8000
 
 typedef struct {
-    void *i2c_bus;    // i2c_master_bus_handle_t (stored as void* to avoid header dep in .h)
-    void *i2c_dev;    // i2c_master_dev_handle_t
+    soft_i2c_t i2c;
     uint8_t gain;     // current gain setting (0-3)
 } drv2665_t;
 

@@ -2,7 +2,6 @@
 #include "py/obj.h"
 #include "py/objlist.h"
 #include "task.h"
-#include "driver/i2c_master.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "tusb.h"
@@ -264,46 +263,18 @@ static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_sync_trough_obj, pz_actuator_se
 // ─── 17. test_i2c() ──────────────────────────────────────────────────────────
 
 static mp_obj_t pz_actuator_test_i2c(void) {
-    mp_printf(&mp_plat_print, "=== I2C diagnostic ===\n");
+    mp_printf(&mp_plat_print, "=== I2C diagnostic (soft) ===\n");
 
-    for (int port = 0; port < 2; port++) {
-        mp_printf(&mp_plat_print, "Trying I2C port %d (SDA=%d, SCL=%d)...\n",
-                  port, DRV2665_I2C_SDA_PIN, DRV2665_I2C_SCL_PIN);
-        i2c_master_bus_config_t bus_cfg = {
-            .clk_source = I2C_CLK_SRC_DEFAULT,
-            .i2c_port = port,
-            .scl_io_num = DRV2665_I2C_SCL_PIN,
-            .sda_io_num = DRV2665_I2C_SDA_PIN,
-            .glitch_ignore_cnt = 7,
-            .flags.enable_internal_pullup = true,
-        };
-        i2c_master_bus_handle_t bus = NULL;
-        esp_err_t err = i2c_new_master_bus(&bus_cfg, &bus);
-        mp_printf(&mp_plat_print, "  i2c_new_master_bus: err=%d (0x%03x) bus=%p\n", err, err, bus);
-        if (err == ESP_OK && bus) {
-            // Try adding a device at DRV2665 address
-            i2c_device_config_t dev_cfg = {
-                .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-                .device_address = DRV2665_I2C_ADDR,
-                .scl_speed_hz = DRV2665_I2C_CLK_HZ,
-            };
-            i2c_master_dev_handle_t dev = NULL;
-            err = i2c_master_bus_add_device(bus, &dev_cfg, &dev);
-            mp_printf(&mp_plat_print, "  i2c_master_bus_add_device(0x%02x): err=%d\n",
-                      DRV2665_I2C_ADDR, err);
-            if (err == ESP_OK && dev) {
-                // Try reading DRV2665 status register
-                uint8_t reg = 0x00;
-                uint8_t val = 0xFF;
-                err = i2c_master_transmit_receive(dev, &reg, 1, &val, 1, 100);
-                mp_printf(&mp_plat_print, "  read reg 0x00: err=%d val=0x%02x\n", err, val);
-                i2c_master_bus_rm_device(dev);
-            }
-            i2c_del_master_bus(bus);
-            mp_printf(&mp_plat_print, "  cleaned up OK\n");
-        }
-    }
+    soft_i2c_t i2c;
+    soft_i2c_init(&i2c, DRV2665_I2C_SDA_PIN, DRV2665_I2C_SCL_PIN, DRV2665_I2C_CLK_HZ);
 
+    // Try reading DRV2665 status register
+    uint8_t reg = 0x00;
+    uint8_t val = 0xFF;
+    int ret = soft_i2c_write_read(&i2c, DRV2665_I2C_ADDR, &reg, 1, &val, 1);
+    mp_printf(&mp_plat_print, "  read reg 0x00: ret=%d val=0x%02x\n", ret, val);
+
+    soft_i2c_deinit(&i2c);
     mp_printf(&mp_plat_print, "=== done ===\n");
     return mp_const_none;
 }
@@ -312,72 +283,34 @@ static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_i2c_obj, pz_actuator_test_i2c)
 // ─── I2C test helpers ────────────────────────────────────────────────────────
 
 typedef struct {
-    i2c_master_bus_handle_t bus;
-    i2c_master_dev_handle_t dev;
+    soft_i2c_t i2c;
 } test_i2c_ctx_t;
 
-static esp_err_t test_i2c_setup(test_i2c_ctx_t *ctx) {
-    ctx->bus = NULL;
-    ctx->dev = NULL;
-
-    i2c_master_bus_config_t bus_cfg = {
-        .clk_source = I2C_CLK_SRC_DEFAULT,
-        .i2c_port = I2C_NUM_0,
-        .scl_io_num = DRV2665_I2C_SCL_PIN,
-        .sda_io_num = DRV2665_I2C_SDA_PIN,
-        .glitch_ignore_cnt = 7,
-        .flags.enable_internal_pullup = true,
-    };
-    esp_err_t err = i2c_new_master_bus(&bus_cfg, &ctx->bus);
-    if (err != ESP_OK) {
-        mp_printf(&mp_plat_print, "  setup: i2c_new_master_bus failed: %d (0x%03x)\n", err, err);
-        return err;
-    }
-
-    i2c_device_config_t dev_cfg = {
-        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
-        .device_address = DRV2665_I2C_ADDR,
-        .scl_speed_hz = DRV2665_I2C_CLK_HZ,
-    };
-    err = i2c_master_bus_add_device(ctx->bus, &dev_cfg, &ctx->dev);
-    if (err != ESP_OK) {
-        mp_printf(&mp_plat_print, "  setup: add_device failed: %d (0x%03x)\n", err, err);
-        i2c_del_master_bus(ctx->bus);
-        ctx->bus = NULL;
-        return err;
-    }
-
-    mp_printf(&mp_plat_print, "  setup: OK (bus=%p dev=%p)\n", ctx->bus, ctx->dev);
-    return ESP_OK;
+static void test_i2c_setup(test_i2c_ctx_t *ctx) {
+    soft_i2c_init(&ctx->i2c, DRV2665_I2C_SDA_PIN, DRV2665_I2C_SCL_PIN, DRV2665_I2C_CLK_HZ);
+    mp_printf(&mp_plat_print, "  setup: OK (soft i2c, sda=%d, scl=%d)\n",
+              DRV2665_I2C_SDA_PIN, DRV2665_I2C_SCL_PIN);
 }
 
 static void test_i2c_cleanup(test_i2c_ctx_t *ctx) {
-    if (ctx->dev) {
-        i2c_master_bus_rm_device(ctx->dev);
-        ctx->dev = NULL;
-    }
-    if (ctx->bus) {
-        i2c_del_master_bus(ctx->bus);
-        ctx->bus = NULL;
-    }
+    soft_i2c_deinit(&ctx->i2c);
     mp_printf(&mp_plat_print, "  cleanup: done\n");
 }
 
 // Helper: read + log a register
-static esp_err_t test_read_reg(test_i2c_ctx_t *ctx, uint8_t reg, const char *label) {
+static int test_read_reg(test_i2c_ctx_t *ctx, uint8_t reg, const char *label) {
     uint8_t val = 0xFF;
-    uint8_t reg_addr = reg;
-    esp_err_t err = i2c_master_transmit_receive(ctx->dev, &reg_addr, 1, &val, 1, 100);
-    mp_printf(&mp_plat_print, "  %s: reg=0x%02x err=%d val=0x%02x\n", label, reg, err, val);
-    return err;
+    int ret = soft_i2c_write_read(&ctx->i2c, DRV2665_I2C_ADDR, &reg, 1, &val, 1);
+    mp_printf(&mp_plat_print, "  %s: reg=0x%02x ret=%d val=0x%02x\n", label, reg, ret, val);
+    return ret;
 }
 
 // Helper: write + log a register
-static esp_err_t test_write_reg(test_i2c_ctx_t *ctx, uint8_t reg, uint8_t val, const char *label) {
+static int test_write_reg(test_i2c_ctx_t *ctx, uint8_t reg, uint8_t val, const char *label) {
     uint8_t buf[2] = {reg, val};
-    esp_err_t err = i2c_master_transmit(ctx->dev, buf, 2, 100);
-    mp_printf(&mp_plat_print, "  %s: reg=0x%02x val=0x%02x err=%d\n", label, reg, val, err);
-    return err;
+    int ret = soft_i2c_write(&ctx->i2c, DRV2665_I2C_ADDR, buf, 2);
+    mp_printf(&mp_plat_print, "  %s: reg=0x%02x val=0x%02x ret=%d\n", label, reg, val, ret);
+    return ret;
 }
 
 // Helper: delay with minimum 1 tick
@@ -391,17 +324,15 @@ static void test_delay_ms(uint32_t ms) {
 // ─── 18. reset_drv() ─────────────────────────────────────────────────────────
 
 static mp_obj_t pz_actuator_reset_drv(void) {
-    test_i2c_ctx_t ctx;
-    esp_err_t err = test_i2c_setup(&ctx);
-    if (err != ESP_OK) {
-        mp_raise_OSError(err);
-    }
+    soft_i2c_t i2c;
+    soft_i2c_init(&i2c, DRV2665_I2C_SDA_PIN, DRV2665_I2C_SCL_PIN, DRV2665_I2C_CLK_HZ);
 
-    err = i2c_master_transmit(ctx.dev, (uint8_t[]){DRV2665_REG_CTRL2, DRV2665_RESET}, 2, 100);
-    test_i2c_cleanup(&ctx);
+    uint8_t buf[2] = {DRV2665_REG_CTRL2, DRV2665_RESET};
+    int ret = soft_i2c_write(&i2c, DRV2665_I2C_ADDR, buf, 2);
+    soft_i2c_deinit(&i2c);
 
-    if (err != ESP_OK) {
-        mp_raise_OSError(err);
+    if (ret != 2) {
+        mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("DRV2665 reset failed"));
     }
     return mp_const_none;
 }
@@ -413,7 +344,7 @@ static mp_obj_t pz_actuator_test_init_no_reset(void) {
     mp_printf(&mp_plat_print, "=== test_init_no_reset (baseline) ===\n");
 
     test_i2c_ctx_t ctx;
-    if (test_i2c_setup(&ctx) != ESP_OK) return mp_const_none;
+    test_i2c_setup(&ctx);
 
     test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS pre");
     test_read_reg(&ctx, DRV2665_REG_CTRL1, "CTRL1 default");
@@ -442,7 +373,7 @@ static mp_obj_t pz_actuator_test_init_reset_no_delay(void) {
     mp_printf(&mp_plat_print, "=== test_init_reset_no_delay ===\n");
 
     test_i2c_ctx_t ctx;
-    if (test_i2c_setup(&ctx) != ESP_OK) return mp_const_none;
+    test_i2c_setup(&ctx);
 
     test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS pre-reset");
 
@@ -473,7 +404,7 @@ static mp_obj_t pz_actuator_test_init_reset_5ms(void) {
     mp_printf(&mp_plat_print, "=== test_init_reset_5ms ===\n");
 
     test_i2c_ctx_t ctx;
-    if (test_i2c_setup(&ctx) != ESP_OK) return mp_const_none;
+    test_i2c_setup(&ctx);
 
     test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS pre-reset");
 
@@ -506,7 +437,7 @@ static mp_obj_t pz_actuator_test_init_reset_20ms(void) {
     mp_printf(&mp_plat_print, "=== test_init_reset_20ms ===\n");
 
     test_i2c_ctx_t ctx;
-    if (test_i2c_setup(&ctx) != ESP_OK) return mp_const_none;
+    test_i2c_setup(&ctx);
 
     test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS pre-reset");
 
