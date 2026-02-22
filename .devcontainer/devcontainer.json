@@ -3,6 +3,7 @@
   "dockerComposeFile": "../docker-compose.yml",
   "service": "dev",
   "workspaceFolder": "/workspace",
+  "postCreateCommand": "git config --global core.autocrlf false && git config --local core.autocrlf true && echo '. /opt/esp/idf/export.sh >/dev/null 2>&1' >> ~/.bashrc && curl -fsSL https://claude.ai/install.sh | bash",
   "customizations": {
     "vscode": {
       "extensions": [

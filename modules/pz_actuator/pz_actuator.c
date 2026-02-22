@@ -5,6 +5,12 @@
 #include "driver/i2c_master.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "tusb.h"
+#include "esp_private/periph_ctrl.h"
+#include "soc/rtc_cntl_reg.h"
+#include "soc/periph_defs.h"
+#include "esp_system.h"
+#include "esp_rom_sys.h"
 
 static pz_task_state_t g_state = {0};
 static bool g_initialized = false;
@@ -526,6 +532,25 @@ static mp_obj_t pz_actuator_test_init_reset_20ms(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_reset_20ms_obj, pz_actuator_test_init_reset_20ms);
 
+// ─── 22. enter_bootloader() ───────────────────────────────────────────────────
+
+static mp_obj_t pz_actuator_enter_bootloader(void) {
+    mp_printf(&mp_plat_print, "Entering bootloader...\n");
+
+    if (tud_connected()) {
+        tud_disconnect();
+    }
+    esp_rom_delay_us(100000);  // 100ms for host to process disconnect
+
+    periph_module_reset(PERIPH_USB_MODULE);
+
+    REG_WRITE(RTC_CNTL_OPTION1_REG, RTC_CNTL_FORCE_DOWNLOAD_BOOT);
+
+    esp_restart();
+    return mp_const_none;  // never reached
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_enter_bootloader_obj, pz_actuator_enter_bootloader);
+
 // ─── Module globals table ────────────────────────────────────────────────────
 
 static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
@@ -552,6 +577,7 @@ static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_test_init_reset_no_delay), MP_ROM_PTR(&pz_actuator_test_init_reset_no_delay_obj) },
     { MP_ROM_QSTR(MP_QSTR_test_init_reset_5ms),   MP_ROM_PTR(&pz_actuator_test_init_reset_5ms_obj) },
     { MP_ROM_QSTR(MP_QSTR_test_init_reset_20ms),  MP_ROM_PTR(&pz_actuator_test_init_reset_20ms_obj) },
+    { MP_ROM_QSTR(MP_QSTR_enter_bootloader),     MP_ROM_PTR(&pz_actuator_enter_bootloader_obj) },
 };
 static MP_DEFINE_CONST_DICT(pz_actuator_module_globals, pz_actuator_module_globals_table);
 
