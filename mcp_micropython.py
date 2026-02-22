@@ -1,4 +1,11 @@
-"""MCP server for MicroPython boards via mpremote serial transport."""
+"""MCP server for MicroPython boards via mpremote serial transport.
+
+TODO: Investigate mpremote over network (WebREPL / TCP transport).
+      - How to enable networking on the ESP32-S3 (WiFi STA/AP config)
+      - How to set up WebREPL on the board (webrepl_setup, boot.py config)
+      - Whether mpremote supports network targets natively or needs a different transport
+      - Latency / reliability tradeoffs vs USB-CDC serial
+"""
 
 import logging
 import os
