@@ -44,28 +44,30 @@ static void pz_background_task(void *arg) {
 
         // Step 2: Check for pending shift register / polarity updates
         if (state->sr.pending_commit || state->sr.pending_polarity) {
-            size_t samples_to_trough = waveform_samples_until_trough(
-                &state->waveform, fifo_depth);
+            if (state->sync_trough) {
+                size_t samples_to_trough = waveform_samples_until_trough(
+                    &state->waveform, fifo_depth);
 
-            // Convert to microseconds (125us per sample at 8kHz)
-            int64_t wait_us = (int64_t)samples_to_trough * 125;
-            int64_t target_time = fill_timestamp + wait_us;
+                // Convert to microseconds (125us per sample at 8kHz)
+                int64_t wait_us = (int64_t)samples_to_trough * 125;
+                int64_t target_time = fill_timestamp + wait_us;
 
-            mp_printf(&mp_plat_print, "pz_task: SR commit pending, wait %lld us (%d samples to trough)\n",
-                      wait_us, (int)samples_to_trough);
+                mp_printf(&mp_plat_print, "pz_task: SR trough wait %d us\n", (int)wait_us);
 
-            // Hybrid wait: coarse FreeRTOS sleep, then busy-wait for precision
-            if (wait_us > 2000) {
-                vTaskDelay(pdMS_TO_TICKS((wait_us / 1000) - 1));
+                // Hybrid wait: coarse FreeRTOS sleep, then busy-wait for precision
+                if (wait_us > 2000) {
+                    vTaskDelay(pdMS_TO_TICKS((wait_us / 1000) - 1));
+                }
+
+                // Busy-wait for precise timing
+                while (esp_timer_get_time() < target_time) {
+                    // spin
+                }
             }
 
-            // Busy-wait for precise timing
-            while (esp_timer_get_time() < target_time) {
-                // spin
-            }
-
-            // FIRE: commit shift register + polarity at trough
+            mp_printf(&mp_plat_print, "pz_task: SR commit\n");
             shift_register_commit(&state->sr);
+            mp_printf(&mp_plat_print, "pz_task: SR done\n");
         }
 
         // Step 3: Sleep until roughly half FIFO has drained
@@ -95,7 +97,7 @@ esp_err_t pz_task_start(pz_task_state_t *state) {
     BaseType_t ret = xTaskCreate(
         pz_background_task,
         "pz_task",
-        4096,
+        8192,
         state,
         configMAX_PRIORITIES - 2,
         &state->task_handle

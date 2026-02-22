@@ -28,6 +28,7 @@ static mp_obj_t pz_actuator_init(void) {
     }
 
     waveform_init(&g_state.waveform, 250);  // default 250Hz
+    g_state.sync_trough = false;            // default: no trough sync
 
     mp_printf(&mp_plat_print, "pz_actuator: enabling digital mode...\n");
     err = drv2665_enable_digital(&g_state.drv, DRV2665_GAIN_100V);  // default 100Vpp
@@ -242,7 +243,16 @@ static mp_obj_t pz_actuator_is_running(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_is_running_obj, pz_actuator_is_running);
 
-// ─── 16. test_i2c() ──────────────────────────────────────────────────────────
+// ─── 16. set_sync_trough(value) ──────────────────────────────────────────────
+
+static mp_obj_t pz_actuator_set_sync_trough(mp_obj_t val_obj) {
+    g_state.sync_trough = mp_obj_is_true(val_obj);
+    mp_printf(&mp_plat_print, "sync_trough = %s\n", g_state.sync_trough ? "True" : "False");
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_sync_trough_obj, pz_actuator_set_sync_trough);
+
+// ─── 17. test_i2c() ──────────────────────────────────────────────────────────
 
 static mp_obj_t pz_actuator_test_i2c(void) {
     mp_printf(&mp_plat_print, "=== I2C diagnostic ===\n");
@@ -309,6 +319,7 @@ static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_get_polarity),          MP_ROM_PTR(&pz_actuator_get_polarity_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_gain),              MP_ROM_PTR(&pz_actuator_set_gain_obj) },
     { MP_ROM_QSTR(MP_QSTR_is_running),            MP_ROM_PTR(&pz_actuator_is_running_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_sync_trough),       MP_ROM_PTR(&pz_actuator_set_sync_trough_obj) },
     { MP_ROM_QSTR(MP_QSTR_test_i2c),              MP_ROM_PTR(&pz_actuator_test_i2c_obj) },
 };
 static MP_DEFINE_CONST_DICT(pz_actuator_module_globals, pz_actuator_module_globals_table);

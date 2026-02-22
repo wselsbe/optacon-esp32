@@ -14,6 +14,7 @@ typedef struct {
     waveform_t waveform;
     TaskHandle_t task_handle;
     bool running;
+    bool sync_trough;           // if true, wait for waveform trough before SR commit
     uint16_t target_frequency;  // for frequency change while running
     bool frequency_changed;
 } pz_task_state_t;
