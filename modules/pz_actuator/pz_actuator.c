@@ -3,6 +3,8 @@
 #include "py/objlist.h"
 #include "task.h"
 #include "driver/i2c_master.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static pz_task_state_t g_state = {0};
 static bool g_initialized = false;
@@ -286,7 +288,7 @@ static mp_obj_t pz_actuator_test_i2c(void) {
                 // Try reading DRV2665 status register
                 uint8_t reg = 0x00;
                 uint8_t val = 0xFF;
-                err = i2c_master_transmit_receive(dev, &reg, 1, &val, 1, pdMS_TO_TICKS(100));
+                err = i2c_master_transmit_receive(dev, &reg, 1, &val, 1, 100);
                 mp_printf(&mp_plat_print, "  read reg 0x00: err=%d val=0x%02x\n", err, val);
                 i2c_master_bus_rm_device(dev);
             }
@@ -299,6 +301,211 @@ static mp_obj_t pz_actuator_test_i2c(void) {
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_i2c_obj, pz_actuator_test_i2c);
+
+// ─── I2C test helpers ────────────────────────────────────────────────────────
+
+typedef struct {
+    i2c_master_bus_handle_t bus;
+    i2c_master_dev_handle_t dev;
+} test_i2c_ctx_t;
+
+static esp_err_t test_i2c_setup(test_i2c_ctx_t *ctx) {
+    ctx->bus = NULL;
+    ctx->dev = NULL;
+
+    i2c_master_bus_config_t bus_cfg = {
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .i2c_port = I2C_NUM_0,
+        .scl_io_num = DRV2665_I2C_SCL_PIN,
+        .sda_io_num = DRV2665_I2C_SDA_PIN,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true,
+    };
+    esp_err_t err = i2c_new_master_bus(&bus_cfg, &ctx->bus);
+    if (err != ESP_OK) {
+        mp_printf(&mp_plat_print, "  setup: i2c_new_master_bus failed: %d (0x%03x)\n", err, err);
+        return err;
+    }
+
+    i2c_device_config_t dev_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = DRV2665_I2C_ADDR,
+        .scl_speed_hz = DRV2665_I2C_CLK_HZ,
+    };
+    err = i2c_master_bus_add_device(ctx->bus, &dev_cfg, &ctx->dev);
+    if (err != ESP_OK) {
+        mp_printf(&mp_plat_print, "  setup: add_device failed: %d (0x%03x)\n", err, err);
+        i2c_del_master_bus(ctx->bus);
+        ctx->bus = NULL;
+        return err;
+    }
+
+    mp_printf(&mp_plat_print, "  setup: OK (bus=%p dev=%p)\n", ctx->bus, ctx->dev);
+    return ESP_OK;
+}
+
+static void test_i2c_cleanup(test_i2c_ctx_t *ctx) {
+    if (ctx->dev) {
+        i2c_master_bus_rm_device(ctx->dev);
+        ctx->dev = NULL;
+    }
+    if (ctx->bus) {
+        i2c_del_master_bus(ctx->bus);
+        ctx->bus = NULL;
+    }
+    mp_printf(&mp_plat_print, "  cleanup: done\n");
+}
+
+// Helper: read + log a register
+static esp_err_t test_read_reg(test_i2c_ctx_t *ctx, uint8_t reg, const char *label) {
+    uint8_t val = 0xFF;
+    uint8_t reg_addr = reg;
+    esp_err_t err = i2c_master_transmit_receive(ctx->dev, &reg_addr, 1, &val, 1, 100);
+    mp_printf(&mp_plat_print, "  %s: reg=0x%02x err=%d val=0x%02x\n", label, reg, err, val);
+    return err;
+}
+
+// Helper: write + log a register
+static esp_err_t test_write_reg(test_i2c_ctx_t *ctx, uint8_t reg, uint8_t val, const char *label) {
+    uint8_t buf[2] = {reg, val};
+    esp_err_t err = i2c_master_transmit(ctx->dev, buf, 2, 100);
+    mp_printf(&mp_plat_print, "  %s: reg=0x%02x val=0x%02x err=%d\n", label, reg, val, err);
+    return err;
+}
+
+// Helper: delay with minimum 1 tick
+static void test_delay_ms(uint32_t ms) {
+    TickType_t ticks = pdMS_TO_TICKS(ms);
+    if (ticks == 0) ticks = 1;
+    mp_printf(&mp_plat_print, "  delay: %lums (%lu ticks)\n", (unsigned long)ms, (unsigned long)ticks);
+    vTaskDelay(ticks);
+}
+
+// ─── 18. test_init_no_reset() ────────────────────────────────────────────────
+
+static mp_obj_t pz_actuator_test_init_no_reset(void) {
+    mp_printf(&mp_plat_print, "=== test_init_no_reset (baseline) ===\n");
+
+    test_i2c_ctx_t ctx;
+    if (test_i2c_setup(&ctx) != ESP_OK) return mp_const_none;
+
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS pre");
+    test_read_reg(&ctx, DRV2665_REG_CTRL1, "CTRL1 default");
+    test_read_reg(&ctx, DRV2665_REG_CTRL2, "CTRL2 default");
+
+    test_write_reg(&ctx, DRV2665_REG_CTRL1,
+                   DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V, "write CTRL1");
+    test_write_reg(&ctx, DRV2665_REG_CTRL2,
+                   DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS, "write CTRL2");
+
+    test_delay_ms(2);
+
+    test_read_reg(&ctx, DRV2665_REG_CTRL1, "CTRL1 readback");
+    test_read_reg(&ctx, DRV2665_REG_CTRL2, "CTRL2 readback");
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS post");
+
+    test_i2c_cleanup(&ctx);
+    mp_printf(&mp_plat_print, "=== done ===\n");
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_no_reset_obj, pz_actuator_test_init_no_reset);
+
+// ─── 19. test_init_reset_no_delay() ──────────────────────────────────────────
+
+static mp_obj_t pz_actuator_test_init_reset_no_delay(void) {
+    mp_printf(&mp_plat_print, "=== test_init_reset_no_delay ===\n");
+
+    test_i2c_ctx_t ctx;
+    if (test_i2c_setup(&ctx) != ESP_OK) return mp_const_none;
+
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS pre-reset");
+
+    test_write_reg(&ctx, DRV2665_REG_CTRL2, DRV2665_RESET, "write DEV_RST");
+
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS immed after reset");
+
+    test_write_reg(&ctx, DRV2665_REG_CTRL2,
+                   DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS, "write CTRL2");
+    test_write_reg(&ctx, DRV2665_REG_CTRL1,
+                   DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V, "write CTRL1");
+
+    test_delay_ms(2);
+
+    test_read_reg(&ctx, DRV2665_REG_CTRL1, "CTRL1 readback");
+    test_read_reg(&ctx, DRV2665_REG_CTRL2, "CTRL2 readback");
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS post");
+
+    test_i2c_cleanup(&ctx);
+    mp_printf(&mp_plat_print, "=== done ===\n");
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_reset_no_delay_obj, pz_actuator_test_init_reset_no_delay);
+
+// ─── 20. test_init_reset_5ms() ───────────────────────────────────────────────
+
+static mp_obj_t pz_actuator_test_init_reset_5ms(void) {
+    mp_printf(&mp_plat_print, "=== test_init_reset_5ms ===\n");
+
+    test_i2c_ctx_t ctx;
+    if (test_i2c_setup(&ctx) != ESP_OK) return mp_const_none;
+
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS pre-reset");
+
+    test_write_reg(&ctx, DRV2665_REG_CTRL2, DRV2665_RESET, "write DEV_RST");
+
+    test_delay_ms(5);
+
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS after 5ms");
+
+    test_write_reg(&ctx, DRV2665_REG_CTRL2,
+                   DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS, "write CTRL2");
+    test_write_reg(&ctx, DRV2665_REG_CTRL1,
+                   DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V, "write CTRL1");
+
+    test_delay_ms(2);
+
+    test_read_reg(&ctx, DRV2665_REG_CTRL1, "CTRL1 readback");
+    test_read_reg(&ctx, DRV2665_REG_CTRL2, "CTRL2 readback");
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS post");
+
+    test_i2c_cleanup(&ctx);
+    mp_printf(&mp_plat_print, "=== done ===\n");
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_reset_5ms_obj, pz_actuator_test_init_reset_5ms);
+
+// ─── 21. test_init_reset_20ms() ──────────────────────────────────────────────
+
+static mp_obj_t pz_actuator_test_init_reset_20ms(void) {
+    mp_printf(&mp_plat_print, "=== test_init_reset_20ms ===\n");
+
+    test_i2c_ctx_t ctx;
+    if (test_i2c_setup(&ctx) != ESP_OK) return mp_const_none;
+
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS pre-reset");
+
+    test_write_reg(&ctx, DRV2665_REG_CTRL2, DRV2665_RESET, "write DEV_RST");
+
+    test_delay_ms(20);
+
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS after 20ms");
+
+    test_write_reg(&ctx, DRV2665_REG_CTRL2,
+                   DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS, "write CTRL2");
+    test_write_reg(&ctx, DRV2665_REG_CTRL1,
+                   DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V, "write CTRL1");
+
+    test_delay_ms(2);
+
+    test_read_reg(&ctx, DRV2665_REG_CTRL1, "CTRL1 readback");
+    test_read_reg(&ctx, DRV2665_REG_CTRL2, "CTRL2 readback");
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS post");
+
+    test_i2c_cleanup(&ctx);
+    mp_printf(&mp_plat_print, "=== done ===\n");
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_reset_20ms_obj, pz_actuator_test_init_reset_20ms);
 
 // ─── Module globals table ────────────────────────────────────────────────────
 
@@ -321,6 +528,10 @@ static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_is_running),            MP_ROM_PTR(&pz_actuator_is_running_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_sync_trough),       MP_ROM_PTR(&pz_actuator_set_sync_trough_obj) },
     { MP_ROM_QSTR(MP_QSTR_test_i2c),              MP_ROM_PTR(&pz_actuator_test_i2c_obj) },
+    { MP_ROM_QSTR(MP_QSTR_test_init_no_reset),    MP_ROM_PTR(&pz_actuator_test_init_no_reset_obj) },
+    { MP_ROM_QSTR(MP_QSTR_test_init_reset_no_delay), MP_ROM_PTR(&pz_actuator_test_init_reset_no_delay_obj) },
+    { MP_ROM_QSTR(MP_QSTR_test_init_reset_5ms),   MP_ROM_PTR(&pz_actuator_test_init_reset_5ms_obj) },
+    { MP_ROM_QSTR(MP_QSTR_test_init_reset_20ms),  MP_ROM_PTR(&pz_actuator_test_init_reset_20ms_obj) },
 };
 static MP_DEFINE_CONST_DICT(pz_actuator_module_globals, pz_actuator_module_globals_table);
 

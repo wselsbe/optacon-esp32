@@ -59,6 +59,14 @@ esp_err_t drv2665_init(drv2665_t *dev) {
     dev->i2c_dev = i2c_dev;
     dev->gain = DRV2665_GAIN_100V;
 
+    // Reset device to known state
+    err = drv2665_write_register(dev, DRV2665_REG_CTRL2, DRV2665_RESET);
+    mp_printf(&mp_plat_print, "  drv2665: reset: err=%d\n", err);
+    if (err != ESP_OK) {
+        drv2665_deinit(dev);
+        return err;
+    }
+
     // Verify communication by reading status register
     uint8_t status;
     err = drv2665_read_register(dev, DRV2665_REG_STATUS, &status);

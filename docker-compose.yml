@@ -3,10 +3,7 @@ services:
     build: .
     volumes:
       - .:/workspace
-      - build-cache:/opt/micropython/ports/esp32/build-ESP32_GENERIC_S3
+      - ./build-cache:/opt/micropython/ports/esp32/build-ESP32_GENERIC_S3
     stdin_open: true
     tty: true
     command: sleep infinity
-
-volumes:
-  build-cache:
