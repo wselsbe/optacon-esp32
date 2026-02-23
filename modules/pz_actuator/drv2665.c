@@ -9,15 +9,34 @@
 static const char *TAG = "drv2665";
 
 esp_err_t drv2665_init(drv2665_t *dev) {
-    mp_printf(&mp_plat_print, "  drv2665: init (sda=%d, scl=%d, addr=0x%02x)\n",
-              DRV2665_I2C_SDA_PIN, DRV2665_I2C_SCL_PIN, DRV2665_I2C_ADDR);
+    // Create I2C master bus
+    i2c_master_bus_config_t bus_cfg = {
+        .i2c_port = -1,  // auto-select
+        .sda_io_num = DRV2665_I2C_SDA_PIN,
+        .scl_io_num = DRV2665_I2C_SCL_PIN,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
+        .glitch_ignore_cnt = 7,
+        .flags.enable_internal_pullup = true,
+    };
+    esp_err_t err = i2c_new_master_bus(&bus_cfg, &dev->bus);
+    if (err != ESP_OK) return err;
 
-    soft_i2c_init(&dev->i2c, DRV2665_I2C_SDA_PIN, DRV2665_I2C_SCL_PIN, DRV2665_I2C_CLK_HZ);
+    // Add DRV2665 device
+    i2c_device_config_t dev_cfg = {
+        .dev_addr_length = I2C_ADDR_BIT_LEN_7,
+        .device_address = DRV2665_I2C_ADDR,
+        .scl_speed_hz = DRV2665_I2C_CLK_HZ,
+    };
+    err = i2c_master_bus_add_device(dev->bus, &dev_cfg, &dev->dev);
+    if (err != ESP_OK) {
+        i2c_del_master_bus(dev->bus);
+        return err;
+    }
+
     dev->gain = DRV2665_GAIN_100V;
 
     // Reset device to known state
-    esp_err_t err = drv2665_write_register(dev, DRV2665_REG_CTRL2, DRV2665_RESET);
-    mp_printf(&mp_plat_print, "  drv2665: reset: err=%d\n", err);
+    err = drv2665_write_register(dev, DRV2665_REG_CTRL2, DRV2665_RESET);
     if (err != ESP_OK) {
         drv2665_deinit(dev);
         return err;
@@ -30,30 +49,33 @@ esp_err_t drv2665_init(drv2665_t *dev) {
     // Verify communication by reading status register
     uint8_t status;
     err = drv2665_read_register(dev, DRV2665_REG_STATUS, &status);
-    mp_printf(&mp_plat_print, "  drv2665: read status: err=%d val=0x%02x\n", err, status);
     if (err != ESP_OK) {
         drv2665_deinit(dev);
         return err;
     }
 
-    mp_printf(&mp_plat_print, "  drv2665: init complete\n");
     return ESP_OK;
 }
 
 esp_err_t drv2665_deinit(drv2665_t *dev) {
-    soft_i2c_deinit(&dev->i2c);
+    if (dev->dev) {
+        i2c_master_bus_rm_device(dev->dev);
+        dev->dev = NULL;
+    }
+    if (dev->bus) {
+        i2c_del_master_bus(dev->bus);
+        dev->bus = NULL;
+    }
     return ESP_OK;
 }
 
 esp_err_t drv2665_write_register(drv2665_t *dev, uint8_t reg, uint8_t value) {
     uint8_t buf[2] = {reg, value};
-    int ret = soft_i2c_write(&dev->i2c, DRV2665_I2C_ADDR, buf, 2);
-    return (ret == 2) ? ESP_OK : ESP_FAIL;
+    return i2c_master_transmit(dev->dev, buf, 2, 100);
 }
 
 esp_err_t drv2665_read_register(drv2665_t *dev, uint8_t reg, uint8_t *value) {
-    int ret = soft_i2c_write_read(&dev->i2c, DRV2665_I2C_ADDR, &reg, 1, value, 1);
-    return (ret == 0) ? ESP_OK : ESP_FAIL;
+    return i2c_master_transmit_receive(dev->dev, &reg, 1, value, 1, 100);
 }
 
 esp_err_t drv2665_enable_digital(drv2665_t *dev, uint8_t gain) {
@@ -72,12 +94,6 @@ esp_err_t drv2665_enable_digital(drv2665_t *dev, uint8_t gain) {
                                   DRV2665_INPUT_DIGITAL | dev->gain);
     if (err != ESP_OK) return err;
 
-    // Read back to verify
-    uint8_t ctrl1_rb;
-    drv2665_read_register(dev, DRV2665_REG_CTRL1, &ctrl1_rb);
-    mp_printf(&mp_plat_print, "  drv2665: CTRL1 readback=0x%02x (expected 0x%02x)\n",
-              ctrl1_rb, DRV2665_INPUT_DIGITAL | dev->gain);
-
     return ESP_OK;
 }
 
@@ -87,7 +103,6 @@ esp_err_t drv2665_standby(drv2665_t *dev) {
 
 int drv2665_write_fifo(drv2665_t *dev, const int8_t *data, size_t len) {
     // Build I2C message: register address byte + data bytes
-    // Use stack buffer (max 101 bytes) to avoid malloc from task context.
     if (len > DRV2665_FIFO_SIZE) len = DRV2665_FIFO_SIZE;
     uint8_t buf[DRV2665_FIFO_SIZE + 1];
     size_t buf_len = 1 + len;
@@ -95,11 +110,13 @@ int drv2665_write_fifo(drv2665_t *dev, const int8_t *data, size_t len) {
     buf[0] = DRV2665_REG_DATA;
     memcpy(&buf[1], data, len);
 
-    int written = soft_i2c_write(&dev->i2c, DRV2665_I2C_ADDR, buf, buf_len);
+    esp_err_t err = i2c_master_transmit(dev->dev, buf, buf_len, 100);
 
-    if (written < 0) return 0;       // address NACK or timeout
-    if (written <= 1) return 0;       // only register addr byte ACKed, no data
-    return written - 1;               // subtract the register address byte
+    if (err != ESP_OK) return 0;
+    // Native I2C doesn't tell us partial write count on NACK.
+    // We assume all bytes accepted if no error. Use status register
+    // to check FIFO_FULL after the write.
+    return (int)len;
 }
 
 esp_err_t drv2665_read_status(drv2665_t *dev, uint8_t *status) {

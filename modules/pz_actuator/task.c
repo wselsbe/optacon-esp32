@@ -1,39 +1,19 @@
 #include "task.h"
 #include "esp_timer.h"
-#include "esp_log.h"
 #include "freertos/idf_additions.h"
 #include "py/mpprint.h"
 #include <string.h>
 
-static const char *TAG = "pz_task";
-
 #define FIFO_FILL_CHUNK 100  // try to fill entire FIFO each iteration
-#define DEBUG_EVERY 500      // print debug every N iterations
 
 static void pz_background_task(void *arg) {
     pz_task_state_t *state = (pz_task_state_t *)arg;
     int8_t fill_buf[FIFO_FILL_CHUNK];
-    uint32_t iter = 0;
-
-    mp_printf(&mp_plat_print, "pz_task: started (core=%d, waveform_len=%d, freq=%dHz)\n",
-              xPortGetCoreID(),
-              (int)state->waveform_len,
-              (int)(8000 / state->waveform_len));
 
     // Re-enable digital mode (stop() puts device in standby)
-    esp_err_t en_err = drv2665_enable_digital(&state->drv, state->drv.gain);
-
-    // Read back registers to verify
-    uint8_t post_status, post_ctrl1, post_ctrl2;
-    drv2665_read_register(&state->drv, DRV2665_REG_STATUS, &post_status);
-    drv2665_read_register(&state->drv, DRV2665_REG_CTRL1, &post_ctrl1);
-    drv2665_read_register(&state->drv, DRV2665_REG_CTRL2, &post_ctrl2);
-    mp_printf(&mp_plat_print, "pz_task: enable err=%d STATUS=0x%02x CTRL1=0x%02x CTRL2=0x%02x\n",
-              en_err, post_status, post_ctrl1, post_ctrl2);
+    drv2665_enable_digital(&state->drv, state->drv.gain);
 
     while (state->running) {
-        bool debug = (iter % DEBUG_EVERY == 0);
-
         // ── Step 1: FILL ─────────────────────────────────────────────
         // Record write_index before fill (needed for trough calculation)
         size_t write_index_before = state->write_index;
@@ -55,27 +35,10 @@ static void pz_background_task(void *arg) {
             state->write_index = (write_index_before + bytes_written) % state->waveform_len;
         }
 
-        if (debug) {
-            mp_printf(&mp_plat_print, "pz_task[%d]: fifo_write=%d/%d write_idx=%d\n",
-                      (int)iter, bytes_written, FIFO_FILL_CHUNK,
-                      (int)state->write_index);
-        }
-
         // ── Step 2: VERIFY ───────────────────────────────────────────
+        // Read status to detect underrun (FIFO empty after we just wrote)
         uint8_t status;
-        esp_err_t err = drv2665_read_status(&state->drv, &status);
-        if (err == ESP_OK) {
-            if (debug) {
-                mp_printf(&mp_plat_print, "pz_task[%d]: status=0x%02x FIFO_FULL=%d FIFO_EMPTY=%d\n",
-                          (int)iter, status,
-                          (status & DRV2665_FIFO_FULL) ? 1 : 0,
-                          (status & DRV2665_FIFO_EMPTY) ? 1 : 0);
-            }
-            // Underrun detection: FIFO empty after we just wrote data
-            if ((status & DRV2665_FIFO_EMPTY) && bytes_written > 0) {
-                mp_printf(&mp_plat_print, "pz_task[%d]: WARNING FIFO underrun\n", (int)iter);
-            }
-        }
+        drv2665_read_status(&state->drv, &status);
 
         // ── Step 3: TROUGH ───────────────────────────────────────────
         if ((state->sr.pending_commit || state->sr.pending_polarity) && state->sync_trough) {
@@ -127,11 +90,8 @@ static void pz_background_task(void *arg) {
             TickType_t ticks = pdMS_TO_TICKS(sleep_us / 1000);
             vTaskDelay(ticks > 0 ? ticks : 1);
         }
-
-        iter++;
     }
 
-    mp_printf(&mp_plat_print, "pz_task: stopping, entering standby\n");
     drv2665_standby(&state->drv);
     state->task_handle = NULL;
     vTaskDelete(NULL);
@@ -145,9 +105,6 @@ esp_err_t pz_task_start(pz_task_state_t *state) {
     state->running = true;
     state->write_index = 0;  // reset playback position
 
-    mp_printf(&mp_plat_print, "pz_task: creating task (priority=%d)\n", configMAX_PRIORITIES - 2);
-
-    // Pin to core 0 (same as MicroPython) — soft I2C GPIO may not work from core 1
     BaseType_t ret = xTaskCreatePinnedToCore(
         pz_background_task,
         "pz_task",
@@ -160,11 +117,9 @@ esp_err_t pz_task_start(pz_task_state_t *state) {
 
     if (ret != pdPASS) {
         state->running = false;
-        mp_printf(&mp_plat_print, "pz_task: xTaskCreate FAILED\n");
         return ESP_FAIL;
     }
 
-    mp_printf(&mp_plat_print, "pz_task: task created OK\n");
     return ESP_OK;
 }
 
@@ -173,7 +128,6 @@ esp_err_t pz_task_stop(pz_task_state_t *state) {
         return ESP_OK;
     }
 
-    mp_printf(&mp_plat_print, "pz_task: requesting stop...\n");
     state->running = false;
 
     // Wait for task to exit
@@ -181,6 +135,5 @@ esp_err_t pz_task_stop(pz_task_state_t *state) {
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
-    mp_printf(&mp_plat_print, "pz_task: stopped\n");
     return ESP_OK;
 }
