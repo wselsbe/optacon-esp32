@@ -1,6 +1,7 @@
 #include "task.h"
 #include "esp_timer.h"
 #include "esp_log.h"
+#include "freertos/idf_additions.h"
 #include "py/mpprint.h"
 #include <string.h>
 
@@ -14,9 +15,21 @@ static void pz_background_task(void *arg) {
     int8_t fill_buf[FIFO_FILL_CHUNK];
     uint32_t iter = 0;
 
-    mp_printf(&mp_plat_print, "pz_task: started (waveform_len=%d, freq=%dHz)\n",
+    mp_printf(&mp_plat_print, "pz_task: started (core=%d, waveform_len=%d, freq=%dHz)\n",
+              xPortGetCoreID(),
               (int)state->waveform_len,
               (int)(8000 / state->waveform_len));
+
+    // Re-enable digital mode (stop() puts device in standby)
+    esp_err_t en_err = drv2665_enable_digital(&state->drv, state->drv.gain);
+
+    // Read back registers to verify
+    uint8_t post_status, post_ctrl1, post_ctrl2;
+    drv2665_read_register(&state->drv, DRV2665_REG_STATUS, &post_status);
+    drv2665_read_register(&state->drv, DRV2665_REG_CTRL1, &post_ctrl1);
+    drv2665_read_register(&state->drv, DRV2665_REG_CTRL2, &post_ctrl2);
+    mp_printf(&mp_plat_print, "pz_task: enable err=%d STATUS=0x%02x CTRL1=0x%02x CTRL2=0x%02x\n",
+              en_err, post_status, post_ctrl1, post_ctrl2);
 
     while (state->running) {
         bool debug = (iter % DEBUG_EVERY == 0);
@@ -134,13 +147,15 @@ esp_err_t pz_task_start(pz_task_state_t *state) {
 
     mp_printf(&mp_plat_print, "pz_task: creating task (priority=%d)\n", configMAX_PRIORITIES - 2);
 
-    BaseType_t ret = xTaskCreate(
+    // Pin to core 0 (same as MicroPython) — soft I2C GPIO may not work from core 1
+    BaseType_t ret = xTaskCreatePinnedToCore(
         pz_background_task,
         "pz_task",
         8192,
         state,
         configMAX_PRIORITIES - 2,
-        &state->task_handle
+        &state->task_handle,
+        0  // core 0
     );
 
     if (ret != pdPASS) {

@@ -4,21 +4,30 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Development Commands
 
-Build firmware (Docker, from Windows):
+### Local build (Windows, requires make + gcc + ESP-IDF):
+```bash
+# One-time setup: source ESP-IDF environment
+source ~/esp/v5.5.1/export.sh  # Git Bash
+# or: %USERPROFILE%\esp\v5.5.1\export.bat  # CMD
+
+export MICROPYTHON_DIR=C:/Projects/Optacon/micropython
+./scripts/build.sh
+```
+
+### Docker build (no local toolchain needed):
 ```bash
 build.cmd
 # or manually:
 MSYS_NO_PATHCONV=1 docker compose run --rm dev bash /workspace/scripts/build.sh
 ```
 
-Flash to ESP32-S3 (from Windows, default COM7):
+### Flash to ESP32-S3 (from Windows, default COM7):
 ```bash
 flash.cmd [COM_PORT]
-# or manually:
-python -m esptool --chip esp32s3 -p COM7 -b 460800 --before default_reset --after hard_reset write_flash --flash_mode dio --flash_size 4MB --flash_freq 80m 0x0 build/bootloader.bin 0x8000 build/partition-table.bin 0x10000 build/micropython.bin
+# or: ./scripts/flash.sh COM7
 ```
 
-Connect to REPL:
+### Connect to REPL:
 ```bash
 mpremote connect COM7
 ```

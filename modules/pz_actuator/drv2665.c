@@ -58,16 +58,26 @@ esp_err_t drv2665_read_register(drv2665_t *dev, uint8_t reg, uint8_t *value) {
 
 esp_err_t drv2665_enable_digital(drv2665_t *dev, uint8_t gain) {
     dev->gain = gain & 0x03;
-    esp_err_t err = drv2665_write_register(dev, DRV2665_REG_CTRL1,
-                                            DRV2665_INPUT_DIGITAL | dev->gain);
+
+    // Exit standby first — device needs time before CTRL1 can be configured
+    esp_err_t err = drv2665_write_register(dev, DRV2665_REG_CTRL2,
+                                            DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS);
     if (err != ESP_OK) return err;
 
-    err = drv2665_write_register(dev, DRV2665_REG_CTRL2,
-                                  DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS);
-    if (err != ESP_OK) return err;
-
-    TickType_t ticks = pdMS_TO_TICKS(2);
+    TickType_t ticks = pdMS_TO_TICKS(5);
     vTaskDelay(ticks > 0 ? ticks : 1);
+
+    // Configure input mode + gain (after device is fully active)
+    err = drv2665_write_register(dev, DRV2665_REG_CTRL1,
+                                  DRV2665_INPUT_DIGITAL | dev->gain);
+    if (err != ESP_OK) return err;
+
+    // Read back to verify
+    uint8_t ctrl1_rb;
+    drv2665_read_register(dev, DRV2665_REG_CTRL1, &ctrl1_rb);
+    mp_printf(&mp_plat_print, "  drv2665: CTRL1 readback=0x%02x (expected 0x%02x)\n",
+              ctrl1_rb, DRV2665_INPUT_DIGITAL | dev->gain);
+
     return ESP_OK;
 }
 
@@ -77,16 +87,15 @@ esp_err_t drv2665_standby(drv2665_t *dev) {
 
 int drv2665_write_fifo(drv2665_t *dev, const int8_t *data, size_t len) {
     // Build I2C message: register address byte + data bytes
-    // soft_i2c_write returns exact byte count on NACK — no fallback needed.
+    // Use stack buffer (max 101 bytes) to avoid malloc from task context.
+    if (len > DRV2665_FIFO_SIZE) len = DRV2665_FIFO_SIZE;
+    uint8_t buf[DRV2665_FIFO_SIZE + 1];
     size_t buf_len = 1 + len;
-    uint8_t *buf = malloc(buf_len);
-    if (!buf) return -1;
 
     buf[0] = DRV2665_REG_DATA;
     memcpy(&buf[1], data, len);
 
     int written = soft_i2c_write(&dev->i2c, DRV2665_I2C_ADDR, buf, buf_len);
-    free(buf);
 
     if (written < 0) return 0;       // address NACK or timeout
     if (written <= 1) return 0;       // only register addr byte ACKed, no data

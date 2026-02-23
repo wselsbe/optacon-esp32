@@ -1,6 +1,5 @@
 import pz_actuator
 import math
-import time
 
 # Reset DRV2665 to standby on boot — its state persists across ESP32 reboots
 pz_actuator.reset_drv()
@@ -15,6 +14,7 @@ def make_sine(freq_hz, sample_rate=8000):
     return buf
 
 def demo():
+    import time
     pz_actuator.init()
     wave = make_sine(250)
     pz_actuator.set_waveform(wave)
