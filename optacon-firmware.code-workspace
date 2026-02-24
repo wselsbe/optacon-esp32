@@ -1,0 +1,115 @@
+{
+    "folders": [
+        {
+            "path": ".",
+            "name": "optacon-firmware"
+        }
+    ],
+    "settings": {
+        // ── C/C++ IntelliSense ──────────────────────────────────────
+        "C_Cpp.default.compileCommands": "/opt/micropython/ports/esp32/build-ESP32_GENERIC_S3/compile_commands.json",
+        "C_Cpp.default.includePath": [
+            "${workspaceFolder:optacon-firmware}/modules/**",
+            "/opt/micropython/py/**",
+            "/opt/micropython/ports/esp32/**"
+        ],
+        "C_Cpp.default.defines": [
+            "ESP_PLATFORM",
+            "CONFIG_IDF_TARGET_ESP32S3"
+        ],
+        "C_Cpp.default.cStandard": "c11",
+
+        // ── Python ──────────────────────────────────────────────────
+        "python.defaultInterpreterPath": "python3",
+
+        // ── File associations ───────────────────────────────────────
+        "files.associations": {
+            "*.h": "c",
+            "*.c": "c"
+        },
+        "files.exclude": {
+            "build-cache/**": true
+        },
+
+        // ── Makefile Tools ─────────────────────────────────────────
+        "makefile.makefilePath": "${workspaceFolder:optacon-firmware}/Makefile",
+        "makefile.makeDirectory": "${workspaceFolder:optacon-firmware}"
+    },
+    "tasks": {
+        "version": "2.0.0",
+        "tasks": [
+            {
+                "label": "Build Firmware",
+                "detail": "make build",
+                "type": "shell",
+                "command": "make build",
+                "group": {
+                    "kind": "build",
+                    "isDefault": true
+                },
+                "problemMatcher": ["$gcc"],
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "shared",
+                    "clear": true
+                }
+            },
+            {
+                "label": "Flash Firmware",
+                "detail": "esptool → ESP32-S3 (run from host, not container)",
+                "type": "shell",
+                "command": "make flash PORT=${input:comPort}",
+                "problemMatcher": [],
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "shared"
+                }
+            },
+            {
+                "label": "Clean Build",
+                "detail": "make clean && make build",
+                "type": "shell",
+                "command": "make clean && make build",
+                "group": "build",
+                "problemMatcher": ["$gcc"],
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "shared",
+                    "clear": true
+                }
+            },
+            {
+                "label": "Open REPL",
+                "detail": "mpremote serial console (run from host, not container)",
+                "type": "shell",
+                "command": "make repl PORT=${input:comPort}",
+                "problemMatcher": [],
+                "isBackground": true,
+                "presentation": {
+                    "reveal": "always",
+                    "panel": "dedicated",
+                    "focus": true
+                }
+            }
+        ]
+    },
+    "inputs": [
+        {
+            "id": "comPort",
+            "type": "promptString",
+            "description": "Serial port for ESP32-S3",
+            "default": "COM7"
+        }
+    ],
+    "launch": {
+        "version": "0.2.0",
+        "configurations": []
+    },
+    "extensions": {
+        "recommendations": [
+            "ms-vscode.cpptools",
+            "ms-python.python",
+            "ms-vscode.makefile-tools"
+        ]
+    }
+}

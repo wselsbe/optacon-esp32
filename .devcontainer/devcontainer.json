@@ -3,12 +3,28 @@
   "dockerComposeFile": "../docker-compose.yml",
   "service": "dev",
   "workspaceFolder": "/workspace",
-  "postCreateCommand": "git config --global core.autocrlf false && git config --local core.autocrlf true && echo '. /opt/esp/idf/export.sh >/dev/null 2>&1' >> ~/.bashrc && curl -fsSL https://claude.ai/install.sh | bash",
+  "postCreateCommand": "git config --global core.autocrlf false && git config --local core.autocrlf true",
   "customizations": {
     "vscode": {
+      "settings": {
+        "makefile.makefilePath": "/workspace/Makefile",
+        "makefile.makeDirectory": "/workspace",
+        "C_Cpp.default.compileCommands": "/opt/micropython/ports/esp32/build-ESP32_GENERIC_S3/compile_commands.json",
+        "C_Cpp.default.includePath": [
+          "/workspace/modules/**",
+          "/opt/micropython/py/**",
+          "/opt/micropython/ports/esp32/**"
+        ],
+        "C_Cpp.default.defines": [
+          "ESP_PLATFORM",
+          "CONFIG_IDF_TARGET_ESP32S3"
+        ],
+        "C_Cpp.default.cStandard": "c11"
+      },
       "extensions": [
         "ms-vscode.cpptools",
-        "ms-python.python"
+        "ms-python.python",
+        "ms-vscode.makefile-tools"
       ]
     }
   }
