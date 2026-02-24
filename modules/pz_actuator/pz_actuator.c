@@ -502,7 +502,58 @@ static mp_obj_t pz_actuator_test_init_reset_20ms(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_reset_20ms_obj, pz_actuator_test_init_reset_20ms);
 
-// ─── 22. enter_bootloader() ───────────────────────────────────────────────────
+// ─── 22. test_fifo_nack() ─────────────────────────────────────────────────────
+// Test: does DRV2665 NACK when FIFO is full?
+
+static mp_obj_t pz_actuator_test_fifo_nack(void) {
+    mp_printf(&mp_plat_print, "=== test_fifo_nack ===\n");
+
+    test_i2c_ctx_t ctx = {0};
+    if (test_i2c_setup(&ctx) != ESP_OK) {
+        mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("I2C setup failed"));
+    }
+
+    // Reset
+    test_write_reg(&ctx, DRV2665_REG_CTRL2, DRV2665_RESET, "reset");
+    test_delay_ms(5);
+
+    // Enable digital mode
+    test_write_reg(&ctx, DRV2665_REG_CTRL2,
+                   DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS, "enable");
+    test_delay_ms(5);
+    test_write_reg(&ctx, DRV2665_REG_CTRL1,
+                   DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V, "digital+gain");
+
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS before fill");
+
+    // Fill FIFO with 100 bytes (bulk write)
+    uint8_t buf[101];
+    buf[0] = DRV2665_REG_DATA;
+    for (int i = 1; i <= 100; i++) buf[i] = 0x40;
+    esp_err_t err = i2c_master_transmit(ctx.dev, buf, 101, 100);
+    mp_printf(&mp_plat_print, "  bulk 100 bytes: err=%d\n", err);
+
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS after 100");
+
+    // Now try writing single bytes past FIFO capacity
+    for (int i = 0; i < 5; i++) {
+        uint8_t single[2] = {DRV2665_REG_DATA, 0x40};
+        err = i2c_master_transmit(ctx.dev, single, 2, 100);
+        mp_printf(&mp_plat_print, "  byte %d past full: err=%d (0x%03x)\n", i + 1, err, err);
+    }
+
+    test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS final");
+
+    // Standby
+    test_write_reg(&ctx, DRV2665_REG_CTRL2, DRV2665_STANDBY, "standby");
+
+    test_i2c_cleanup(&ctx);
+    mp_printf(&mp_plat_print, "=== done ===\n");
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_fifo_nack_obj, pz_actuator_test_fifo_nack);
+
+// ─── 23. enter_bootloader() ───────────────────────────────────────────────────
 
 static mp_obj_t pz_actuator_enter_bootloader(void) {
     mp_printf(&mp_plat_print, "Entering bootloader...\n");
@@ -547,6 +598,7 @@ static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_test_init_reset_no_delay), MP_ROM_PTR(&pz_actuator_test_init_reset_no_delay_obj) },
     { MP_ROM_QSTR(MP_QSTR_test_init_reset_5ms),   MP_ROM_PTR(&pz_actuator_test_init_reset_5ms_obj) },
     { MP_ROM_QSTR(MP_QSTR_test_init_reset_20ms),  MP_ROM_PTR(&pz_actuator_test_init_reset_20ms_obj) },
+    { MP_ROM_QSTR(MP_QSTR_test_fifo_nack),       MP_ROM_PTR(&pz_actuator_test_fifo_nack_obj) },
     { MP_ROM_QSTR(MP_QSTR_enter_bootloader),     MP_ROM_PTR(&pz_actuator_enter_bootloader_obj) },
 };
 static MP_DEFINE_CONST_DICT(pz_actuator_module_globals, pz_actuator_module_globals_table);

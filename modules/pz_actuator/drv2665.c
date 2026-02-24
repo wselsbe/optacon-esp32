@@ -119,6 +119,11 @@ int drv2665_write_fifo(drv2665_t *dev, const int8_t *data, size_t len) {
     return (int)len;
 }
 
+esp_err_t drv2665_write_fifo_byte(drv2665_t *dev, int8_t sample) {
+    uint8_t buf[2] = {DRV2665_REG_DATA, (uint8_t)sample};
+    return i2c_master_transmit(dev->dev, buf, 2, 100);
+}
+
 esp_err_t drv2665_read_status(drv2665_t *dev, uint8_t *status) {
     return drv2665_read_register(dev, DRV2665_REG_STATUS, status);
 }
