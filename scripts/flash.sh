@@ -22,12 +22,12 @@ fi
 python -m esptool --chip esp32s3 \
     -p "${PORT}" \
     -b 460800 \
-    --before default_reset \
-    --after hard_reset \
-    write_flash \
-    --flash_mode dio \
-    --flash_size 4MB \
-    --flash_freq 80m \
+    --before default-reset \
+    --after watchdog-reset \
+    write-flash \
+    --flash-mode dio \
+    --flash-size 4MB \
+    --flash-freq 80m \
     0x0     "${BUILD_DIR}/bootloader.bin" \
     0x8000  "${BUILD_DIR}/partition-table.bin" \
     0x10000 "${BUILD_DIR}/micropython.bin"

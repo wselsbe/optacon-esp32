@@ -104,32 +104,24 @@ void shift_register_request_polarity_toggle(shift_register_t *sr) {
 }
 
 esp_err_t shift_register_commit(shift_register_t *sr) {
-    if (!sr->pending_commit && !sr->pending_polarity) {
-        return ESP_OK;
-    }
+    sr->active_state = sr->pending_state & ~SHIFTREG_COMMON_MASK;
 
-    if (sr->pending_commit) {
-        sr->active_state = sr->pending_state & ~SHIFTREG_COMMON_MASK;
-        mp_printf(&mp_plat_print, "SR commit: 0x%08x\n", sr->active_state);
+    // Convert uint32_t to big-endian bytes for SPI (MSB first)
+    uint8_t tx_buf[SHIFTREG_DATA_BYTES] = {
+        (sr->active_state >> 24) & 0xFF,
+        (sr->active_state >> 16) & 0xFF,
+        (sr->active_state >> 8) & 0xFF,
+        sr->active_state & 0xFF,
+    };
 
-        // Convert uint32_t to big-endian bytes for SPI (MSB first)
-        uint8_t tx_buf[SHIFTREG_DATA_BYTES] = {
-            (sr->active_state >> 24) & 0xFF,
-            (sr->active_state >> 16) & 0xFF,
-            (sr->active_state >> 8) & 0xFF,
-            sr->active_state & 0xFF,
-        };
-
-        spi_transaction_t trans = {
-            .length = SHIFTREG_DATA_BYTES * 8,
-            .tx_buffer = tx_buf,
-        };
-        esp_err_t err = spi_device_polling_transmit(sr->spi_dev, &trans);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "SPI transmit failed: %s", esp_err_to_name(err));
-            return err;
-        }
-        sr->pending_commit = false;
+    spi_transaction_t trans = {
+        .length = SHIFTREG_DATA_BYTES * 8,
+        .tx_buffer = tx_buf,
+    };
+    esp_err_t err = spi_device_polling_transmit(sr->spi_dev, &trans);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "SPI transmit failed: %s", esp_err_to_name(err));
+        return err;
     }
 
     if (sr->pending_polarity) {

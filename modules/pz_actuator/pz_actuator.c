@@ -126,7 +126,7 @@ static mp_obj_t pz_actuator_set_pin(size_t n_args, const mp_obj_t *pos_args, mp_
 
     shift_register_set_pin(&g_state.sr, pin, value);
     if (flush) {
-        shift_register_request_commit(&g_state.sr);
+        shift_register_commit(&g_state.sr);
     }
     return mp_const_none;
 }
@@ -173,7 +173,7 @@ static mp_obj_t pz_actuator_set_pins(size_t n_args, const mp_obj_t *pos_args, mp
     shift_register_set_pins(&g_state.sr, values);
 
     if (flush) {
-        shift_register_request_commit(&g_state.sr);
+        shift_register_commit(&g_state.sr);
     }
     return mp_const_none;
 }
@@ -203,7 +203,7 @@ static mp_obj_t pz_actuator_set_all(size_t n_args, const mp_obj_t *pos_args, mp_
 
     shift_register_set_all(&g_state.sr, args[ARG_value].u_bool);
     if (args[ARG_flush].u_bool) {
-        shift_register_request_commit(&g_state.sr);
+        shift_register_commit(&g_state.sr);
     }
     return mp_const_none;
 }
@@ -212,7 +212,7 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(pz_actuator_set_all_obj, 1, pz_actuator_set_al
 // ─── 11. flush() ─────────────────────────────────────────────────────────────
 
 static mp_obj_t pz_actuator_flush(void) {
-    shift_register_request_commit(&g_state.sr);
+    shift_register_commit(&g_state.sr);
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_flush_obj, pz_actuator_flush);

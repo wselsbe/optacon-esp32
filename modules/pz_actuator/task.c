@@ -112,35 +112,7 @@ static void pz_background_task(void *arg) {
         sync_time = esp_timer_get_time();
         fifo_level = DRV2665_FIFO_SIZE;
 
-        // Playback head position in waveform:
-        size_t playback_pos;
-        if (state->write_index >= DRV2665_FIFO_SIZE)
-            playback_pos = state->write_index - DRV2665_FIFO_SIZE;
-        else
-            playback_pos = state->waveform_len - (DRV2665_FIFO_SIZE - state->write_index);
-
-        // ── TROUGH TIMING ──────────────────────────────────────
-        if ((state->sr.pending_commit || state->sr.pending_polarity) && state->sync_trough) {
-            size_t samples_to_trough = (state->waveform_len - playback_pos) % state->waveform_len;
-            int64_t wait_us = (int64_t)samples_to_trough * SAMPLE_PERIOD_US;
-            int64_t max_wait_us = ((int64_t)DRV2665_FIFO_SIZE * SAMPLE_PERIOD_US) / 2;
-
-            if (samples_to_trough == 0) {
-                shift_register_commit(&state->sr);
-            } else if (wait_us <= max_wait_us) {
-                int64_t target_time = sync_time + wait_us;
-                if (wait_us > 2000) {
-                    TickType_t t = pdMS_TO_TICKS((wait_us / 1000) - 1);
-                    if (t > 0) vTaskDelay(t);
-                }
-                while (esp_timer_get_time() < target_time) {
-                    // spin
-                }
-                shift_register_commit(&state->sr);
-            }
-        } else if (state->sr.pending_commit || state->sr.pending_polarity) {
-            shift_register_commit(&state->sr);
-        }
+        // Shift register commits are handled directly by set_pin/flush calls
     }
 
     drv2665_standby(&state->drv);
