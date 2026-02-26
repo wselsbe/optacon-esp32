@@ -45,9 +45,13 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
 
 ### MicroPython API (`pz_actuator` module)
 
-- `init()` — Initialize DRV2665 + HV509 hardware
-- `start()` / `stop()` — Start/stop background waveform task
-- `set_frequency(hz)` / `get_frequency()` — Waveform frequency (50–4000 Hz, default 250)
+- `init()` — Initialize DRV2665 + HV509 + PWM hardware
+- `stop()` — Stop all output (digital FIFO task + analog PWM)
+- `set_frequency_analog(hz)` — Analog sine wave via PWM + RC filter (50–400 Hz), 0 = DC fully on
+- `set_frequency_digital(hz)` — Digital sine wave via I2C FIFO (50–4000 Hz)
+- `set_pwm_resolution(bits)` — PWM resolution: 8 (312.5 kHz) or 10 (78.1 kHz)
+- `set_waveform(buf)` — Custom waveform for digital path (advanced)
+- `start()` — Start digital FIFO task (requires prior `set_waveform()`)
 - `set_pin(pin, value, flush=True)` / `get_pin(pin)` — Single actuator channel (0–19)
 - `set_pins(list, flush=True)` / `get_all()` / `set_all(value, flush=True)` — Bulk pin control
 - `flush()` — Commit pending shift register changes
@@ -66,10 +70,11 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
 | SPI SCK         | 9    |
 | SPI CS          | 10   |
 | Polarity toggle | 34   |
+| PWM out         | 5    |
 
 ### Key Design Patterns
 
-- **Background task**: FreeRTOS task keeps DRV2665's 100-byte FIFO filled. Frequency changes and polarity toggles are signaled via atomic flags so MicroPython never blocks on hardware I/O.
+- **Dual signal paths**: Analog (PWM + RC filter → DRV2665 IN+) and digital (I2C FIFO → DRV2665 internal DAC). Analog path uses DDS phase accumulator at 32 kHz for sine generation. Digital path uses FreeRTOS background task to keep the 100-byte FIFO filled.
 - **Shift register**: Two HV509 daisy-chained. 32-bit SPI word with pins 0–19 mapped to bits 25–6.
 - **MCP server**: `mcp_micropython.py` uses stateless per-call serial connections via `mpremote` to avoid port locking.
 

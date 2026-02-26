@@ -1,43 +1,58 @@
 import pz_actuator
-import math
 
 # Reset DRV2665 to standby on boot — its state persists across ESP32 reboots
 pz_actuator.reset_drv()
 
-def make_sine(freq_hz, sample_rate=8000):
-    """Generate one period of a sine wave as a bytearray (trough at index 0)."""
-    period = sample_rate // freq_hz
-    buf = bytearray(period)
-    for i in range(period):
-        phase = -math.pi / 2 + (2 * math.pi * i) / period
-        buf[i] = int(math.sin(phase) * 127) & 0xFF
-    return buf
-
-def demo():
+def demo_analog():
+    """Demo: analog sine wave via PWM + RC filter."""
     import time
     pz_actuator.init()
-    wave = make_sine(250)
-    pz_actuator.set_waveform(wave)
     pz_actuator.set_gain(100)
-    pz_actuator.start()
+
+    try:
+        for freq in [50, 100, 200, 250, 300, 400]:
+            print(f"Analog: {freq}Hz")
+            pz_actuator.set_frequency_analog(freq)
+            pz_actuator.set_all(True)
+            time.sleep(2)
+
+        print("Analog: DC")
+        pz_actuator.set_frequency_analog(0)
+        time.sleep(2)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        pz_actuator.stop()
+
+def demo_digital():
+    """Demo: digital sine wave via I2C FIFO."""
+    import time
+    pz_actuator.init()
+    pz_actuator.set_gain(100)
+
+    try:
+        for freq in [50, 100, 200, 250, 300]:
+            print(f"Digital: {freq}Hz")
+            pz_actuator.set_frequency_digital(freq)
+            pz_actuator.set_all(True)
+            time.sleep(2)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        pz_actuator.stop()
+
+def demo():
+    """Demo: cycle through pins with analog output."""
+    import time
+    pz_actuator.init()
+    pz_actuator.set_gain(100)
+    pz_actuator.set_frequency_analog(250)
 
     try:
         while True:
-            # Phase 1: cycle through each pin individually
             for i in range(20):
                 pz_actuator.set_all(False)
                 pz_actuator.set_pin(i, True)
-                time.sleep_ms(200)
-
-            # Phase 2: enable one by one (accumulate)
-            pz_actuator.set_all(False)
-            for i in range(20):
-                pz_actuator.set_pin(i, True)
-                time.sleep_ms(200)
-
-            # Phase 3: disable one by one
-            for i in range(20):
-                pz_actuator.set_pin(i, False)
                 time.sleep_ms(200)
     except KeyboardInterrupt:
         pass
