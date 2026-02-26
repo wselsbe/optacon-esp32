@@ -7,17 +7,19 @@ def demo_analog():
     """Demo: analog sine wave via PWM + RC filter."""
     import time
     pz_actuator.init()
-    pz_actuator.set_gain(100)
 
     try:
         for freq in [50, 100, 200, 250, 300, 400]:
             print(f"Analog: {freq}Hz")
             pz_actuator.set_frequency_analog(freq)
             pz_actuator.set_all(True)
+            pz_actuator.start()
             time.sleep(2)
+            pz_actuator.stop()
 
         print("Analog: DC")
         pz_actuator.set_frequency_analog(0)
+        pz_actuator.start()
         time.sleep(2)
     except KeyboardInterrupt:
         pass
@@ -28,14 +30,15 @@ def demo_digital():
     """Demo: digital sine wave via I2C FIFO."""
     import time
     pz_actuator.init()
-    pz_actuator.set_gain(100)
 
     try:
         for freq in [50, 100, 200, 250, 300]:
             print(f"Digital: {freq}Hz")
             pz_actuator.set_frequency_digital(freq)
             pz_actuator.set_all(True)
+            pz_actuator.start()
             time.sleep(2)
+            pz_actuator.stop()
     except KeyboardInterrupt:
         pass
     finally:
@@ -45,8 +48,8 @@ def demo():
     """Demo: cycle through pins with analog output."""
     import time
     pz_actuator.init()
-    pz_actuator.set_gain(100)
     pz_actuator.set_frequency_analog(250)
+    pz_actuator.start()
 
     try:
         while True:

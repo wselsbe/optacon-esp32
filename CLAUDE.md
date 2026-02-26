@@ -46,18 +46,15 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
 ### MicroPython API (`pz_actuator` module)
 
 - `init()` — Initialize DRV2665 + HV509 + PWM hardware
-- `stop()` — Stop all output (digital FIFO task + analog PWM)
-- `set_frequency_analog(hz)` — Analog sine wave via PWM + RC filter (50–400 Hz), 0 = DC fully on
-- `set_frequency_digital(hz)` — Digital sine wave via I2C FIFO (50–4000 Hz)
-- `set_pwm_resolution(bits)` — PWM resolution: 8 (312.5 kHz) or 10 (78.1 kHz)
-- `set_waveform(buf)` — Custom waveform for digital path (advanced)
-- `start()` — Start digital FIFO task (requires prior `set_waveform()`)
+- `set_frequency_analog(hz, resolution=8)` — Configure analog sine mode (50–400 Hz, 0 = DC); resolution 8 or 10 bits
+- `set_frequency_digital(hz)` — Configure digital sine mode via I2C FIFO (50–4000 Hz)
+- `start(gain=100)` — Start output in configured mode; gain: 25/50/75/100 Vpp
+- `stop()` — Stop output, DRV2665 to standby. Mode stays set for restart.
+- `is_running()` — True if digital FIFO task or analog PWM is active
 - `set_pin(pin, value, flush=True)` / `get_pin(pin)` — Single actuator channel (0–19)
 - `set_pins(list, flush=True)` / `get_all()` / `set_all(value, flush=True)` — Bulk pin control
 - `flush()` — Commit pending shift register changes
 - `toggle_polarity()` / `get_polarity()` — HV509 polarity control
-- `set_gain(gain)` — DRV2665 gain (25/50/75/100 Vpp)
-- `is_running()` — Check if background task is active
 
 ### Hardware Pins
 

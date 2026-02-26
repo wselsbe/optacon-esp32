@@ -19,6 +19,10 @@ extern void usb_usj_mode(void);
 static pz_task_state_t g_state = {0};
 static bool g_initialized = false;
 
+typedef enum { DRV_MODE_NONE, DRV_MODE_ANALOG, DRV_MODE_DIGITAL } drv_mode_t;
+static drv_mode_t g_mode = DRV_MODE_NONE;
+static uint16_t g_freq_hz = 0;
+
 // ─── 1. init() ───────────────────────────────────────────────────────────────
 
 static mp_obj_t pz_actuator_init(void) {
@@ -34,7 +38,8 @@ static mp_obj_t pz_actuator_init(void) {
     mp_printf(&mp_plat_print, "pz_actuator: initializing shift register (SPI)...\n");
     err = shift_register_init(&g_state.sr);
     if (err != ESP_OK) {
-        mp_printf(&mp_plat_print, "pz_actuator: shift register init failed: %d (0x%03x)\n", err, err);
+        mp_printf(&mp_plat_print, "pz_actuator: shift register init failed: %d (0x%03x)\n", err,
+                  err);
         drv2665_deinit(&g_state.drv);
         mp_raise_OSError(err);
     }
@@ -48,73 +53,73 @@ static mp_obj_t pz_actuator_init(void) {
         mp_raise_OSError(err);
     }
 
-    mp_printf(&mp_plat_print, "pz_actuator: enabling digital mode...\n");
-    err = drv2665_enable_digital(&g_state.drv, DRV2665_GAIN_100V);  // default 100Vpp
-    if (err != ESP_OK) {
-        mp_printf(&mp_plat_print, "pz_actuator: enable digital failed: %d (0x%03x)\n", err, err);
-        shift_register_deinit(&g_state.sr);
-        drv2665_deinit(&g_state.drv);
-        mp_raise_OSError(err);
-    }
-
     mp_printf(&mp_plat_print, "pz_actuator: initialized successfully\n");
     g_initialized = true;
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_init_obj, pz_actuator_init);
 
-// ─── 2. start() ──────────────────────────────────────────────────────────────
+// ─── 2. start(gain=100) ──────────────────────────────────────────────────────
 
-static mp_obj_t pz_actuator_start(void) {
+static mp_obj_t pz_actuator_start(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+    enum { ARG_gain };
+    static const mp_arg_t allowed_args[] = {
+        {MP_QSTR_gain, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 100}},
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
     if (!g_initialized) mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("not initialized"));
-    if (g_state.waveform_buf == NULL) mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("call set_waveform() first"));
-    esp_err_t err = pz_task_start(&g_state);
-    if (err != ESP_OK) mp_raise_OSError(err);
+    if (g_mode == DRV_MODE_NONE)
+        mp_raise_msg(&mp_type_RuntimeError,
+                     MP_ERROR_TEXT("call set_frequency_analog() or set_frequency_digital() first"));
+
+    // Resolve gain
+    uint8_t gain_val;
+    switch (args[ARG_gain].u_int) {
+    case 25:
+        gain_val = DRV2665_GAIN_25V;
+        break;
+    case 50:
+        gain_val = DRV2665_GAIN_50V;
+        break;
+    case 75:
+        gain_val = DRV2665_GAIN_75V;
+        break;
+    case 100:
+        gain_val = DRV2665_GAIN_100V;
+        break;
+    default:
+        mp_raise_ValueError(MP_ERROR_TEXT("gain must be 25, 50, 75, or 100"));
+    }
+    g_state.drv.gain = gain_val;
+
+    esp_err_t err;
+    if (g_mode == DRV_MODE_ANALOG) {
+        err = drv2665_enable_analog(&g_state.drv, gain_val);
+        if (err != ESP_OK) mp_raise_OSError(err);
+        err = pwm_start_sine(g_freq_hz);
+        if (err != ESP_OK) mp_raise_OSError(err);
+    } else {
+        err = drv2665_enable_digital(&g_state.drv, gain_val);
+        if (err != ESP_OK) mp_raise_OSError(err);
+        err = pz_task_start(&g_state);
+        if (err != ESP_OK) mp_raise_OSError(err);
+    }
+
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_start_obj, pz_actuator_start);
+static MP_DEFINE_CONST_FUN_OBJ_KW(pz_actuator_start_obj, 0, pz_actuator_start);
 
 // ─── 3. stop() ───────────────────────────────────────────────────────────────
 
 static mp_obj_t pz_actuator_stop(void) {
-    pz_task_stop(&g_state);
-    pwm_stop();
+    if (g_state.running) pz_task_stop(&g_state);
+    if (pwm_is_running()) pwm_stop();
+    drv2665_standby(&g_state.drv);
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_stop_obj, pz_actuator_stop);
-
-// ─── 4. set_waveform(buf) ────────────────────────────────────────────────────
-
-static mp_obj_t pz_actuator_set_waveform(mp_obj_t buf_obj) {
-    mp_buffer_info_t bufinfo;
-    mp_get_buffer_raise(buf_obj, &bufinfo, MP_BUFFER_READ);
-
-    if (bufinfo.len < 2 || bufinfo.len > 160) {
-        mp_raise_ValueError(MP_ERROR_TEXT("waveform must be 2-160 samples"));
-    }
-
-    // Stop task if running (buffer pointer is about to change)
-    if (g_state.running) {
-        pz_task_stop(&g_state);
-    }
-
-    // Copy waveform data into our own buffer so Python GC can't collect it
-    if (g_state.waveform_buf != NULL) {
-        free(g_state.waveform_buf);
-    }
-    g_state.waveform_buf = (int8_t *)malloc(bufinfo.len);
-    if (g_state.waveform_buf == NULL) {
-        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("failed to allocate waveform buffer"));
-    }
-    memcpy(g_state.waveform_buf, bufinfo.buf, bufinfo.len);
-    g_state.waveform_len = bufinfo.len;
-    g_state.write_index = 0;
-
-    mp_printf(&mp_plat_print, "set_waveform: %d samples (%dHz)\n",
-              (int)bufinfo.len, (int)(8000 / bufinfo.len));
-    return mp_const_none;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_waveform_obj, pz_actuator_set_waveform);
 
 // ─── set_frequency_digital(hz) ───────────────────────────────────────────────
 
@@ -145,89 +150,76 @@ static mp_obj_t pz_actuator_set_frequency_digital(mp_obj_t freq_obj) {
         mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("failed to allocate sine buffer"));
     }
 
-    g_state.internal_sine_len = sine_generate_digital(
-        g_state.internal_sine_buf, max_period, freq_hz, DRV2665_SAMPLE_RATE);
+    g_state.internal_sine_len =
+        sine_generate_digital(g_state.internal_sine_buf, max_period, freq_hz, DRV2665_SAMPLE_RATE);
 
     // Point waveform_buf at the internal buffer
     g_state.waveform_buf = g_state.internal_sine_buf;
     g_state.waveform_len = g_state.internal_sine_len;
     g_state.write_index = 0;
 
-    // Switch to digital mode and start
-    esp_err_t err = drv2665_enable_digital(&g_state.drv, g_state.drv.gain);
-    if (err != ESP_OK) {
-        mp_printf(&mp_plat_print, "set_frequency_digital: enable failed: %d\n", err);
-        mp_raise_OSError(err);
-    }
+    g_mode = DRV_MODE_DIGITAL;
+    g_freq_hz = (uint16_t)freq_hz;
 
-    mp_printf(&mp_plat_print, "set_frequency_digital: %dHz, %d samples/period\n",
-              freq_hz, (int)g_state.waveform_len);
-
-    err = pz_task_start(&g_state);
-    if (err != ESP_OK) mp_raise_OSError(err);
+    mp_printf(&mp_plat_print, "set_frequency_digital: %dHz, %d samples/period\n", freq_hz,
+              (int)g_state.waveform_len);
 
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_frequency_digital_obj, pz_actuator_set_frequency_digital);
+static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_frequency_digital_obj,
+                                 pz_actuator_set_frequency_digital);
 
-// ─── set_frequency_analog(hz) ────────────────────────────────────────────────
+// ─── set_frequency_analog(hz, resolution=8) ─────────────────────────────────
 
-static mp_obj_t pz_actuator_set_frequency_analog(mp_obj_t freq_obj) {
+static mp_obj_t pz_actuator_set_frequency_analog(size_t n_args, const mp_obj_t *pos_args,
+                                                 mp_map_t *kw_args) {
+    enum { ARG_hz, ARG_resolution };
+    static const mp_arg_t allowed_args[] = {
+        {MP_QSTR_hz, MP_ARG_REQUIRED | MP_ARG_INT, {0}},
+        {MP_QSTR_resolution, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 8}},
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
     if (!g_initialized) mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("not initialized"));
 
-    int freq_hz = mp_obj_get_int(freq_obj);
+    int freq_hz = args[ARG_hz].u_int;
+    int resolution = args[ARG_resolution].u_int;
 
-    // Stop digital path if running
-    if (g_state.running) {
-        pz_task_stop(&g_state);
-    }
-
-    // Switch DRV2665 to analog input mode
-    esp_err_t err = drv2665_enable_analog(&g_state.drv, g_state.drv.gain);
-    if (err != ESP_OK) {
-        mp_printf(&mp_plat_print, "set_frequency_analog: DRV2665 analog mode failed: %d\n", err);
-        mp_raise_OSError(err);
-    }
-
-    // Start PWM
-    err = pwm_start_sine((uint16_t)freq_hz);
-    if (err != ESP_OK) {
-        mp_printf(&mp_plat_print, "set_frequency_analog: PWM start failed: %d\n", err);
-        mp_raise_OSError(err);
-    }
-
-    if (freq_hz == 0) {
-        mp_printf(&mp_plat_print, "set_frequency_analog: DC mode (100%% duty)\n");
-    } else {
-        mp_printf(&mp_plat_print, "set_frequency_analog: %dHz sine\n", freq_hz);
-    }
-
-    return mp_const_none;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_frequency_analog_obj, pz_actuator_set_frequency_analog);
-
-// ─── set_pwm_resolution(bits) ────────────────────────────────────────────────
-
-static mp_obj_t pz_actuator_set_pwm_resolution(mp_obj_t bits_obj) {
-    int bits = mp_obj_get_int(bits_obj);
-    if (bits != 8 && bits != 10) {
+    if (resolution != 8 && resolution != 10) {
         mp_raise_ValueError(MP_ERROR_TEXT("resolution must be 8 or 10"));
     }
-    esp_err_t err = pwm_set_resolution((uint8_t)bits);
+
+    // Stop if running
+    if (g_state.running) pz_task_stop(&g_state);
+    if (pwm_is_running()) pwm_stop();
+
+    // Configure PWM resolution
+    esp_err_t err = pwm_set_resolution((uint8_t)resolution);
     if (err != ESP_OK) mp_raise_OSError(err);
-    mp_printf(&mp_plat_print, "PWM resolution: %d-bit\n", bits);
+
+    g_mode = DRV_MODE_ANALOG;
+    g_freq_hz = (uint16_t)freq_hz;
+
+    if (freq_hz == 0) {
+        mp_printf(&mp_plat_print, "set_frequency_analog: DC mode\n");
+    } else {
+        mp_printf(&mp_plat_print, "set_frequency_analog: %dHz, %d-bit\n", freq_hz, resolution);
+    }
+
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_pwm_resolution_obj, pz_actuator_set_pwm_resolution);
+static MP_DEFINE_CONST_FUN_OBJ_KW(pz_actuator_set_frequency_analog_obj, 1,
+                                  pz_actuator_set_frequency_analog);
 
 // ─── 6. set_pin(pin, value, flush=True) ──────────────────────────────────────
 
 static mp_obj_t pz_actuator_set_pin(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_pin, ARG_value, ARG_flush };
     static const mp_arg_t allowed_args[] = {
-        { MP_QSTR_pin,   MP_ARG_REQUIRED | MP_ARG_INT, {0} },
-        { MP_QSTR_value, MP_ARG_REQUIRED | MP_ARG_BOOL, {0} },
-        { MP_QSTR_flush, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = true} },
+        {MP_QSTR_pin, MP_ARG_REQUIRED | MP_ARG_INT, {0}},
+        {MP_QSTR_value, MP_ARG_REQUIRED | MP_ARG_BOOL, {0}},
+        {MP_QSTR_flush, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = true}},
     };
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
@@ -264,8 +256,8 @@ static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_get_pin_obj, pz_actuator_get_pin);
 static mp_obj_t pz_actuator_set_pins(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_pins, ARG_flush };
     static const mp_arg_t allowed_args[] = {
-        { MP_QSTR_pins,  MP_ARG_REQUIRED | MP_ARG_OBJ, {0} },
-        { MP_QSTR_flush, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = true} },
+        {MP_QSTR_pins, MP_ARG_REQUIRED | MP_ARG_OBJ, {0}},
+        {MP_QSTR_flush, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = true}},
     };
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
@@ -311,8 +303,8 @@ static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_get_all_obj, pz_actuator_get_all);
 static mp_obj_t pz_actuator_set_all(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_value, ARG_flush };
     static const mp_arg_t allowed_args[] = {
-        { MP_QSTR_value, MP_ARG_REQUIRED | MP_ARG_BOOL, {0} },
-        { MP_QSTR_flush, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = true} },
+        {MP_QSTR_value, MP_ARG_REQUIRED | MP_ARG_BOOL, {0}},
+        {MP_QSTR_flush, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = true}},
     };
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
@@ -349,31 +341,12 @@ static mp_obj_t pz_actuator_get_polarity(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_get_polarity_obj, pz_actuator_get_polarity);
 
-// ─── 14. set_gain(gain) ──────────────────────────────────────────────────────
-
-static mp_obj_t pz_actuator_set_gain(mp_obj_t gain_obj) {
-    int gain = mp_obj_get_int(gain_obj);
-    uint8_t gain_val;
-    switch (gain) {
-        case 25:  gain_val = DRV2665_GAIN_25V; break;
-        case 50:  gain_val = DRV2665_GAIN_50V; break;
-        case 75:  gain_val = DRV2665_GAIN_75V; break;
-        case 100: gain_val = DRV2665_GAIN_100V; break;
-        default:
-            mp_raise_ValueError(MP_ERROR_TEXT("gain must be 25, 50, 75, or 100"));
-    }
-    esp_err_t err = drv2665_write_register(&g_state.drv, DRV2665_REG_CTRL1,
-                                            DRV2665_INPUT_DIGITAL | gain_val);
-    if (err != ESP_OK) mp_raise_OSError(err);
-    g_state.drv.gain = gain_val;
-    return mp_const_none;
-}
-static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_gain_obj, pz_actuator_set_gain);
+// set_gain() removed — gain is now a kwarg of start()
 
 // ─── 15. is_running() ────────────────────────────────────────────────────────
 
 static mp_obj_t pz_actuator_is_running(void) {
-    return mp_obj_new_bool(g_state.running);
+    return mp_obj_new_bool(g_state.running || pwm_is_running());
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_is_running_obj, pz_actuator_is_running);
 
@@ -438,8 +411,8 @@ static esp_err_t test_i2c_setup(test_i2c_ctx_t *ctx) {
         i2c_del_master_bus(ctx->bus);
         return err;
     }
-    mp_printf(&mp_plat_print, "  setup: OK (native i2c, sda=%d, scl=%d)\n",
-              DRV2665_I2C_SDA_PIN, DRV2665_I2C_SCL_PIN);
+    mp_printf(&mp_plat_print, "  setup: OK (native i2c, sda=%d, scl=%d)\n", DRV2665_I2C_SDA_PIN,
+              DRV2665_I2C_SCL_PIN);
     return ESP_OK;
 }
 
@@ -469,7 +442,8 @@ static esp_err_t test_write_reg(test_i2c_ctx_t *ctx, uint8_t reg, uint8_t val, c
 static void test_delay_ms(uint32_t ms) {
     TickType_t ticks = pdMS_TO_TICKS(ms);
     if (ticks == 0) ticks = 1;
-    mp_printf(&mp_plat_print, "  delay: %lums (%lu ticks)\n", (unsigned long)ms, (unsigned long)ticks);
+    mp_printf(&mp_plat_print, "  delay: %lums (%lu ticks)\n", (unsigned long)ms,
+              (unsigned long)ticks);
     vTaskDelay(ticks);
 }
 
@@ -499,16 +473,18 @@ static mp_obj_t pz_actuator_test_init_no_reset(void) {
     mp_printf(&mp_plat_print, "=== test_init_no_reset (baseline) ===\n");
 
     test_i2c_ctx_t ctx = {0};
-    if (test_i2c_setup(&ctx) != ESP_OK) { mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("I2C setup failed")); }
+    if (test_i2c_setup(&ctx) != ESP_OK) {
+        mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("I2C setup failed"));
+    }
 
     test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS pre");
     test_read_reg(&ctx, DRV2665_REG_CTRL1, "CTRL1 default");
     test_read_reg(&ctx, DRV2665_REG_CTRL2, "CTRL2 default");
 
-    test_write_reg(&ctx, DRV2665_REG_CTRL1,
-                   DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V, "write CTRL1");
-    test_write_reg(&ctx, DRV2665_REG_CTRL2,
-                   DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS, "write CTRL2");
+    test_write_reg(&ctx, DRV2665_REG_CTRL1, DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V,
+                   "write CTRL1");
+    test_write_reg(&ctx, DRV2665_REG_CTRL2, DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS,
+                   "write CTRL2");
 
     test_delay_ms(2);
 
@@ -520,7 +496,8 @@ static mp_obj_t pz_actuator_test_init_no_reset(void) {
     mp_printf(&mp_plat_print, "=== done ===\n");
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_no_reset_obj, pz_actuator_test_init_no_reset);
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_no_reset_obj,
+                                 pz_actuator_test_init_no_reset);
 
 // ─── 19. test_init_reset_no_delay() ──────────────────────────────────────────
 
@@ -528,7 +505,9 @@ static mp_obj_t pz_actuator_test_init_reset_no_delay(void) {
     mp_printf(&mp_plat_print, "=== test_init_reset_no_delay ===\n");
 
     test_i2c_ctx_t ctx = {0};
-    if (test_i2c_setup(&ctx) != ESP_OK) { mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("I2C setup failed")); }
+    if (test_i2c_setup(&ctx) != ESP_OK) {
+        mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("I2C setup failed"));
+    }
 
     test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS pre-reset");
 
@@ -536,10 +515,10 @@ static mp_obj_t pz_actuator_test_init_reset_no_delay(void) {
 
     test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS immed after reset");
 
-    test_write_reg(&ctx, DRV2665_REG_CTRL2,
-                   DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS, "write CTRL2");
-    test_write_reg(&ctx, DRV2665_REG_CTRL1,
-                   DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V, "write CTRL1");
+    test_write_reg(&ctx, DRV2665_REG_CTRL2, DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS,
+                   "write CTRL2");
+    test_write_reg(&ctx, DRV2665_REG_CTRL1, DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V,
+                   "write CTRL1");
 
     test_delay_ms(2);
 
@@ -551,7 +530,8 @@ static mp_obj_t pz_actuator_test_init_reset_no_delay(void) {
     mp_printf(&mp_plat_print, "=== done ===\n");
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_reset_no_delay_obj, pz_actuator_test_init_reset_no_delay);
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_reset_no_delay_obj,
+                                 pz_actuator_test_init_reset_no_delay);
 
 // ─── 20. test_init_reset_5ms() ───────────────────────────────────────────────
 
@@ -559,7 +539,9 @@ static mp_obj_t pz_actuator_test_init_reset_5ms(void) {
     mp_printf(&mp_plat_print, "=== test_init_reset_5ms ===\n");
 
     test_i2c_ctx_t ctx = {0};
-    if (test_i2c_setup(&ctx) != ESP_OK) { mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("I2C setup failed")); }
+    if (test_i2c_setup(&ctx) != ESP_OK) {
+        mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("I2C setup failed"));
+    }
 
     test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS pre-reset");
 
@@ -569,10 +551,10 @@ static mp_obj_t pz_actuator_test_init_reset_5ms(void) {
 
     test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS after 5ms");
 
-    test_write_reg(&ctx, DRV2665_REG_CTRL2,
-                   DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS, "write CTRL2");
-    test_write_reg(&ctx, DRV2665_REG_CTRL1,
-                   DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V, "write CTRL1");
+    test_write_reg(&ctx, DRV2665_REG_CTRL2, DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS,
+                   "write CTRL2");
+    test_write_reg(&ctx, DRV2665_REG_CTRL1, DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V,
+                   "write CTRL1");
 
     test_delay_ms(2);
 
@@ -584,7 +566,8 @@ static mp_obj_t pz_actuator_test_init_reset_5ms(void) {
     mp_printf(&mp_plat_print, "=== done ===\n");
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_reset_5ms_obj, pz_actuator_test_init_reset_5ms);
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_reset_5ms_obj,
+                                 pz_actuator_test_init_reset_5ms);
 
 // ─── 21. test_init_reset_20ms() ──────────────────────────────────────────────
 
@@ -592,7 +575,9 @@ static mp_obj_t pz_actuator_test_init_reset_20ms(void) {
     mp_printf(&mp_plat_print, "=== test_init_reset_20ms ===\n");
 
     test_i2c_ctx_t ctx = {0};
-    if (test_i2c_setup(&ctx) != ESP_OK) { mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("I2C setup failed")); }
+    if (test_i2c_setup(&ctx) != ESP_OK) {
+        mp_raise_msg(&mp_type_OSError, MP_ERROR_TEXT("I2C setup failed"));
+    }
 
     test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS pre-reset");
 
@@ -602,10 +587,10 @@ static mp_obj_t pz_actuator_test_init_reset_20ms(void) {
 
     test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS after 20ms");
 
-    test_write_reg(&ctx, DRV2665_REG_CTRL2,
-                   DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS, "write CTRL2");
-    test_write_reg(&ctx, DRV2665_REG_CTRL1,
-                   DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V, "write CTRL1");
+    test_write_reg(&ctx, DRV2665_REG_CTRL2, DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS,
+                   "write CTRL2");
+    test_write_reg(&ctx, DRV2665_REG_CTRL1, DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V,
+                   "write CTRL1");
 
     test_delay_ms(2);
 
@@ -617,7 +602,8 @@ static mp_obj_t pz_actuator_test_init_reset_20ms(void) {
     mp_printf(&mp_plat_print, "=== done ===\n");
     return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_reset_20ms_obj, pz_actuator_test_init_reset_20ms);
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_test_init_reset_20ms_obj,
+                                 pz_actuator_test_init_reset_20ms);
 
 // ─── 22. test_fifo_nack() ─────────────────────────────────────────────────────
 // Test: does DRV2665 NACK when FIFO is full?
@@ -635,18 +621,19 @@ static mp_obj_t pz_actuator_test_fifo_nack(void) {
     test_delay_ms(5);
 
     // Enable digital mode
-    test_write_reg(&ctx, DRV2665_REG_CTRL2,
-                   DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS, "enable");
+    test_write_reg(&ctx, DRV2665_REG_CTRL2, DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS,
+                   "enable");
     test_delay_ms(5);
-    test_write_reg(&ctx, DRV2665_REG_CTRL1,
-                   DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V, "digital+gain");
+    test_write_reg(&ctx, DRV2665_REG_CTRL1, DRV2665_INPUT_DIGITAL | DRV2665_GAIN_100V,
+                   "digital+gain");
 
     test_read_reg(&ctx, DRV2665_REG_STATUS, "STATUS before fill");
 
     // Fill FIFO with 100 bytes (bulk write)
     uint8_t buf[101];
     buf[0] = DRV2665_REG_DATA;
-    for (int i = 1; i <= 100; i++) buf[i] = 0x40;
+    for (int i = 1; i <= 100; i++)
+        buf[i] = 0x40;
     esp_err_t err = i2c_master_transmit(ctx.dev, buf, 101, 100);
     mp_printf(&mp_plat_print, "  bulk 100 bytes: err=%d\n", err);
 
@@ -678,7 +665,7 @@ static mp_obj_t pz_actuator_enter_bootloader(void) {
     if (tud_connected()) {
         tud_disconnect();
     }
-    esp_rom_delay_us(100000);  // 100ms for host to process disconnect
+    esp_rom_delay_us(100000); // 100ms for host to process disconnect
 
     // Switch USB PHY from OTG to Serial/JTAG so ROM uses same path as physical BOOT+RST
     usb_usj_mode();
@@ -686,45 +673,44 @@ static mp_obj_t pz_actuator_enter_bootloader(void) {
     REG_WRITE(RTC_CNTL_OPTION1_REG, RTC_CNTL_FORCE_DOWNLOAD_BOOT);
 
     esp_restart();
-    return mp_const_none;  // never reached
+    return mp_const_none; // never reached
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_enter_bootloader_obj, pz_actuator_enter_bootloader);
 
 // ─── Module globals table ────────────────────────────────────────────────────
 
 static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
-    { MP_OBJ_NEW_QSTR(MP_QSTR___name__),         MP_OBJ_NEW_QSTR(MP_QSTR_pz_actuator) },
-    { MP_ROM_QSTR(MP_QSTR_init),                  MP_ROM_PTR(&pz_actuator_init_obj) },
-    { MP_ROM_QSTR(MP_QSTR_start),                 MP_ROM_PTR(&pz_actuator_start_obj) },
-    { MP_ROM_QSTR(MP_QSTR_stop),                  MP_ROM_PTR(&pz_actuator_stop_obj) },
-    { MP_ROM_QSTR(MP_QSTR_set_waveform),          MP_ROM_PTR(&pz_actuator_set_waveform_obj) },
-    { MP_ROM_QSTR(MP_QSTR_set_pin),               MP_ROM_PTR(&pz_actuator_set_pin_obj) },
-    { MP_ROM_QSTR(MP_QSTR_get_pin),               MP_ROM_PTR(&pz_actuator_get_pin_obj) },
-    { MP_ROM_QSTR(MP_QSTR_set_pins),              MP_ROM_PTR(&pz_actuator_set_pins_obj) },
-    { MP_ROM_QSTR(MP_QSTR_get_all),               MP_ROM_PTR(&pz_actuator_get_all_obj) },
-    { MP_ROM_QSTR(MP_QSTR_set_all),               MP_ROM_PTR(&pz_actuator_set_all_obj) },
-    { MP_ROM_QSTR(MP_QSTR_flush),                 MP_ROM_PTR(&pz_actuator_flush_obj) },
-    { MP_ROM_QSTR(MP_QSTR_toggle_polarity),       MP_ROM_PTR(&pz_actuator_toggle_polarity_obj) },
-    { MP_ROM_QSTR(MP_QSTR_get_polarity),          MP_ROM_PTR(&pz_actuator_get_polarity_obj) },
-    { MP_ROM_QSTR(MP_QSTR_set_gain),              MP_ROM_PTR(&pz_actuator_set_gain_obj) },
-    { MP_ROM_QSTR(MP_QSTR_is_running),            MP_ROM_PTR(&pz_actuator_is_running_obj) },
-    { MP_ROM_QSTR(MP_QSTR_set_sync_trough),       MP_ROM_PTR(&pz_actuator_set_sync_trough_obj) },
-    { MP_ROM_QSTR(MP_QSTR_reset_drv),             MP_ROM_PTR(&pz_actuator_reset_drv_obj) },
-    { MP_ROM_QSTR(MP_QSTR_test_i2c),              MP_ROM_PTR(&pz_actuator_test_i2c_obj) },
-    { MP_ROM_QSTR(MP_QSTR_test_init_no_reset),    MP_ROM_PTR(&pz_actuator_test_init_no_reset_obj) },
-    { MP_ROM_QSTR(MP_QSTR_test_init_reset_no_delay), MP_ROM_PTR(&pz_actuator_test_init_reset_no_delay_obj) },
-    { MP_ROM_QSTR(MP_QSTR_test_init_reset_5ms),   MP_ROM_PTR(&pz_actuator_test_init_reset_5ms_obj) },
-    { MP_ROM_QSTR(MP_QSTR_test_init_reset_20ms),  MP_ROM_PTR(&pz_actuator_test_init_reset_20ms_obj) },
-    { MP_ROM_QSTR(MP_QSTR_test_fifo_nack),       MP_ROM_PTR(&pz_actuator_test_fifo_nack_obj) },
-    { MP_ROM_QSTR(MP_QSTR_set_frequency_digital), MP_ROM_PTR(&pz_actuator_set_frequency_digital_obj) },
-    { MP_ROM_QSTR(MP_QSTR_set_frequency_analog),  MP_ROM_PTR(&pz_actuator_set_frequency_analog_obj) },
-    { MP_ROM_QSTR(MP_QSTR_set_pwm_resolution),    MP_ROM_PTR(&pz_actuator_set_pwm_resolution_obj) },
-    { MP_ROM_QSTR(MP_QSTR_enter_bootloader),     MP_ROM_PTR(&pz_actuator_enter_bootloader_obj) },
+    {MP_OBJ_NEW_QSTR(MP_QSTR___name__), MP_OBJ_NEW_QSTR(MP_QSTR_pz_actuator)},
+    {MP_ROM_QSTR(MP_QSTR_init), MP_ROM_PTR(&pz_actuator_init_obj)},
+    {MP_ROM_QSTR(MP_QSTR_start), MP_ROM_PTR(&pz_actuator_start_obj)},
+    {MP_ROM_QSTR(MP_QSTR_stop), MP_ROM_PTR(&pz_actuator_stop_obj)},
+    {MP_ROM_QSTR(MP_QSTR_set_pin), MP_ROM_PTR(&pz_actuator_set_pin_obj)},
+    {MP_ROM_QSTR(MP_QSTR_get_pin), MP_ROM_PTR(&pz_actuator_get_pin_obj)},
+    {MP_ROM_QSTR(MP_QSTR_set_pins), MP_ROM_PTR(&pz_actuator_set_pins_obj)},
+    {MP_ROM_QSTR(MP_QSTR_get_all), MP_ROM_PTR(&pz_actuator_get_all_obj)},
+    {MP_ROM_QSTR(MP_QSTR_set_all), MP_ROM_PTR(&pz_actuator_set_all_obj)},
+    {MP_ROM_QSTR(MP_QSTR_flush), MP_ROM_PTR(&pz_actuator_flush_obj)},
+    {MP_ROM_QSTR(MP_QSTR_toggle_polarity), MP_ROM_PTR(&pz_actuator_toggle_polarity_obj)},
+    {MP_ROM_QSTR(MP_QSTR_get_polarity), MP_ROM_PTR(&pz_actuator_get_polarity_obj)},
+    {MP_ROM_QSTR(MP_QSTR_is_running), MP_ROM_PTR(&pz_actuator_is_running_obj)},
+    {MP_ROM_QSTR(MP_QSTR_set_sync_trough), MP_ROM_PTR(&pz_actuator_set_sync_trough_obj)},
+    {MP_ROM_QSTR(MP_QSTR_reset_drv), MP_ROM_PTR(&pz_actuator_reset_drv_obj)},
+    {MP_ROM_QSTR(MP_QSTR_test_i2c), MP_ROM_PTR(&pz_actuator_test_i2c_obj)},
+    {MP_ROM_QSTR(MP_QSTR_test_init_no_reset), MP_ROM_PTR(&pz_actuator_test_init_no_reset_obj)},
+    {MP_ROM_QSTR(MP_QSTR_test_init_reset_no_delay),
+     MP_ROM_PTR(&pz_actuator_test_init_reset_no_delay_obj)},
+    {MP_ROM_QSTR(MP_QSTR_test_init_reset_5ms), MP_ROM_PTR(&pz_actuator_test_init_reset_5ms_obj)},
+    {MP_ROM_QSTR(MP_QSTR_test_init_reset_20ms), MP_ROM_PTR(&pz_actuator_test_init_reset_20ms_obj)},
+    {MP_ROM_QSTR(MP_QSTR_test_fifo_nack), MP_ROM_PTR(&pz_actuator_test_fifo_nack_obj)},
+    {MP_ROM_QSTR(MP_QSTR_set_frequency_digital),
+     MP_ROM_PTR(&pz_actuator_set_frequency_digital_obj)},
+    {MP_ROM_QSTR(MP_QSTR_set_frequency_analog), MP_ROM_PTR(&pz_actuator_set_frequency_analog_obj)},
+    {MP_ROM_QSTR(MP_QSTR_enter_bootloader), MP_ROM_PTR(&pz_actuator_enter_bootloader_obj)},
 };
 static MP_DEFINE_CONST_DICT(pz_actuator_module_globals, pz_actuator_module_globals_table);
 
 const mp_obj_module_t pz_actuator_module = {
-    .base = { &mp_type_module },
+    .base = {&mp_type_module},
     .globals = (mp_obj_dict_t *)&pz_actuator_module_globals,
 };
 
