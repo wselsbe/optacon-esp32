@@ -39,6 +39,15 @@ static mp_obj_t pz_actuator_init(void) {
         mp_raise_OSError(err);
     }
 
+    mp_printf(&mp_plat_print, "pz_actuator: initializing PWM...\n");
+    err = pwm_init();
+    if (err != ESP_OK) {
+        mp_printf(&mp_plat_print, "pz_actuator: PWM init failed: %d (0x%03x)\n", err, err);
+        shift_register_deinit(&g_state.sr);
+        drv2665_deinit(&g_state.drv);
+        mp_raise_OSError(err);
+    }
+
     mp_printf(&mp_plat_print, "pz_actuator: enabling digital mode...\n");
     err = drv2665_enable_digital(&g_state.drv, DRV2665_GAIN_100V);  // default 100Vpp
     if (err != ESP_OK) {
@@ -69,6 +78,7 @@ static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_start_obj, pz_actuator_start);
 
 static mp_obj_t pz_actuator_stop(void) {
     pz_task_stop(&g_state);
+    pwm_stop();
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_stop_obj, pz_actuator_stop);
@@ -159,6 +169,56 @@ static mp_obj_t pz_actuator_set_frequency_digital(mp_obj_t freq_obj) {
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_frequency_digital_obj, pz_actuator_set_frequency_digital);
+
+// ─── set_frequency_analog(hz) ────────────────────────────────────────────────
+
+static mp_obj_t pz_actuator_set_frequency_analog(mp_obj_t freq_obj) {
+    if (!g_initialized) mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("not initialized"));
+
+    int freq_hz = mp_obj_get_int(freq_obj);
+
+    // Stop digital path if running
+    if (g_state.running) {
+        pz_task_stop(&g_state);
+    }
+
+    // Switch DRV2665 to analog input mode
+    esp_err_t err = drv2665_enable_analog(&g_state.drv, g_state.drv.gain);
+    if (err != ESP_OK) {
+        mp_printf(&mp_plat_print, "set_frequency_analog: DRV2665 analog mode failed: %d\n", err);
+        mp_raise_OSError(err);
+    }
+
+    // Start PWM
+    err = pwm_start_sine((uint16_t)freq_hz);
+    if (err != ESP_OK) {
+        mp_printf(&mp_plat_print, "set_frequency_analog: PWM start failed: %d\n", err);
+        mp_raise_OSError(err);
+    }
+
+    if (freq_hz == 0) {
+        mp_printf(&mp_plat_print, "set_frequency_analog: DC mode (100%% duty)\n");
+    } else {
+        mp_printf(&mp_plat_print, "set_frequency_analog: %dHz sine\n", freq_hz);
+    }
+
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_frequency_analog_obj, pz_actuator_set_frequency_analog);
+
+// ─── set_pwm_resolution(bits) ────────────────────────────────────────────────
+
+static mp_obj_t pz_actuator_set_pwm_resolution(mp_obj_t bits_obj) {
+    int bits = mp_obj_get_int(bits_obj);
+    if (bits != 8 && bits != 10) {
+        mp_raise_ValueError(MP_ERROR_TEXT("resolution must be 8 or 10"));
+    }
+    esp_err_t err = pwm_set_resolution((uint8_t)bits);
+    if (err != ESP_OK) mp_raise_OSError(err);
+    mp_printf(&mp_plat_print, "PWM resolution: %d-bit\n", bits);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_pwm_resolution_obj, pz_actuator_set_pwm_resolution);
 
 // ─── 6. set_pin(pin, value, flush=True) ──────────────────────────────────────
 
@@ -657,6 +717,8 @@ static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_test_init_reset_20ms),  MP_ROM_PTR(&pz_actuator_test_init_reset_20ms_obj) },
     { MP_ROM_QSTR(MP_QSTR_test_fifo_nack),       MP_ROM_PTR(&pz_actuator_test_fifo_nack_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_frequency_digital), MP_ROM_PTR(&pz_actuator_set_frequency_digital_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_frequency_analog),  MP_ROM_PTR(&pz_actuator_set_frequency_analog_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_pwm_resolution),    MP_ROM_PTR(&pz_actuator_set_pwm_resolution_obj) },
     { MP_ROM_QSTR(MP_QSTR_enter_bootloader),     MP_ROM_PTR(&pz_actuator_enter_bootloader_obj) },
 };
 static MP_DEFINE_CONST_DICT(pz_actuator_module_globals, pz_actuator_module_globals_table);
