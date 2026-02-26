@@ -97,6 +97,25 @@ esp_err_t drv2665_enable_digital(drv2665_t *dev, uint8_t gain) {
     return ESP_OK;
 }
 
+esp_err_t drv2665_enable_analog(drv2665_t *dev, uint8_t gain) {
+    dev->gain = gain & 0x03;
+
+    // Exit standby
+    esp_err_t err = drv2665_write_register(dev, DRV2665_REG_CTRL2,
+                                            DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS);
+    if (err != ESP_OK) return err;
+
+    TickType_t ticks = pdMS_TO_TICKS(5);
+    vTaskDelay(ticks > 0 ? ticks : 1);
+
+    // Configure analog input mode + gain
+    err = drv2665_write_register(dev, DRV2665_REG_CTRL1,
+                                  DRV2665_INPUT_ANALOG | dev->gain);
+    if (err != ESP_OK) return err;
+
+    return ESP_OK;
+}
+
 esp_err_t drv2665_standby(drv2665_t *dev) {
     return drv2665_write_register(dev, DRV2665_REG_CTRL2, DRV2665_STANDBY);
 }

@@ -54,6 +54,7 @@ esp_err_t drv2665_deinit(drv2665_t *dev);
 esp_err_t drv2665_write_register(drv2665_t *dev, uint8_t reg, uint8_t value);
 esp_err_t drv2665_read_register(drv2665_t *dev, uint8_t reg, uint8_t *value);
 esp_err_t drv2665_enable_digital(drv2665_t *dev, uint8_t gain);
+esp_err_t drv2665_enable_analog(drv2665_t *dev, uint8_t gain);
 esp_err_t drv2665_standby(drv2665_t *dev);
 int drv2665_write_fifo(drv2665_t *dev, const int8_t *data, size_t len);
 esp_err_t drv2665_write_fifo_byte(drv2665_t *dev, int8_t sample);
