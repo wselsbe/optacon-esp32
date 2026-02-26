@@ -5,6 +5,8 @@ target_sources(usermod_pz_actuator INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}/drv2665.c
     ${CMAKE_CURRENT_LIST_DIR}/shift_register.c
     ${CMAKE_CURRENT_LIST_DIR}/task.c
+    ${CMAKE_CURRENT_LIST_DIR}/sine.c
+    ${CMAKE_CURRENT_LIST_DIR}/pwm.c
 )
 
 target_include_directories(usermod_pz_actuator INTERFACE
