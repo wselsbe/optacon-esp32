@@ -6,9 +6,9 @@
 #include <stdbool.h>
 
 // Compile-time configuration
-#define PWM_GPIO                5
-#define PWM_DEFAULT_RESOLUTION  8       // 8 or 10
-#define PWM_SAMPLE_RATE_HZ      32000   // DDS update rate
+#define PWM_GPIO               5
+#define PWM_DEFAULT_RESOLUTION 8     // 8 or 10
+#define PWM_SAMPLE_RATE_HZ     32000 // DDS update rate
 
 // Initialize LEDC and GPTimer (call once from pz_actuator init)
 esp_err_t pwm_init(void);

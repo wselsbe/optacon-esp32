@@ -9,7 +9,7 @@ static const char *TAG = "shiftreg";
 
 esp_err_t shift_register_init(shift_register_t *sr) {
     memset(sr, 0, sizeof(shift_register_t));
-    sr->polarity = true;  // default high
+    sr->polarity = true; // default high
 
     spi_bus_config_t bus_cfg = {
         .mosi_io_num = SHIFTREG_SPI_MOSI,

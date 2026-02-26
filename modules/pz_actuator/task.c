@@ -18,7 +18,7 @@
 //   6. Calculate trough timing from known position, commit shift register
 //   7. Repeat
 
-#define SAMPLE_PERIOD_US  125   // 1/8000 Hz = 125us per sample
+#define SAMPLE_PERIOD_US 125 // 1/8000 Hz = 125us per sample
 
 // Get next waveform sample and advance write_index.
 static inline int8_t next_sample(pz_task_state_t *state) {
@@ -128,14 +128,8 @@ esp_err_t pz_task_start(pz_task_state_t *state) {
     state->running = true;
     state->write_index = 0;
 
-    BaseType_t ret = xTaskCreate(
-        pz_background_task,
-        "pz_task",
-        8192,
-        state,
-        configMAX_PRIORITIES / 2,
-        &state->task_handle
-    );
+    BaseType_t ret = xTaskCreate(pz_background_task, "pz_task", 8192, state,
+                                 configMAX_PRIORITIES / 2, &state->task_handle);
 
     if (ret != pdPASS) {
         state->running = false;

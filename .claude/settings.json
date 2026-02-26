@@ -1,0 +1,19 @@
+{
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "clangd-lsp@claude-plugins-official": true
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'FILE=$(jq -r \".tool_input.file_path\" < /dev/stdin); case \"$FILE\" in *.py) ruff check --fix \"$FILE\" 2>&1 ;; *.c|*.h) clang-format -i \"$FILE\" 2>&1 ;; esac; exit 0'"
+          }
+        ]
+      }
+    ]
+  }
+}

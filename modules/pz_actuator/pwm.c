@@ -25,8 +25,7 @@ static uint32_t ledc_max_duty(void) {
 
 // GPTimer ISR: update LEDC duty from sine LUT
 static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
-                                          const gptimer_alarm_event_data_t *edata,
-                                          void *user_data) {
+                                         const gptimer_alarm_event_data_t *edata, void *user_data) {
     s_phase_acc += s_phase_step;
 
     // Map phase accumulator top 8 bits to LUT index
@@ -35,13 +34,13 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
 
     // Scale 8-bit LUT value to current resolution
     if (s_resolution == 10) {
-        duty = (duty << 2) | (duty >> 6);  // scale 0-255 to 0-1023
+        duty = (duty << 2) | (duty >> 6); // scale 0-255 to 0-1023
     }
 
     ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, duty);
     ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL);
 
-    return false;  // no need to yield
+    return false; // no need to yield
 }
 
 static esp_err_t configure_ledc(void) {
@@ -49,7 +48,7 @@ static esp_err_t configure_ledc(void) {
         .speed_mode = LEDC_SPEED_MODE,
         .timer_num = LEDC_TIMER_0,
         .duty_resolution = s_resolution,
-        .freq_hz = 80000000U >> s_resolution,  // 312.5kHz@8bit, 78.1kHz@10bit
+        .freq_hz = 80000000U >> s_resolution, // 312.5kHz@8bit, 78.1kHz@10bit
         .clk_cfg = LEDC_USE_APB_CLK,
     };
     esp_err_t err = ledc_timer_config(&timer_cfg);
@@ -70,13 +69,13 @@ static esp_err_t configure_timer(void) {
     gptimer_config_t cfg = {
         .clk_src = GPTIMER_CLK_SRC_DEFAULT,
         .direction = GPTIMER_COUNT_UP,
-        .resolution_hz = 1000000,  // 1 MHz (1 us per tick)
+        .resolution_hz = 1000000, // 1 MHz (1 us per tick)
     };
     esp_err_t err = gptimer_new_timer(&cfg, &s_timer);
     if (err != ESP_OK) return err;
 
     gptimer_alarm_config_t alarm_cfg = {
-        .alarm_count = 1000000 / PWM_SAMPLE_RATE_HZ,  // period in us
+        .alarm_count = 1000000 / PWM_SAMPLE_RATE_HZ, // period in us
         .reload_count = 0,
         .flags.auto_reload_on_alarm = true,
     };

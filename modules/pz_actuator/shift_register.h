@@ -21,17 +21,17 @@
 
 // 32-bit layout: [31..26]=common_U1(always 0) [25..6]=pins_0..19 [5..0]=common_U2(always 0)
 // Pin N (0-indexed) maps to bit (25 - N).
-#define SHIFTREG_PIN_BIT(pin)      (1U << (25 - (pin)))
-#define SHIFTREG_COMMON_MASK       0xFC00003FU  // bits that must always be 0
-#define SHIFTREG_ALL_PINS_MASK     0x03FFFFC0U  // all 20 actuator pins
+#define SHIFTREG_PIN_BIT(pin)  (1U << (25 - (pin)))
+#define SHIFTREG_COMMON_MASK   0xFC00003FU // bits that must always be 0
+#define SHIFTREG_ALL_PINS_MASK 0x03FFFFC0U // all 20 actuator pins
 
 typedef struct {
-    void *spi_dev;                           // spi_device_handle_t
-    uint32_t active_state;                   // currently latched state
-    uint32_t pending_state;                  // pending state (buffered mode)
-    bool pending_commit;                     // flag: commit pending state at next trough
-    bool pending_polarity;                   // flag: toggle polarity at next trough
-    bool polarity;                           // current polarity (true = high)
+    void *spi_dev;          // spi_device_handle_t
+    uint32_t active_state;  // currently latched state
+    uint32_t pending_state; // pending state (buffered mode)
+    bool pending_commit;    // flag: commit pending state at next trough
+    bool pending_polarity;  // flag: toggle polarity at next trough
+    bool polarity;          // current polarity (true = high)
 } shift_register_t;
 
 esp_err_t shift_register_init(shift_register_t *sr);

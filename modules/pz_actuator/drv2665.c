@@ -11,7 +11,7 @@ static const char *TAG = "drv2665";
 esp_err_t drv2665_init(drv2665_t *dev) {
     // Create I2C master bus
     i2c_master_bus_config_t bus_cfg = {
-        .i2c_port = -1,  // auto-select
+        .i2c_port = -1, // auto-select
         .sda_io_num = DRV2665_I2C_SDA_PIN,
         .scl_io_num = DRV2665_I2C_SCL_PIN,
         .clk_source = I2C_CLK_SRC_DEFAULT,
@@ -83,15 +83,14 @@ esp_err_t drv2665_enable_digital(drv2665_t *dev, uint8_t gain) {
 
     // Exit standby first — device needs time before CTRL1 can be configured
     esp_err_t err = drv2665_write_register(dev, DRV2665_REG_CTRL2,
-                                            DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS);
+                                           DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS);
     if (err != ESP_OK) return err;
 
     TickType_t ticks = pdMS_TO_TICKS(5);
     vTaskDelay(ticks > 0 ? ticks : 1);
 
     // Configure input mode + gain (after device is fully active)
-    err = drv2665_write_register(dev, DRV2665_REG_CTRL1,
-                                  DRV2665_INPUT_DIGITAL | dev->gain);
+    err = drv2665_write_register(dev, DRV2665_REG_CTRL1, DRV2665_INPUT_DIGITAL | dev->gain);
     if (err != ESP_OK) return err;
 
     return ESP_OK;
@@ -102,15 +101,14 @@ esp_err_t drv2665_enable_analog(drv2665_t *dev, uint8_t gain) {
 
     // Exit standby
     esp_err_t err = drv2665_write_register(dev, DRV2665_REG_CTRL2,
-                                            DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS);
+                                           DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS);
     if (err != ESP_OK) return err;
 
     TickType_t ticks = pdMS_TO_TICKS(5);
     vTaskDelay(ticks > 0 ? ticks : 1);
 
     // Configure analog input mode + gain
-    err = drv2665_write_register(dev, DRV2665_REG_CTRL1,
-                                  DRV2665_INPUT_ANALOG | dev->gain);
+    err = drv2665_write_register(dev, DRV2665_REG_CTRL1, DRV2665_INPUT_ANALOG | dev->gain);
     if (err != ESP_OK) return err;
 
     return ESP_OK;
