@@ -19,6 +19,10 @@ typedef struct {
     int8_t *waveform_buf;       // pointer into Python bytearray data
     size_t  waveform_len;       // period length in samples
     size_t  write_index;        // circular position in waveform
+
+    // Internally generated sine buffer (for set_frequency_digital)
+    int8_t *internal_sine_buf;
+    size_t  internal_sine_len;
 } pz_task_state_t;
 
 // Start the background task.
