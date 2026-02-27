@@ -86,10 +86,10 @@ def exec(code: str, timeout: int = 0) -> str:
 def enter_bootloader() -> str:
     """Reset the board into USB bootloader mode for flashing.
 
-    Sends machine.bootloader() which switches USB PHY to Serial/JTAG,
-    sets force-download-boot, and restarts. The serial exception is
-    expected and swallowed.
-    After this, use esptool/flash.cmd to flash new firmware.
+    Calls board_utils.enter_bootloader() which disconnects USB, switches
+    PHY to Serial/JTAG, sets force-download-boot, and restarts. The serial
+    exception is expected and swallowed.
+    After this, use esptool/flash.sh to flash new firmware.
     """
     port = find_device()
     if not port:
@@ -99,7 +99,7 @@ def enter_bootloader() -> str:
         t = SerialTransport(port, baudrate=MPY_BAUD, timeout=MPY_SERIAL_TIMEOUT)
         t.enter_raw_repl(soft_reset=False)
         try:
-            t.exec_raw_no_follow("import machine; machine.bootloader()")
+            t.exec_raw_no_follow("import board_utils; board_utils.enter_bootloader()")
             time.sleep(0.5)
         except Exception:
             pass

@@ -34,27 +34,41 @@ mpremote connect COM7
 
 ## Architecture Overview
 
-MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 shift registers. The C driver is compiled as a MicroPython user module (`pz_actuator`), with Python scripts frozen into the firmware.
+MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 shift registers. Python controls all hardware (I2C, SPI); minimal C modules handle only real-time tasks (FIFO fill, analog DDS).
 
 ### Project Structure
 
-- `modules/pz_actuator/` — C user module (DRV2665 I2C, shift register SPI, waveform generation, FreeRTOS background task)
-- `python/` — MicroPython scripts frozen into firmware (`main.py`, `manifest.py`)
+- `modules/drv_fifo/` — C module: DRV2665 FIFO fill background task (esp_timer + FreeRTOS)
+- `modules/pz_pwm/` — C module: analog DDS sine generation via LEDC PWM at 32 kHz
+- `modules/board_utils/` — C module: enter_bootloader() utility
+- `python/drv2665.py` — Python DRV2665 I2C register driver
+- `python/shift_register.py` — Python HV509 SPI shift register driver
+- `python/pz_actuator_py.py` — Python high-level PzActuator orchestrator
+- `python/main.py` — Boot script and demo functions
 - `scripts/` — Docker build and flash helpers (`build.sh`, `flash.sh`)
 - `mcp_micropython.py` — MCP server for serial interaction with the board from Claude Code
 
-### MicroPython API (`pz_actuator` module)
+### Python API (`PzActuator` class in `pz_actuator_py`)
 
-- `init()` — Initialize DRV2665 + HV509 + PWM hardware
-- `set_frequency_analog(hz, resolution=8)` — Configure analog sine mode (50–400 Hz, 0 = DC); resolution 8 or 10 bits
-- `set_frequency_digital(hz)` — Configure digital sine mode via I2C FIFO (50–4000 Hz)
-- `start(gain=100)` — Start output in configured mode; gain: 25/50/75/100 Vpp
-- `stop()` — Stop output, DRV2665 to standby. Mode stays set for restart.
-- `is_running()` — True if digital FIFO task or analog PWM is active
-- `set_pin(pin, value, flush=True)` / `get_pin(pin)` — Single actuator channel (0–19)
-- `set_pins(list, flush=True)` / `get_all()` / `set_all(value, flush=True)` — Bulk pin control
-- `flush()` — Commit pending shift register changes
-- `toggle_polarity()` / `get_polarity()` — HV509 polarity control
+```python
+from pz_actuator_py import PzActuator
+pa = PzActuator()
+pa.set_frequency_analog(hz, resolution=8, amplitude=100)  # analog PWM mode (0-400 Hz)
+pa.set_frequency_digital(hz)  # digital FIFO mode (1-4000 Hz)
+pa.start(gain=100)  # gain: 25/50/75/100 Vpp
+pa.stop()
+pa.is_running()
+pa.set_pin(pin, value) / pa.get_pin(pin)  # single actuator channel (0-19)
+pa.set_all(value) / pa.get_all()  # bulk pin control
+pa.toggle_polarity() / pa.get_polarity()
+```
+
+### C Module APIs
+
+- `drv_fifo.start(i2c, waveform)` / `stop()` / `is_running()` — FIFO fill task
+- `drv_fifo.read_reg(reg)` / `write_reg(reg, val)` — bypass I2C probe for bus sharing
+- `pz_pwm.set_frequency(hz, resolution=8, amplitude=128)` / `start()` / `stop()` / `is_running()`
+- `board_utils.enter_bootloader()` — switch to USB download mode
 
 ### Hardware Pins
 
