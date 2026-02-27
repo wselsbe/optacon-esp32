@@ -1,10 +1,10 @@
 import math
+
 import drv_fifo
 import pz_pwm
-from machine import I2C, SPI, Pin
 from drv2665 import DRV2665
+from machine import I2C, SPI, Pin
 from shift_register import ShiftRegister
-
 
 MODE_DIGITAL = 'digital'
 MODE_ANALOG = 'analog'

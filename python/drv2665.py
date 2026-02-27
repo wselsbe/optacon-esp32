@@ -37,7 +37,7 @@ class DRV2665:
         # Verify device is present
         status = self.read_reg(self.REG_STATUS)
         if status is None:
-            raise OSError("DRV2665 not found at 0x{:02X}".format(self.ADDR))
+            raise OSError(f"DRV2665 not found at 0x{self.ADDR:02X}")
 
     def read_reg(self, reg):
         self._buf1[0] = reg

@@ -31,7 +31,7 @@
 typedef struct _machine_hw_i2c_obj_t {
     mp_obj_base_t base;
     i2c_master_bus_handle_t bus_handle;
-    i2c_master_dev_handle_t dev_handle;  // present on IDF >= 5.5.0
+    i2c_master_dev_handle_t dev_handle; // present on IDF >= 5.5.0
     uint8_t port : 8;
     gpio_num_t scl : 8;
     gpio_num_t sda : 8;
@@ -44,13 +44,13 @@ _Static_assert(offsetof(machine_hw_i2c_obj_t, bus_handle) == sizeof(mp_obj_base_
 
 // ─── DRV2665 constants ──────────────────────────────────────────────────────
 
-#define DRV2665_ADDR            0x59
-#define DRV2665_I2C_CLK_HZ     100000
-#define DRV2665_REG_DATA        0x0B
-#define DRV2665_FIFO_SIZE       100
+#define DRV2665_ADDR       0x59
+#define DRV2665_I2C_CLK_HZ 100000
+#define DRV2665_REG_DATA   0x0B
+#define DRV2665_FIFO_SIZE  100
 
-#define SAMPLE_PERIOD_US        125     // 1/8000 Hz = 125 us per sample
-#define I2C_TIMEOUT_MS          100
+#define SAMPLE_PERIOD_US 125 // 1/8000 Hz = 125 us per sample
+#define I2C_TIMEOUT_MS   100
 
 // ─── FIFO state ─────────────────────────────────────────────────────────────
 
@@ -79,8 +79,7 @@ static inline void ensure_addr(i2c_master_dev_handle_t dev) {
 
 // fifo_read_status removed — no longer polling FIFO_FULL bit
 
-static esp_err_t fifo_write_bulk(i2c_master_dev_handle_t dev,
-                                 const int8_t *data, size_t len) {
+static esp_err_t fifo_write_bulk(i2c_master_dev_handle_t dev, const int8_t *data, size_t len) {
     if (len > DRV2665_FIFO_SIZE) len = DRV2665_FIFO_SIZE;
     uint8_t buf[DRV2665_FIFO_SIZE + 1];
     buf[0] = DRV2665_REG_DATA;
@@ -114,8 +113,8 @@ static void fill_from_waveform(fifo_state_t *state, int8_t *fill_buf, size_t cou
 // At 8 kHz sample rate and 100-byte FIFO, the FIFO drains in 12.5 ms.
 // We refill every 5 ms (~40 samples consumed), well before underrun.
 
-#define REFILL_PERIOD_US    5000    // 5 ms between refills
-#define REFILL_SAMPLES      ((REFILL_PERIOD_US + SAMPLE_PERIOD_US - 1) / SAMPLE_PERIOD_US)  // 40
+#define REFILL_PERIOD_US 5000 // 5 ms between refills
+#define REFILL_SAMPLES   ((REFILL_PERIOD_US + SAMPLE_PERIOD_US - 1) / SAMPLE_PERIOD_US) // 40
 
 static void fifo_timer_callback(void *arg) {
     fifo_state_t *state = (fifo_state_t *)arg;
@@ -144,7 +143,7 @@ static void fifo_background_task(void *arg) {
 
     while (state->running) {
         // Wait for timer notification (blocks until timer fires)
-        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50));  // 50ms timeout as safety net
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50)); // 50ms timeout as safety net
         if (!state->running) break;
 
         // Estimate how many samples the FIFO has consumed since last fill
@@ -198,7 +197,9 @@ static mp_obj_t drv_fifo_start(mp_obj_t i2c_obj, mp_obj_t waveform_obj) {
     // is safe — the bus semaphore serializes all transactions.
     i2c_master_dev_handle_t dev = i2c->dev_handle;
     if (dev == NULL) {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("I2C device not initialized - do i2c.writeto(0x59, b'\\x00') first"));
+        mp_raise_msg(
+            &mp_type_RuntimeError,
+            MP_ERROR_TEXT("I2C device not initialized - do i2c.writeto(0x59, b'\\x00') first"));
     }
     s_state.dev = dev;
 
@@ -228,10 +229,8 @@ static mp_obj_t drv_fifo_start(mp_obj_t i2c_obj, mp_obj_t waveform_obj) {
     // Must be higher than MicroPython's main task (priority 1) to respond
     // promptly to timer notifications.  The I2C bus semaphore serializes
     // transactions, so Python can still access the bus between refills.
-    BaseType_t ret = xTaskCreate(fifo_background_task, "drv_fifo",
-                                 4096, &s_state,
-                                 tskIDLE_PRIORITY + 3,
-                                 &s_state.task_handle);
+    BaseType_t ret = xTaskCreate(fifo_background_task, "drv_fifo", 4096, &s_state,
+                                 tskIDLE_PRIORITY + 3, &s_state.task_handle);
     if (ret != pdPASS) {
         s_state.running = false;
         esp_timer_delete(s_state.timer_handle);
@@ -240,8 +239,7 @@ static mp_obj_t drv_fifo_start(mp_obj_t i2c_obj, mp_obj_t waveform_obj) {
         mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("failed to create FIFO task"));
     }
 
-    mp_printf(&mp_plat_print, "drv_fifo: started (waveform=%u samples)\n",
-              (unsigned)bufinfo.len);
+    mp_printf(&mp_plat_print, "drv_fifo: started (waveform=%u samples)\n", (unsigned)bufinfo.len);
 
     return mp_const_none;
 }
@@ -260,7 +258,7 @@ static mp_obj_t drv_fifo_stop(void) {
     // Timeout after 500 ms to avoid hanging forever
     int retries = 50;
     while (s_state.task_handle != NULL && retries-- > 0) {
-        vTaskDelay(1);  // ~10 ms per tick at 100 Hz
+        vTaskDelay(1); // ~10 ms per tick at 100 Hz
     }
     if (s_state.task_handle != NULL) {
         mp_printf(&mp_plat_print, "drv_fifo: warning - task did not exit, deleting\n");
@@ -330,12 +328,12 @@ static MP_DEFINE_CONST_FUN_OBJ_2(drv_fifo_write_reg_obj, drv_fifo_write_reg);
 // ─── Module registration ─────────────────────────────────────────────────────
 
 static const mp_rom_map_elem_t drv_fifo_globals_table[] = {
-    {MP_ROM_QSTR(MP_QSTR___name__),    MP_ROM_QSTR(MP_QSTR_drv_fifo)},
-    {MP_ROM_QSTR(MP_QSTR_start),       MP_ROM_PTR(&drv_fifo_start_obj)},
-    {MP_ROM_QSTR(MP_QSTR_stop),        MP_ROM_PTR(&drv_fifo_stop_obj)},
-    {MP_ROM_QSTR(MP_QSTR_is_running),  MP_ROM_PTR(&drv_fifo_is_running_obj)},
-    {MP_ROM_QSTR(MP_QSTR_read_reg),    MP_ROM_PTR(&drv_fifo_read_reg_obj)},
-    {MP_ROM_QSTR(MP_QSTR_write_reg),   MP_ROM_PTR(&drv_fifo_write_reg_obj)},
+    {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_drv_fifo)},
+    {MP_ROM_QSTR(MP_QSTR_start), MP_ROM_PTR(&drv_fifo_start_obj)},
+    {MP_ROM_QSTR(MP_QSTR_stop), MP_ROM_PTR(&drv_fifo_stop_obj)},
+    {MP_ROM_QSTR(MP_QSTR_is_running), MP_ROM_PTR(&drv_fifo_is_running_obj)},
+    {MP_ROM_QSTR(MP_QSTR_read_reg), MP_ROM_PTR(&drv_fifo_read_reg_obj)},
+    {MP_ROM_QSTR(MP_QSTR_write_reg), MP_ROM_PTR(&drv_fifo_write_reg_obj)},
 };
 static MP_DEFINE_CONST_DICT(drv_fifo_globals, drv_fifo_globals_table);
 

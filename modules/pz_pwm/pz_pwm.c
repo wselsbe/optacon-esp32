@@ -33,35 +33,33 @@
 static const uint8_t sine_lut[SINE_LUT_SIZE] = {
     // sin(0)=128, sin(pi/2)=255, sin(pi)=128, sin(3pi/2)=0
     // Generated with: round(127.5 + 127.5 * sin(2*pi * i / 256)) for i in 0..255
-    128, 131, 134, 137, 140, 143, 146, 149, 152, 155, 158, 162, 165, 167, 170, 173,
-    176, 179, 182, 185, 188, 190, 193, 196, 198, 201, 203, 206, 208, 211, 213, 215,
-    218, 220, 222, 224, 226, 228, 230, 232, 234, 235, 237, 239, 240, 241, 243, 244,
-    245, 246, 248, 249, 250, 250, 251, 252, 253, 253, 254, 254, 254, 255, 255, 255,
-    255, 255, 255, 255, 254, 254, 254, 253, 253, 252, 251, 250, 250, 249, 248, 246,
-    245, 244, 243, 241, 240, 239, 237, 235, 234, 232, 230, 228, 226, 224, 222, 220,
-    218, 215, 213, 211, 208, 206, 203, 201, 198, 196, 193, 190, 188, 185, 182, 179,
-    176, 173, 170, 167, 165, 162, 158, 155, 152, 149, 146, 143, 140, 137, 134, 131,
-    128, 124, 121, 118, 115, 112, 109, 106, 103, 100,  97,  93,  90,  88,  85,  82,
-     79,  76,  73,  70,  67,  65,  62,  59,  57,  54,  52,  49,  47,  44,  42,  40,
-     37,  35,  33,  31,  29,  27,  25,  23,  21,  20,  18,  16,  15,  14,  12,  11,
-     10,   9,   7,   6,   5,   5,   4,   3,   2,   2,   1,   1,   1,   0,   0,   0,
-      0,   0,   0,   0,   1,   1,   1,   2,   2,   3,   4,   5,   5,   6,   7,   9,
-     10,  11,  12,  14,  15,  16,  18,  20,  21,  23,  25,  27,  29,  31,  33,  35,
-     37,  40,  42,  44,  47,  49,  52,  54,  57,  59,  62,  65,  67,  70,  73,  76,
-     79,  82,  85,  88,  90,  93,  97, 100, 103, 106, 109, 112, 115, 118, 121, 124,
+    128, 131, 134, 137, 140, 143, 146, 149, 152, 155, 158, 162, 165, 167, 170, 173, 176, 179, 182,
+    185, 188, 190, 193, 196, 198, 201, 203, 206, 208, 211, 213, 215, 218, 220, 222, 224, 226, 228,
+    230, 232, 234, 235, 237, 239, 240, 241, 243, 244, 245, 246, 248, 249, 250, 250, 251, 252, 253,
+    253, 254, 254, 254, 255, 255, 255, 255, 255, 255, 255, 254, 254, 254, 253, 253, 252, 251, 250,
+    250, 249, 248, 246, 245, 244, 243, 241, 240, 239, 237, 235, 234, 232, 230, 228, 226, 224, 222,
+    220, 218, 215, 213, 211, 208, 206, 203, 201, 198, 196, 193, 190, 188, 185, 182, 179, 176, 173,
+    170, 167, 165, 162, 158, 155, 152, 149, 146, 143, 140, 137, 134, 131, 128, 124, 121, 118, 115,
+    112, 109, 106, 103, 100, 97,  93,  90,  88,  85,  82,  79,  76,  73,  70,  67,  65,  62,  59,
+    57,  54,  52,  49,  47,  44,  42,  40,  37,  35,  33,  31,  29,  27,  25,  23,  21,  20,  18,
+    16,  15,  14,  12,  11,  10,  9,   7,   6,   5,   5,   4,   3,   2,   2,   1,   1,   1,   0,
+    0,   0,   0,   0,   0,   0,   1,   1,   1,   2,   2,   3,   4,   5,   5,   6,   7,   9,   10,
+    11,  12,  14,  15,  16,  18,  20,  21,  23,  25,  27,  29,  31,  33,  35,  37,  40,  42,  44,
+    47,  49,  52,  54,  57,  59,  62,  65,  67,  70,  73,  76,  79,  82,  85,  88,  90,  93,  97,
+    100, 103, 106, 109, 112, 115, 118, 121, 124,
 };
 
 // ─── Module state ────────────────────────────────────────────────────────────
 
 static gptimer_handle_t s_timer = NULL;
-static bool s_hw_initialized = false;  // LEDC + GPTimer configured
-static bool s_running = false;         // ISR actively updating duty
+static bool s_hw_initialized = false; // LEDC + GPTimer configured
+static bool s_running = false;        // ISR actively updating duty
 static uint8_t s_resolution = PWM_DEFAULT_RESOLUTION;
 
 // DDS state — written by Python, read by ISR
 static volatile uint32_t s_phase_acc = 0;
 static volatile uint32_t s_phase_step = 0;
-static volatile uint8_t s_amplitude = 128;  // 0-128
+static volatile uint8_t s_amplitude = 128; // 0-128
 
 // Frequency configured via set_frequency (0 = DC)
 static uint16_t s_freq_hz = 0;
@@ -76,27 +74,26 @@ static uint32_t ledc_max_duty(void) {
 // ─── GPTimer ISR: DDS phase accumulator → sine LUT → LEDC duty ──────────────
 
 static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
-                                         const gptimer_alarm_event_data_t *edata,
-                                         void *user_data) {
+                                         const gptimer_alarm_event_data_t *edata, void *user_data) {
     s_phase_acc += s_phase_step;
 
     // Top 8 bits of phase accumulator index the 256-entry LUT
     uint8_t index = (uint8_t)(s_phase_acc >> 24);
 
     // Scale sine by amplitude: center at 128, scale deviation, re-center
-    int32_t raw = (int32_t)sine_lut[index] - 128;  // -128 to +127
+    int32_t raw = (int32_t)sine_lut[index] - 128; // -128 to +127
     int32_t scaled = 128 + ((raw * (int32_t)s_amplitude) >> 7);
     uint32_t duty = (uint32_t)scaled;
 
     // Scale 8-bit value to current resolution
     if (s_resolution == 10) {
-        duty = (duty << 2) | (duty >> 6);  // 0-255 → 0-1023
+        duty = (duty << 2) | (duty >> 6); // 0-255 → 0-1023
     }
 
     ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, duty);
     ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL);
 
-    return false;  // no need to yield
+    return false; // no need to yield
 }
 
 // ─── Hardware init (LEDC + GPTimer) ──────────────────────────────────────────
@@ -106,7 +103,7 @@ static esp_err_t configure_ledc(void) {
         .speed_mode = LEDC_SPEED_MODE,
         .timer_num = LEDC_TIMER_0,
         .duty_resolution = s_resolution,
-        .freq_hz = 80000000U >> s_resolution,  // 312.5kHz@8bit, 78.1kHz@10bit
+        .freq_hz = 80000000U >> s_resolution, // 312.5kHz@8bit, 78.1kHz@10bit
         .clk_cfg = LEDC_USE_APB_CLK,
     };
     esp_err_t err = ledc_timer_config(&timer_cfg);
@@ -127,13 +124,13 @@ static esp_err_t configure_gptimer(void) {
     gptimer_config_t cfg = {
         .clk_src = GPTIMER_CLK_SRC_DEFAULT,
         .direction = GPTIMER_COUNT_UP,
-        .resolution_hz = 1000000,  // 1 MHz (1 us per tick)
+        .resolution_hz = 1000000, // 1 MHz (1 us per tick)
     };
     esp_err_t err = gptimer_new_timer(&cfg, &s_timer);
     if (err != ESP_OK) return err;
 
     gptimer_alarm_config_t alarm_cfg = {
-        .alarm_count = 1000000 / PWM_SAMPLE_RATE_HZ,  // 31 ticks = 31.25 us
+        .alarm_count = 1000000 / PWM_SAMPLE_RATE_HZ, // 31 ticks = 31.25 us
         .reload_count = 0,
         .flags.auto_reload_on_alarm = true,
     };
@@ -214,9 +211,9 @@ static esp_err_t pwm_stop_internal(void) {
 static mp_obj_t pz_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_hz, ARG_resolution, ARG_amplitude };
     static const mp_arg_t allowed_args[] = {
-        {MP_QSTR_hz,         MP_ARG_REQUIRED | MP_ARG_INT, {0}},
+        {MP_QSTR_hz, MP_ARG_REQUIRED | MP_ARG_INT, {0}},
         {MP_QSTR_resolution, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 8}},
-        {MP_QSTR_amplitude,  MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 128}},
+        {MP_QSTR_amplitude, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 128}},
     };
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
@@ -270,7 +267,8 @@ static mp_obj_t pz_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_args, mp
     if (hz == 0) {
         mp_printf(&mp_plat_print, "pz_pwm: DC mode, %d-bit, amplitude=%d\n", resolution, amplitude);
     } else {
-        mp_printf(&mp_plat_print, "pz_pwm: %d Hz, %d-bit, amplitude=%d\n", hz, resolution, amplitude);
+        mp_printf(&mp_plat_print, "pz_pwm: %d Hz, %d-bit, amplitude=%d\n", hz, resolution,
+                  amplitude);
     }
 
     return mp_const_none;
@@ -317,11 +315,11 @@ static MP_DEFINE_CONST_FUN_OBJ_0(pz_pwm_is_running_obj, pz_pwm_is_running);
 // ─── Module registration ─────────────────────────────────────────────────────
 
 static const mp_rom_map_elem_t pz_pwm_globals_table[] = {
-    {MP_ROM_QSTR(MP_QSTR___name__),       MP_ROM_QSTR(MP_QSTR_pz_pwm)},
-    {MP_ROM_QSTR(MP_QSTR_set_frequency),  MP_ROM_PTR(&pz_pwm_set_frequency_obj)},
-    {MP_ROM_QSTR(MP_QSTR_start),          MP_ROM_PTR(&pz_pwm_start_obj)},
-    {MP_ROM_QSTR(MP_QSTR_stop),           MP_ROM_PTR(&pz_pwm_stop_obj)},
-    {MP_ROM_QSTR(MP_QSTR_is_running),     MP_ROM_PTR(&pz_pwm_is_running_obj)},
+    {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_pz_pwm)},
+    {MP_ROM_QSTR(MP_QSTR_set_frequency), MP_ROM_PTR(&pz_pwm_set_frequency_obj)},
+    {MP_ROM_QSTR(MP_QSTR_start), MP_ROM_PTR(&pz_pwm_start_obj)},
+    {MP_ROM_QSTR(MP_QSTR_stop), MP_ROM_PTR(&pz_pwm_stop_obj)},
+    {MP_ROM_QSTR(MP_QSTR_is_running), MP_ROM_PTR(&pz_pwm_is_running_obj)},
 };
 static MP_DEFINE_CONST_DICT(pz_pwm_globals, pz_pwm_globals_table);
 

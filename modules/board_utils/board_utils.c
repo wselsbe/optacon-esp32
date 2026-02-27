@@ -39,8 +39,8 @@ static MP_DEFINE_CONST_FUN_OBJ_0(board_utils_enter_bootloader_obj, board_utils_e
 // ─── Module registration ─────────────────────────────────────────────────────
 
 static const mp_rom_map_elem_t board_utils_globals_table[] = {
-    {MP_ROM_QSTR(MP_QSTR___name__),          MP_ROM_QSTR(MP_QSTR_board_utils)},
-    {MP_ROM_QSTR(MP_QSTR_enter_bootloader),  MP_ROM_PTR(&board_utils_enter_bootloader_obj)},
+    {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_board_utils)},
+    {MP_ROM_QSTR(MP_QSTR_enter_bootloader), MP_ROM_PTR(&board_utils_enter_bootloader_obj)},
 };
 static MP_DEFINE_CONST_DICT(board_utils_globals, board_utils_globals_table);
 
