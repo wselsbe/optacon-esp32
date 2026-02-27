@@ -16,8 +16,9 @@
 #define SHIFTREG_SPI_CS     10
 #define SHIFTREG_SPI_CLK_HZ (1 * 1000 * 1000)
 
-// Polarity GPIO
-#define SHIFTREG_POLARITY_PIN 34
+// Polarity GPIOs (default HIGH → BP=LOW=0V, data=1 → output=VPP sine → actuator ON)
+#define SHIFTREG_POLARITY_PIN_A 12
+#define SHIFTREG_POLARITY_PIN_B 13
 
 // 32-bit layout: [31..26]=common_U1(always 0) [25..6]=pins_0..19 [5..0]=common_U2(always 0)
 // Pin N (0-indexed) maps to bit (25 - N).

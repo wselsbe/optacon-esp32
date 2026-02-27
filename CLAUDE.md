@@ -66,7 +66,8 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
 | SPI MISO        | 7    |
 | SPI SCK         | 9    |
 | SPI CS          | 10   |
-| Polarity toggle | 34   |
+| Polarity A      | 12   |
+| Polarity B      | 13   |
 | PWM out         | 5    |
 
 ### Key Design Patterns

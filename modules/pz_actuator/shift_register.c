@@ -2,14 +2,27 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
-#include "py/mpprint.h"
 #include <string.h>
 
 static const char *TAG = "shiftreg";
 
 esp_err_t shift_register_init(shift_register_t *sr) {
     memset(sr, 0, sizeof(shift_register_t));
-    sr->polarity = true; // default high
+    sr->polarity = true; // default high (POL_bar=HIGH → BP=LOW=0V)
+
+    // Configure polarity GPIOs BEFORE SPI init — GPIO12/13 are SPI2 IOMUX pins,
+    // configuring them after spi_bus_initialize() disrupts the SPI peripheral.
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << SHIFTREG_POLARITY_PIN_A) |
+                        (1ULL << SHIFTREG_POLARITY_PIN_B),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&io_conf);
+    gpio_set_level(SHIFTREG_POLARITY_PIN_A, sr->polarity ? 1 : 0);
+    gpio_set_level(SHIFTREG_POLARITY_PIN_B, sr->polarity ? 1 : 0);
 
     spi_bus_config_t bus_cfg = {
         .mosi_io_num = SHIFTREG_SPI_MOSI,
@@ -38,16 +51,6 @@ esp_err_t shift_register_init(shift_register_t *sr) {
         return err;
     }
     sr->spi_dev = spi;
-
-    gpio_config_t io_conf = {
-        .pin_bit_mask = (1ULL << SHIFTREG_POLARITY_PIN),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-    gpio_config(&io_conf);
-    gpio_set_level(SHIFTREG_POLARITY_PIN, sr->polarity ? 1 : 0);
 
     // Clear all outputs
     shift_register_set_all(sr, false);
@@ -104,6 +107,8 @@ void shift_register_request_polarity_toggle(shift_register_t *sr) {
 }
 
 esp_err_t shift_register_commit(shift_register_t *sr) {
+    // With POL_bar=HIGH (default), BP=LOW (0V). Outputs are not inverted:
+    // data=1 → output HIGH (VPP, sine wave) → actuator ON. No inversion needed.
     sr->active_state = sr->pending_state & ~SHIFTREG_COMMON_MASK;
 
     // Convert uint32_t to big-endian bytes for SPI (MSB first)
@@ -126,7 +131,8 @@ esp_err_t shift_register_commit(shift_register_t *sr) {
 
     if (sr->pending_polarity) {
         sr->polarity = !sr->polarity;
-        gpio_set_level(SHIFTREG_POLARITY_PIN, sr->polarity ? 1 : 0);
+        gpio_set_level(SHIFTREG_POLARITY_PIN_A, sr->polarity ? 1 : 0);
+        gpio_set_level(SHIFTREG_POLARITY_PIN_B, sr->polarity ? 1 : 0);
         sr->pending_polarity = false;
     }
 
