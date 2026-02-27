@@ -35,15 +35,8 @@ esp_err_t drv2665_init(drv2665_t *dev) {
 
     dev->gain = DRV2665_GAIN_100V;
 
-    // Reset device to known state
-    err = drv2665_write_register(dev, DRV2665_REG_CTRL2, DRV2665_RESET);
-    if (err != ESP_OK) {
-        drv2665_deinit(dev);
-        return err;
-    }
-
-    // Wait for device to come out of reset (enters standby after reset)
-    TickType_t ticks = pdMS_TO_TICKS(5);
+    // Datasheet 8.3.1: step 2 — wait 1ms after power-up before I2C writes
+    TickType_t ticks = pdMS_TO_TICKS(2);
     vTaskDelay(ticks > 0 ? ticks : 1);
 
     // Verify communication by reading status register
@@ -81,16 +74,19 @@ esp_err_t drv2665_read_register(drv2665_t *dev, uint8_t reg, uint8_t *value) {
 esp_err_t drv2665_enable_digital(drv2665_t *dev, uint8_t gain) {
     dev->gain = gain & 0x03;
 
-    // Exit standby first — device needs time before CTRL1 can be configured
-    esp_err_t err = drv2665_write_register(dev, DRV2665_REG_CTRL2,
-                                           DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS);
+    // Datasheet 8.3.1: step 3 — exit standby (clear STANDBY bit)
+    esp_err_t err = drv2665_write_register(dev, DRV2665_REG_CTRL2, DRV2665_TIMEOUT_20MS);
     if (err != ESP_OK) return err;
 
     TickType_t ticks = pdMS_TO_TICKS(5);
     vTaskDelay(ticks > 0 ? ticks : 1);
 
-    // Configure input mode + gain (after device is fully active)
+    // Datasheet 8.3.1: steps 4-5 — set digital input mode + gain
     err = drv2665_write_register(dev, DRV2665_REG_CTRL1, DRV2665_INPUT_DIGITAL | dev->gain);
+    if (err != ESP_OK) return err;
+
+    // Datasheet 8.3.1: step 6 — set timeout
+    err = drv2665_write_register(dev, DRV2665_REG_CTRL2, DRV2665_TIMEOUT_20MS);
     if (err != ESP_OK) return err;
 
     return ESP_OK;
@@ -99,16 +95,20 @@ esp_err_t drv2665_enable_digital(drv2665_t *dev, uint8_t gain) {
 esp_err_t drv2665_enable_analog(drv2665_t *dev, uint8_t gain) {
     dev->gain = gain & 0x03;
 
-    // Exit standby
-    esp_err_t err = drv2665_write_register(dev, DRV2665_REG_CTRL2,
-                                           DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS);
+    // Datasheet 8.3.1: step 3 — exit standby (clear STANDBY bit)
+    esp_err_t err = drv2665_write_register(dev, DRV2665_REG_CTRL2, DRV2665_TIMEOUT_20MS);
     if (err != ESP_OK) return err;
 
     TickType_t ticks = pdMS_TO_TICKS(5);
     vTaskDelay(ticks > 0 ? ticks : 1);
 
-    // Configure analog input mode + gain
+    // Datasheet 8.3.1: steps 4-5 — set analog input mode + gain
     err = drv2665_write_register(dev, DRV2665_REG_CTRL1, DRV2665_INPUT_ANALOG | dev->gain);
+    if (err != ESP_OK) return err;
+
+    // Datasheet 8.3.1: step 7 — for analog, set EN_OVERRIDE to enable boost + amplifier
+    err = drv2665_write_register(dev, DRV2665_REG_CTRL2,
+                                 DRV2665_ENABLE_OVERRIDE | DRV2665_TIMEOUT_20MS);
     if (err != ESP_OK) return err;
 
     return ESP_OK;

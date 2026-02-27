@@ -447,6 +447,28 @@ static void test_delay_ms(uint32_t ms) {
     vTaskDelay(ticks);
 }
 
+// ─── read_reg(reg) / write_reg(reg, val) — debug DRV2665 registers ───────────
+
+static mp_obj_t pz_actuator_read_reg(mp_obj_t reg_obj) {
+    if (!g_initialized) mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("not initialized"));
+    uint8_t reg = mp_obj_get_int(reg_obj);
+    uint8_t val;
+    esp_err_t err = drv2665_read_register(&g_state.drv, reg, &val);
+    if (err != ESP_OK) mp_raise_OSError(err);
+    return mp_obj_new_int(val);
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_read_reg_obj, pz_actuator_read_reg);
+
+static mp_obj_t pz_actuator_write_reg(mp_obj_t reg_obj, mp_obj_t val_obj) {
+    if (!g_initialized) mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("not initialized"));
+    uint8_t reg = mp_obj_get_int(reg_obj);
+    uint8_t val = mp_obj_get_int(val_obj);
+    esp_err_t err = drv2665_write_register(&g_state.drv, reg, val);
+    if (err != ESP_OK) mp_raise_OSError(err);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(pz_actuator_write_reg_obj, pz_actuator_write_reg);
+
 // ─── 18. reset_drv() ─────────────────────────────────────────────────────────
 
 static mp_obj_t pz_actuator_reset_drv(void) {
@@ -705,6 +727,8 @@ static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_set_frequency_digital),
      MP_ROM_PTR(&pz_actuator_set_frequency_digital_obj)},
     {MP_ROM_QSTR(MP_QSTR_set_frequency_analog), MP_ROM_PTR(&pz_actuator_set_frequency_analog_obj)},
+    {MP_ROM_QSTR(MP_QSTR_read_reg), MP_ROM_PTR(&pz_actuator_read_reg_obj)},
+    {MP_ROM_QSTR(MP_QSTR_write_reg), MP_ROM_PTR(&pz_actuator_write_reg_obj)},
     {MP_ROM_QSTR(MP_QSTR_enter_bootloader), MP_ROM_PTR(&pz_actuator_enter_bootloader_obj)},
 };
 static MP_DEFINE_CONST_DICT(pz_actuator_module_globals, pz_actuator_module_globals_table);
