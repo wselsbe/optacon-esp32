@@ -13,8 +13,7 @@ esp_err_t shift_register_init(shift_register_t *sr) {
     // Configure polarity GPIOs BEFORE SPI init — GPIO12/13 are SPI2 IOMUX pins,
     // configuring them after spi_bus_initialize() disrupts the SPI peripheral.
     gpio_config_t io_conf = {
-        .pin_bit_mask = (1ULL << SHIFTREG_POLARITY_PIN_A) |
-                        (1ULL << SHIFTREG_POLARITY_PIN_B),
+        .pin_bit_mask = (1ULL << SHIFTREG_POLARITY_PIN_A) | (1ULL << SHIFTREG_POLARITY_PIN_B),
         .mode = GPIO_MODE_OUTPUT,
         .pull_up_en = GPIO_PULLUP_DISABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
