@@ -59,12 +59,13 @@ static mp_obj_t pz_actuator_init(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_actuator_init_obj, pz_actuator_init);
 
-// ─── 2. start(gain=100) ──────────────────────────────────────────────────────
+// ─── 2. start(gain=100, amplitude=100) ───────────────────────────────────────
 
 static mp_obj_t pz_actuator_start(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
-    enum { ARG_gain };
+    enum { ARG_gain, ARG_amplitude };
     static const mp_arg_t allowed_args[] = {
         {MP_QSTR_gain, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 100}},
+        {MP_QSTR_amplitude, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 100}},
     };
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
@@ -94,10 +95,17 @@ static mp_obj_t pz_actuator_start(size_t n_args, const mp_obj_t *pos_args, mp_ma
     }
     g_state.drv.gain = gain_val;
 
+    // Resolve amplitude (0-100%) → internal 0-128
+    int amp_pct = args[ARG_amplitude].u_int;
+    if (amp_pct < 0) amp_pct = 0;
+    if (amp_pct > 100) amp_pct = 100;
+    uint8_t amp_internal = (uint8_t)((amp_pct * 128 + 50) / 100);
+
     esp_err_t err;
     if (g_mode == DRV_MODE_ANALOG) {
         err = drv2665_enable_analog(&g_state.drv, gain_val);
         if (err != ESP_OK) mp_raise_OSError(err);
+        pwm_set_amplitude(amp_internal);
         err = pwm_start_sine(g_freq_hz);
         if (err != ESP_OK) mp_raise_OSError(err);
     } else {

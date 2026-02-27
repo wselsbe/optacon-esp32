@@ -6,7 +6,7 @@
 
 ## Summary
 
-Tested the analog sine wave path (Phase 0 and Phase 1 from the test plan). **Digital mode works. Analog mode has a hardware issue: C9 (RC filter cap) is likely the wrong value, preventing the filtered sine from reaching DRV2665 IN+.**
+Tested the analog sine wave path (Phase 0 and Phase 1 from the test plan). **After replacing C9 with correct 100nF capacitor, the full analog path works end-to-end.** Frequency sweep, DC mode, 10-bit resolution, and gain sweep all pass.
 
 ## What Works
 
@@ -22,34 +22,68 @@ Tested the analog sine wave path (Phase 0 and Phase 1 from the test plan). **Dig
 
 ### PWM sine generation — PASS
 - `set_frequency_analog(250)` + `start()` produces correct PWM on GPIO5
-- CH4 (raw PWM) shows clear sine envelope modulating duty cycle 0%–100%
 - 8-bit mode: 312.5 kHz carrier, confirmed 250 Hz envelope
 - 10-bit mode: 76.3 kHz carrier, confirmed 250 Hz envelope
-- DC mode (freq=0): flat 100% duty at 3.32V mean — correct
-- Mean voltage 1.65V (mid-rail) — correct for unipolar PWM sine
+- DC mode (freq=0): flat 100% duty at 3.30V mean — correct
+- Mean voltage ~1.69V (mid-rail) — correct for unipolar PWM sine
 
-### DRV2665 register configuration — PASS (after fix)
-- **Fixed:** init sequence now follows datasheet 8.3.1 (removed reset, correct register order)
-- After `start()` in analog mode:
-  - CTRL1 (0x01) = 0x07 — analog input + gain 100V ✓
-  - CTRL2 (0x02) = 0x0E — EN_OVERRIDE + timeout 20ms ✓
-- Registers verified with new `read_reg()` debug function
+### Analog path end-to-end — PASS (after C9 fix)
 
-## What Doesn't Work
+C9 replaced with confirmed 100nF (104) 0603 ceramic. Full signal chain now works:
+GPIO5 PWM → R13+C9 filter → C3 AC coupling → DRV2665 IN+ → boost converter → actuator
 
-### Analog path to DRV2665 — FAIL (hardware)
+**Filtered output (CH4, after R13+C9):** 3.44V pk-pk, 1.69V mean — clean sine
+**IN+ (CH3, after C3):** 3.44V pk-pk — AC-coupled sine at DRV2665 bias point
+**VPP (CH1, DRV2665 HV output):** ~52V mean with sine modulation at gain=100
 
-**Symptom:** DRV2665 boost converter does not activate in analog mode. Current stays at ~50mA (ESP32 + DRV2665 idle, no boost activity). No actuator output on CH2.
+### Frequency sweep — PASS
 
-**Root cause:** The RC low-pass filter (R13 + C9) is not attenuating the PWM carrier.
+All frequencies within ~1% of target. Amplitude rock-steady at 3.44V pk-pk across range.
 
-**Evidence:**
-- CH4 (raw PWM, before filter): beautiful 250 Hz sine envelope on 312 kHz carrier ✓
-- CH3 (filtered, at IN+): only ~450mV pk-pk of carrier ripple at 2.46V DC, **no 250 Hz sine envelope**
-- The 2.46V DC on CH3 is the DRV2665 internal IN+ bias (seen through AC coupling cap C3)
-- In-circuit measurement of C9 shows **much less capacitance than expected 100nF**
+| Target | Measured (CH4) | Pk-Pk (CH4) | Error |
+|--------|----------------|-------------|-------|
+| 50 Hz  | 50.2 Hz        | 3.44V       | +0.4% |
+| 100 Hz | 100.6 Hz       | 3.44V       | +0.6% |
+| 200 Hz | 201.3 Hz       | 3.44V       | +0.6% |
+| 250 Hz | 250.8 Hz       | 3.44V       | +0.3% |
+| 300 Hz | 301.9 Hz       | 3.44V       | +0.6% |
+| 400 Hz | 401.2 Hz       | 3.44V       | +0.3% |
 
-**Likely cause:** C9 is wrong value — possibly 100pF (marking "101") instead of 100nF (marking "104"). This would shift the filter cutoff from 4 kHz to 4 MHz, providing essentially zero filtering.
+### DC mode (freq=0) — PASS
+- CH4 (filtered): 3.30V mean (100% duty), 200mV pk-pk ripple
+- CH1 (VPP): 51.96V — boost active at DC
+
+### 10-bit resolution — PASS
+- 250 Hz at 10-bit: 250.41 Hz, 3.44V pk-pk, 1.70V mean
+- Visibly smoother sine compared to 8-bit (lower carrier freq = 76.3 kHz)
+
+### Gain sweep — PASS
+
+Gain register correctly applied in analog mode. Datasheet confirms gain is dB-based for analog input.
+
+| Gain | CTRL1 | Analog dB | VPP pk-pk | Notes |
+|------|-------|-----------|-----------|-------|
+| 25V  | 0x04  | 28.8 dB   | 46.4V     | Clean sine, no clipping |
+| 50V  | 0x05  | 34.8 dB   | 92.0V     | Clean sine, no clipping |
+| 75V  | 0x06  | 38.4 dB   | 104.8V    | Clipping at VBST (~105V) |
+| 100V | 0x07  | 40.7 dB   | 104.8V    | Heavy clipping at VBST |
+
+- 25→50V gain ratio: 92/46.4 = 1.98x (~6 dB) — matches datasheet
+- At gain=75 and 100, output clips at VBST ceiling (~105V), producing trapezoidal waveform
+- Gain=25 with 3.44V input: 46.4V output → voltage gain ~27.5x → 28.8 dB ✓
+
+### DRV2665 register configuration — PASS
+- Init sequence follows datasheet 8.3.1 (removed reset, correct register order)
+- After `start(gain=N)`:
+  - CTRL1 correctly set: 0x04 (gain=25), 0x05 (50), 0x06 (75), 0x07 (100)
+  - CTRL2 = 0x0E — EN_OVERRIDE + timeout 20ms ✓
+
+## Hardware Fix Applied
+
+### C9 replaced (2026-02-27)
+- **Was:** wrong value (likely 100pF / "101" marking) — filter cutoff ~4 MHz, no filtering
+- **Now:** 100nF (104) 0603 ceramic — filter cutoff = 1/(2π × 390 × 100nF) = 4.08 kHz
+- Result: clean filtered sine reaches DRV2665 IN+, boost converter activates, full HV output
 
 ## Code Changes Made
 
@@ -66,17 +100,21 @@ Tested the analog sine wave path (Phase 0 and Phase 1 from the test plan). **Dig
 - Added `read_reg(reg)` — read DRV2665 register via existing I2C bus handle
 - Added `write_reg(reg, val)` — write DRV2665 register
 
-## Hardware TODO
+## Next Steps
 
-1. **Verify C9 value** — desolder and measure, or replace with known 100nF (104) 0603 ceramic
-2. After C9 fix, re-run Phase 1 analog tests
-3. Then proceed to Phase 2–6
+1. Phase 2: Digital FIFO path testing (frequency sweep, FIFO timing)
+2. Phase 3: Mode switching (analog↔digital transitions)
+3. Phase 4: Pin control (shift register, individual actuator channels)
+4. Phase 5: Error handling and edge cases
+5. Consider C9=220nF to reduce carrier ripple further (currently ~480mV at 250Hz/8-bit)
+6. For 6-board parallel use: R13=150Ω + C9=270nF recommended
 
 ## Scope/Probe Notes
 
+- Probe mapping (updated 2026-02-27):
+  - CH1 = VPP (DRV2665 high-voltage actuator output)
+  - CH2 = VBST (boost converter)
+  - CH3 = IN+ (after C3 coupling cap, at DRV2665 input)
+  - CH4 = filtered PWM (after R13+C9 RC filter, before C3 coupling cap)
 - Scope timebase via SCPI (`TDIV`) doesn't work when scope is in zoom mode — must use physical knob
-- Probe mapping (corrected from plan):
-  - CH1 = VBST
-  - CH2 = actuator output pin 4
-  - CH3 = filtered PWM (after RC filter, at DRV2665 IN+)
-  - CH4 = raw PWM (GPIO5, before R13)
+- Frequency counter works on CH4 (filtered sine) but not on raw PWM (carrier confuses it)

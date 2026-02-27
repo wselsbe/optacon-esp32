@@ -27,6 +27,11 @@ esp_err_t pwm_stop(void);
 // Stops and restarts output if currently running.
 esp_err_t pwm_set_resolution(uint8_t bits);
 
+// Set sine amplitude (0 = silent, 128 = full 0-3.3V swing).
+// ~70 gives 1.8V pk-pk, the DRV2665 full-scale analog input.
+// Safe to call while running (atomic write to ISR variable).
+void pwm_set_amplitude(uint8_t amplitude);
+
 // Returns true if PWM sine is currently running
 bool pwm_is_running(void);
 
