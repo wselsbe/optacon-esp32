@@ -113,7 +113,7 @@ static void fill_from_waveform(fifo_state_t *state, int8_t *fill_buf, size_t cou
 // At 8 kHz sample rate and 100-byte FIFO, the FIFO drains in 12.5 ms.
 // We refill every 5 ms (~40 samples consumed), well before underrun.
 
-#define REFILL_PERIOD_US 5000 // 5 ms between refills
+#define REFILL_PERIOD_US 8000 // 8 ms between refills
 #define REFILL_SAMPLES   ((REFILL_PERIOD_US + SAMPLE_PERIOD_US - 1) / SAMPLE_PERIOD_US) // 40
 
 static void fifo_timer_callback(void *arg) {
@@ -126,6 +126,9 @@ static void fifo_timer_callback(void *arg) {
 static void fifo_background_task(void *arg) {
     fifo_state_t *state = (fifo_state_t *)arg;
     int8_t fill_buf[DRV2665_FIFO_SIZE];
+
+    // Let USB-CDC and other tasks stabilize before heavy I2C traffic
+    vTaskDelay(pdMS_TO_TICKS(20));
 
     // ── INITIAL FILL ─────────────────────────────────────────────
     fill_from_waveform(state, fill_buf, DRV2665_FIFO_SIZE);
@@ -225,12 +228,13 @@ static mp_obj_t drv_fifo_start(mp_obj_t i2c_obj, mp_obj_t waveform_obj) {
         }
     }
 
-    // Spawn background task at elevated priority for timely FIFO refills.
-    // Must be higher than MicroPython's main task (priority 1) to respond
-    // promptly to timer notifications.  The I2C bus semaphore serializes
-    // transactions, so Python can still access the bus between refills.
-    BaseType_t ret = xTaskCreate(fifo_background_task, "drv_fifo", 4096, &s_state,
-                                 tskIDLE_PRIORITY + 3, &s_state.task_handle);
+    // Pin to core 1 so the blocking I2C transactions don't starve USB-CDC
+    // (TinyUSB runs on core 0).  Priority 2: above MicroPython (priority 1)
+    // for timely FIFO refills.  The 20ms delay in the task before initial
+    // I2C write prevents USB-CDC disruption during task startup.
+    BaseType_t ret = xTaskCreatePinnedToCore(
+        fifo_background_task, "drv_fifo", 4096, &s_state,
+        tskIDLE_PRIORITY + 2, &s_state.task_handle, 1);
     if (ret != pdPASS) {
         s_state.running = false;
         esp_timer_delete(s_state.timer_handle);

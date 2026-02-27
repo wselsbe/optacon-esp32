@@ -26,7 +26,7 @@ class PzActuator:
 
     def __init__(self):
         # Own the I2C bus
-        self.i2c = I2C(0, sda=Pin(47), scl=Pin(21), freq=100_000)
+        self.i2c = I2C(0, sda=Pin(47), scl=Pin(21), freq=400_000)
         # Own the SPI bus
         self.spi = SPI(1, baudrate=1_000_000, polarity=0, phase=0,
                        sck=Pin(9), mosi=Pin(6), miso=Pin(7))
