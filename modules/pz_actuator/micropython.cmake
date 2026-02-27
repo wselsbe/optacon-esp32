@@ -13,4 +13,8 @@ target_include_directories(usermod_pz_actuator INTERFACE
     ${CMAKE_CURRENT_LIST_DIR}
 )
 
+target_compile_definitions(usermod_pz_actuator INTERFACE
+    MICROPY_HW_ESP_NEW_I2C_DRIVER=1
+)
+
 target_link_libraries(usermod INTERFACE usermod_pz_actuator)
