@@ -119,6 +119,18 @@ static mp_obj_t pz_actuator_start(size_t n_args, const mp_obj_t *pos_args, mp_ma
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pz_actuator_start_obj, 0, pz_actuator_start);
 
+// ─── set_amplitude(pct) ──────────────────────────────────────────────────────
+
+static mp_obj_t pz_actuator_set_amplitude(mp_obj_t amp_obj) {
+    int amp_pct = mp_obj_get_int(amp_obj);
+    if (amp_pct < 0) amp_pct = 0;
+    if (amp_pct > 100) amp_pct = 100;
+    uint8_t amp_internal = (uint8_t)((amp_pct * 128 + 50) / 100);
+    pwm_set_amplitude(amp_internal);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pz_actuator_set_amplitude_obj, pz_actuator_set_amplitude);
+
 // ─── 3. stop() ───────────────────────────────────────────────────────────────
 
 static mp_obj_t pz_actuator_stop(void) {
@@ -735,6 +747,7 @@ static const mp_rom_map_elem_t pz_actuator_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_set_frequency_digital),
      MP_ROM_PTR(&pz_actuator_set_frequency_digital_obj)},
     {MP_ROM_QSTR(MP_QSTR_set_frequency_analog), MP_ROM_PTR(&pz_actuator_set_frequency_analog_obj)},
+    {MP_ROM_QSTR(MP_QSTR_set_amplitude), MP_ROM_PTR(&pz_actuator_set_amplitude_obj)},
     {MP_ROM_QSTR(MP_QSTR_read_reg), MP_ROM_PTR(&pz_actuator_read_reg_obj)},
     {MP_ROM_QSTR(MP_QSTR_write_reg), MP_ROM_PTR(&pz_actuator_write_reg_obj)},
     {MP_ROM_QSTR(MP_QSTR_enter_bootloader), MP_ROM_PTR(&pz_actuator_enter_bootloader_obj)},
