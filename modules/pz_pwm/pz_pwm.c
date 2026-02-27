@@ -6,16 +6,20 @@
 // amplitude, and DC mode (0 Hz = 100% duty).
 //
 // Python API:
-//   pz_pwm.set_frequency(hz, resolution=8, amplitude=128)
+//   pz_pwm.set_frequency(hz, resolution=8, amplitude=128, fullwave=False)
 //   pz_pwm.start()
 //   pz_pwm.stop()
 //   pz_pwm.is_running()
+//   pz_pwm.init_polarity()            — configure GPIO 12/13 (call before SPI init)
+//   pz_pwm.set_polarity(value)        — set polarity GPIO state (True/False)
+//   pz_pwm.get_polarity()             — get current polarity state
 
 #include "py/runtime.h"
 #include "py/obj.h"
 #include "driver/ledc.h"
 #include "driver/gptimer.h"
 #include "esp_log.h"
+#include "driver/gpio.h"
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -25,6 +29,9 @@
 
 #define LEDC_CHANNEL    LEDC_CHANNEL_0
 #define LEDC_SPEED_MODE LEDC_LOW_SPEED_MODE
+
+#define POL_A_GPIO  12
+#define POL_B_GPIO  13
 
 // ─── Sine LUT (256 entries, unsigned 0-255) ──────────────────────────────────
 
@@ -67,6 +74,14 @@ static volatile uint8_t s_amplitude = 128;  // 0-128
 static uint16_t s_freq_hz = 0;
 static bool s_freq_configured = false;
 
+// Polarity GPIO state
+static bool s_polarity = false;  // false=LOW (inverted mode), true=HIGH
+static bool s_pol_gpio_initialized = false;
+
+// Fullwave mode state
+static volatile bool s_fullwave = false;
+static volatile uint8_t s_prev_half = 0;  // 0=first half (0..pi), 1=second half (pi..2pi)
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 static uint32_t ledc_max_duty(void) {
@@ -87,6 +102,22 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
     int32_t raw = (int32_t)sine_lut[index] - 128;  // -128 to +127
     int32_t scaled = 128 + ((raw * (int32_t)s_amplitude) >> 7);
     uint32_t duty = (uint32_t)scaled;
+
+    if (s_fullwave) {
+        // Full-wave rectification: mirror negative half around 128
+        uint8_t half = (uint8_t)(s_phase_acc >> 31);
+        if (half) {
+            duty = 256 - duty;  // mirror: values below 128 become above 128
+        }
+
+        // Toggle polarity at zero-crossing (when half-cycle changes)
+        if (half != s_prev_half) {
+            s_prev_half = half;
+            uint32_t pol_val = half ? 1 : 0;
+            gpio_set_level(POL_A_GPIO, pol_val);
+            gpio_set_level(POL_B_GPIO, pol_val);
+        }
+    }
 
     // Scale 8-bit value to current resolution
     if (s_resolution == 10) {
@@ -146,6 +177,23 @@ static esp_err_t configure_gptimer(void) {
     return gptimer_register_event_callbacks(s_timer, &cbs, NULL);
 }
 
+static void ensure_pol_gpio_init(void) {
+    if (s_pol_gpio_initialized) return;
+
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << POL_A_GPIO) | (1ULL << POL_B_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&io_conf);
+    gpio_set_level(POL_A_GPIO, 0);
+    gpio_set_level(POL_B_GPIO, 0);
+    s_polarity = false;
+    s_pol_gpio_initialized = true;
+}
+
 static esp_err_t ensure_hw_init(void) {
     if (s_hw_initialized) return ESP_OK;
 
@@ -185,6 +233,14 @@ static esp_err_t pwm_start_internal(void) {
     s_phase_acc = 0;
     s_phase_step = (uint32_t)(((uint64_t)s_freq_hz << 32) / PWM_SAMPLE_RATE_HZ);
 
+    if (s_fullwave) {
+        ensure_pol_gpio_init();
+        s_prev_half = 0;
+        gpio_set_level(POL_A_GPIO, 0);
+        gpio_set_level(POL_B_GPIO, 0);
+        s_polarity = false;
+    }
+
     // Start GPTimer ISR
     esp_err_t err = gptimer_start(s_timer);
     if (err != ESP_OK) return err;
@@ -199,6 +255,12 @@ static esp_err_t pwm_stop_internal(void) {
     }
     s_running = false;
 
+    if (s_fullwave) {
+        gpio_set_level(POL_A_GPIO, 0);
+        gpio_set_level(POL_B_GPIO, 0);
+        s_polarity = false;
+    }
+
     // Set duty to 0
     if (s_hw_initialized) {
         ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, 0);
@@ -212,11 +274,12 @@ static esp_err_t pwm_stop_internal(void) {
 
 // pz_pwm.set_frequency(hz, resolution=8, amplitude=128)
 static mp_obj_t pz_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
-    enum { ARG_hz, ARG_resolution, ARG_amplitude };
+    enum { ARG_hz, ARG_resolution, ARG_amplitude, ARG_fullwave };
     static const mp_arg_t allowed_args[] = {
-        {MP_QSTR_hz,         MP_ARG_REQUIRED | MP_ARG_INT, {0}},
-        {MP_QSTR_resolution, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 8}},
-        {MP_QSTR_amplitude,  MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 128}},
+        {MP_QSTR_hz,         MP_ARG_REQUIRED | MP_ARG_INT,  {0}},
+        {MP_QSTR_resolution, MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = 8}},
+        {MP_QSTR_amplitude,  MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = 128}},
+        {MP_QSTR_fullwave,   MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = false}},
     };
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
@@ -239,6 +302,8 @@ static mp_obj_t pz_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_args, mp
     if (amplitude < 0) amplitude = 0;
     if (amplitude > 128) amplitude = 128;
 
+    bool fullwave = args[ARG_fullwave].u_bool;
+
     // If resolution changed, reconfigure LEDC
     bool was_running = s_running;
     if (was_running) {
@@ -257,6 +322,7 @@ static mp_obj_t pz_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_args, mp
 
     s_freq_hz = (uint16_t)hz;
     s_amplitude = (uint8_t)amplitude;
+    s_fullwave = fullwave;
     s_freq_configured = true;
 
     // Restart if was running
@@ -270,7 +336,8 @@ static mp_obj_t pz_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_args, mp
     if (hz == 0) {
         mp_printf(&mp_plat_print, "pz_pwm: DC mode, %d-bit, amplitude=%d\n", resolution, amplitude);
     } else {
-        mp_printf(&mp_plat_print, "pz_pwm: %d Hz, %d-bit, amplitude=%d\n", hz, resolution, amplitude);
+        mp_printf(&mp_plat_print, "pz_pwm: %d Hz, %d-bit, amplitude=%d%s\n", hz, resolution,
+                  amplitude, fullwave ? " [fullwave]" : "");
     }
 
     return mp_const_none;
@@ -314,6 +381,30 @@ static mp_obj_t pz_pwm_is_running(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_pwm_is_running_obj, pz_pwm_is_running);
 
+// pz_pwm.init_polarity()
+static mp_obj_t pz_pwm_init_polarity(void) {
+    ensure_pol_gpio_init();
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_pwm_init_polarity_obj, pz_pwm_init_polarity);
+
+// pz_pwm.set_polarity(value)
+static mp_obj_t pz_pwm_set_polarity(mp_obj_t value_obj) {
+    ensure_pol_gpio_init();
+    bool val = mp_obj_is_true(value_obj);
+    gpio_set_level(POL_A_GPIO, val ? 1 : 0);
+    gpio_set_level(POL_B_GPIO, val ? 1 : 0);
+    s_polarity = val;
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pz_pwm_set_polarity_obj, pz_pwm_set_polarity);
+
+// pz_pwm.get_polarity()
+static mp_obj_t pz_pwm_get_polarity(void) {
+    return mp_obj_new_bool(s_polarity);
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_pwm_get_polarity_obj, pz_pwm_get_polarity);
+
 // ─── Module registration ─────────────────────────────────────────────────────
 
 static const mp_rom_map_elem_t pz_pwm_globals_table[] = {
@@ -322,6 +413,9 @@ static const mp_rom_map_elem_t pz_pwm_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_start),          MP_ROM_PTR(&pz_pwm_start_obj)},
     {MP_ROM_QSTR(MP_QSTR_stop),           MP_ROM_PTR(&pz_pwm_stop_obj)},
     {MP_ROM_QSTR(MP_QSTR_is_running),     MP_ROM_PTR(&pz_pwm_is_running_obj)},
+    {MP_ROM_QSTR(MP_QSTR_init_polarity), MP_ROM_PTR(&pz_pwm_init_polarity_obj)},
+    {MP_ROM_QSTR(MP_QSTR_set_polarity),  MP_ROM_PTR(&pz_pwm_set_polarity_obj)},
+    {MP_ROM_QSTR(MP_QSTR_get_polarity),  MP_ROM_PTR(&pz_pwm_get_polarity_obj)},
 };
 static MP_DEFINE_CONST_DICT(pz_pwm_globals, pz_pwm_globals_table);
 

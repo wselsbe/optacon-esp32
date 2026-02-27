@@ -1,6 +1,3 @@
-from machine import Pin
-
-
 class ShiftRegister:
     """HV509 dual daisy-chained shift register — SPI interface.
 
@@ -14,16 +11,11 @@ class ShiftRegister:
     _COMMON_MASK = 0xFC00003F
     _ALL_PINS_MASK = 0x03FFFFC0
 
-    def __init__(self, spi, cs_pin, pol_a_pin=12, pol_b_pin=13):
+    def __init__(self, spi, cs_pin):
         self.spi = spi
         self.cs = cs_pin
         self._state = 0x00000000
         self._tx_buf = bytearray(4)
-
-        # Polarity pins (active-low: LOW = inverted mode = normal operation)
-        self._pol_a = Pin(pol_a_pin, Pin.OUT, value=0)
-        self._pol_b = Pin(pol_b_pin, Pin.OUT, value=0)
-        self._polarity = False
 
         # Commit initial state (all off)
         self.flush()
@@ -72,13 +64,3 @@ class ShiftRegister:
         self.cs.value(0)
         self.spi.write(self._tx_buf)
         self.cs.value(1)
-
-    def toggle_polarity(self):
-        """Toggle HV509 polarity pins."""
-        self._polarity = not self._polarity
-        val = 1 if self._polarity else 0
-        self._pol_a.value(val)
-        self._pol_b.value(val)
-
-    def get_polarity(self):
-        return self._polarity

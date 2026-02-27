@@ -25,6 +25,8 @@ class PzActuator:
     }
 
     def __init__(self):
+        # Configure polarity GPIOs before SPI (IOMUX conflict on GPIO 10-13)
+        pz_pwm.init_polarity()
         # Own the I2C bus
         self.i2c = I2C(0, sda=Pin(47), scl=Pin(21), freq=100_000)
         # Own the SPI bus
@@ -55,18 +57,19 @@ class PzActuator:
         )
         self._mode = MODE_DIGITAL
 
-    def set_frequency_analog(self, hz, resolution=8, amplitude=100):
+    def set_frequency_analog(self, hz, resolution=8, amplitude=100, fullwave=False):
         """Configure analog PWM+DDS mode at given frequency.
 
         Args:
             hz: 0-400 (0 = DC output)
             resolution: 8 or 10 bits
             amplitude: 0-100 (percentage, mapped to internal 0-128)
+            fullwave: if True, generate |sin| and toggle polarity at zero-crossings
         """
         if hz < 0 or hz > 400:
             raise ValueError("hz must be 0-400")
         amp_internal = (amplitude * 128 + 50) // 100
-        pz_pwm.set_frequency(hz, resolution=resolution, amplitude=amp_internal)
+        pz_pwm.set_frequency(hz, resolution=resolution, amplitude=amp_internal, fullwave=fullwave)
         self._mode = MODE_ANALOG
 
     def start(self, gain=100):
@@ -122,7 +125,7 @@ class PzActuator:
         self.sr.flush()
 
     def toggle_polarity(self):
-        self.sr.toggle_polarity()
+        pz_pwm.set_polarity(not pz_pwm.get_polarity())
 
     def get_polarity(self):
-        return self.sr.get_polarity()
+        return pz_pwm.get_polarity()
