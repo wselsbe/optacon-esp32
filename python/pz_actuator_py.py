@@ -1,5 +1,5 @@
 import math
-import pz_fifo
+import drv_fifo
 import pz_pwm
 from machine import I2C, SPI, Pin
 from drv2665 import DRV2665
@@ -14,7 +14,7 @@ class PzActuator:
     """High-level piezo actuator controller.
 
     Wraps DRV2665 (I2C), HV509 shift registers (SPI), and
-    real-time C modules (pz_fifo, pz_pwm).
+    real-time C modules (drv_fifo, pz_pwm).
     """
 
     GAINS = {
@@ -79,22 +79,22 @@ class PzActuator:
         gain_bits = self.GAINS[gain]
 
         if self._mode == MODE_DIGITAL:
-            # pz_fifo handles DRV2665 digital config internally
-            pz_fifo.start(self.i2c, self._waveform, gain=gain_bits)
+            self.drv.init_digital(gain_bits)
+            drv_fifo.start(self.i2c, self._waveform)
         elif self._mode == MODE_ANALOG:
             self.drv.init_analog(gain_bits)
             pz_pwm.start()
 
     def stop(self):
         """Stop output and put DRV2665 in standby."""
-        if pz_fifo.is_running():
-            pz_fifo.stop()
+        if drv_fifo.is_running():
+            drv_fifo.stop()
         if pz_pwm.is_running():
             pz_pwm.stop()
         self.drv.standby()
 
     def is_running(self):
-        return pz_fifo.is_running() or pz_pwm.is_running()
+        return drv_fifo.is_running() or pz_pwm.is_running()
 
     # ── Shift register pass-through ─────────────────────────────────────
     def set_pin(self, pin, value, flush=True):
