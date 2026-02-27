@@ -8,7 +8,9 @@
 ESP32 GPIO5 (3.3V) → R13 (390Ω) → C9 (100nF) → [CH4 probe] → C3 (0.1µF AC coupling) → DRV2665 IN+
                                                                                           DRV2665 IN- → C_IN → GND
 DRV2665 VDD = 5V (from USB)
-DRV2665 OUT+/OUT- → piezo actuator (differential)
+DRV2665 VBST ≈ 100V (set by R1/R2 feedback divider)
+DRV2665 OUT+ → actuators (single-ended, NOT differential)
+DRV2665 OUT- → not connected to actuators
 ```
 
 ## Key Findings
@@ -25,27 +27,54 @@ From the DRV2665 datasheet (Recommended Operating Conditions): **VIN = 1.8V diff
 
 The sine LUT swings 0–255, producing 0–100% PWM duty → 0 to 3.3V after RC filtering → 3.3V pk-pk AC after C3 coupling. This is 1.83× the max recommended input.
 
-### 4. CH1 measures single-ended (half the differential output)
+### 4. Output is single-ended (OUT+ only)
 
-The DRV2665 output is fully differential. OUT+ and OUT- swing in opposite phase around VBST/2 (~52.5V). The actual actuator drive voltage is **2× the CH1 (single-ended) measurement**.
+The DRV2665 has a fully-differential amplifier with OUT+ and OUT- swinging in opposite phase around VBST/2 (~50V). The datasheet's VPP specs (50/100/150/200 VPP) refer to the **differential** output (OUT+ minus OUT-).
 
-### 5. Gain measurements explained
+**However, our board only uses OUT+ to drive the actuators (single-ended).** This means:
+- OUT+ swings between ~0V and ~VBST (~100V), centered at VBST/2
+- **The actuator sees half the differential spec** — max ~VBST pk-pk ≈ 100V
+- CH1 (VPP) directly measures the actuator drive voltage
 
-| Gain | dB (analog) | Voltage gain | CH1 measured | Actual differential | Expected (1.8V input) |
-|------|-------------|-------------|--------------|--------------------|-----------------------|
-| 25V  | 28.8 | 27.5× | 46.4V pk-pk | **92.8V pk-pk** | 50 VPP |
-| 50V  | 34.8 | 55.0× | 92.0V pk-pk | **184V pk-pk** | 100 VPP |
-| 75V  | 38.4 | 83.2× | 104.8V pk-pk | **~210V (clipped)** | 150 VPP |
-| 100V | 40.7 | 108.4× | 104.8V pk-pk | **~210V (clipped)** | 200 VPP |
+### 5. VBST ≈ 100V (set by feedback resistors)
 
-Verification: At gain=25, 3.3V × 27.5 = 90.75V differential ÷ 2 = 45.4V single-ended. Measured 46.4V. ✓
+The boost converter output is set by the R1/R2 feedback divider to approximately 100V (datasheet max 105V). This is the hard ceiling for OUT+ single-ended swing.
 
-### 6. With proper 1.8V input, gain settings match datasheet
+### 6. Gain measurements (single-ended, actual actuator voltage)
 
-- Gain 25: 1.8 × 27.5 = **49.5V** → 50 VPP ✓
-- Gain 50: 1.8 × 55.0 = **99.0V** → 100 VPP ✓
-- Gain 75: 1.8 × 83.2 = **149.8V** → 150 VPP ✓
-- Gain 100: 1.8 × 108.4 = **195.1V** → 200 VPP ✓
+| Gain | dB (analog) | Voltage gain | CH1 = actuator V | Clipping? |
+|------|-------------|-------------|-----------------|-----------|
+| 25V  | 28.8 | 27.5× | 46.4V pk-pk | No — headroom left |
+| 50V  | 34.8 | 55.0× | 92.0V pk-pk | No — close to VBST |
+| 75V  | 38.4 | 83.2× | 104.8V pk-pk | Yes — at VBST |
+| 100V | 40.7 | 108.4× | 104.8V pk-pk | Yes — hard clip at VBST |
+
+The gain math works out for single-ended: the DRV2665 amplifier gain applies to the differential output, but OUT+ only carries half. So: single-ended = input × gain / 2.
+
+- Gain 25: 3.3V × 27.5 / 2 = 45.4V → measured 46.4V ✓
+- Gain 50: 3.3V × 55.0 / 2 = 90.75V → measured 92.0V ✓
+
+### 7. Optimal single-ended gain strategy
+
+Since we're limited to ~VBST ≈ 100V single-ended, the useful gain range is:
+- **Gain=50 with full PWM (3.3V)**: 92V — near-optimal, 92% of VBST
+- **Gain=100 with amplitude=48% (1.8V)**: 89.6V — also good, clean sine
+- **Gain=25 with full PWM**: 46V — only uses 46% of available range
+
+For maximum actuator drive, **gain=50 at full amplitude** or **gain=100 at ~48% amplitude** are equivalent. Higher gain with lower amplitude gives finer software control.
+
+### 8. With proper 1.8V input, gain settings match datasheet (differential)
+
+These are the datasheet's differential specs. For our single-ended setup, divide by 2:
+
+| Gain | 1.8V input → differential | Single-ended (OUT+) | vs VBST |
+|------|--------------------------|--------------------|---------|
+| 25V  | 49.5V | ~25V | 25% of VBST |
+| 50V  | 99.0V | ~50V | 50% of VBST |
+| 75V  | 149.8V | ~75V | 75% of VBST |
+| 100V | 195.1V | ~98V | ~98% of VBST |
+
+So at gain=100 with 1.8V input, OUT+ swings nearly the full VBST range — this is the sweet spot for single-ended use.
 
 ## Solution: PWM Amplitude Scaling
 
@@ -54,9 +83,10 @@ Verification: At gain=25, 3.3V × 27.5 = 90.75V differential ÷ 2 = 45.4V single
 Added `amplitude` kwarg to `start()` (0–100%, default 100):
 
 ```python
-pz_actuator.start(gain=100, amplitude=55)  # 1.8V input → 200 VPP clean
-pz_actuator.start(gain=25, amplitude=55)   # 1.8V input → 50 VPP clean
-pz_actuator.start(gain=100, amplitude=100) # 3.3V input → clips at ~210V
+pz_actuator.start(gain=100, amplitude=48)   # 1.8V input → ~90V clean single-ended
+pz_actuator.start(gain=50, amplitude=100)    # 3.3V input → ~92V (slight overdrive but works)
+pz_actuator.start(gain=25, amplitude=100)    # 3.3V input → ~46V
+pz_actuator.start(gain=100, amplitude=25)    # 0.8V input → ~45V (fine volume control)
 ```
 
 Internally, the ISR scales the sine LUT around its midpoint:
@@ -65,19 +95,19 @@ int32_t raw = (int32_t)sine_lut_8bit[index] - 128;   // -128 to +127
 int32_t scaled = 128 + ((raw * s_amplitude) >> 7);     // back to 0-255
 ```
 
-Where `s_amplitude` is 0–128 (mapped from 0–100%). `amplitude=55` → internal 70 → 1.8V pk-pk.
+Where `s_amplitude` is 0–128 (mapped from 0–100%). `amplitude=48` → internal 61 → ~1.8V pk-pk.
 
-### Amplitude-to-output table (at each gain, no clipping)
+### Amplitude-to-output table (single-ended actuator voltage)
 
-| amplitude (%) | Input pk-pk | Gain=25 diff | Gain=50 diff | Gain=75 diff | Gain=100 diff |
-|--------------|-------------|-------------|-------------|-------------|--------------|
-| 100 | 3.3V | 91V | 182V¹ | 210V¹ | 210V¹ |
-| 55 | 1.8V | 50V | 99V | 150V | 195V |
-| 27 | 0.9V | 25V | 50V | 75V | 98V |
-| 14 | 0.45V | 12V | 25V | 37V | 49V |
-| 1 | 0.03V | 0.9V | 1.7V | 2.5V | 3.4V |
+| amplitude (%) | Input pk-pk | Gain=25 | Gain=50 | Gain=75 | Gain=100 |
+|--------------|-------------|---------|---------|---------|----------|
+| 100 | 3.3V | 46V | 92V | ~100V¹ | ~100V¹ |
+| 48 | 1.6V | 22V | 44V | 66V | 87V |
+| 55 | 1.8V | 25V | 50V | 75V | 98V |
+| 27 | 0.9V | 12V | 25V | 37V | 49V |
+| 14 | 0.45V | 6V | 12V | 19V | 24V |
 
-¹ Clipped at 2×VBST ≈ 210V
+¹ Clipped at VBST ≈ 100V
 
 ## Note: PWM Scaling vs Supply Voltages
 
@@ -122,3 +152,7 @@ No benefit. AC coupling cap blocks DC, so the divider voltage never reaches the 
 
 ### Option: IN- AC-coupled to GPIO held LOW
 Effectively the same as AC-coupled to GND. The AC coupling cap blocks the DC level, and a LOW GPIO (~0V) behaves the same as a GND connection. No benefit over the current design.
+
+## Single-Ended vs Differential Actuator Connection
+
+The current board connects only OUT+ to the actuators, giving a maximum swing of ~VBST ≈ 100V pk-pk. If a future revision connects actuators differentially (between OUT+ and OUT-), the full 200 VPP output becomes available, doubling the drive voltage. This would require routing OUT- to the actuator board and changes to the shift register/mux design.
