@@ -1,13 +1,14 @@
-from pz_actuator_py import PzActuator
-
 # Put DRV2665 into standby on boot — its state persists across ESP32 reboots
 import pz_drive
+from pz_actuator_py import PzActuator
+
 pz_drive.i2c_write(0x02, 0x40)
 
 
 def demo_analog():
     """Demo: analog sine wave via PWM + RC filter."""
     import time
+
     pa = PzActuator()
 
     try:
@@ -32,6 +33,7 @@ def demo_analog():
 def demo_digital():
     """Demo: digital sine wave via I2C FIFO."""
     import time
+
     pa = PzActuator()
 
     try:
@@ -51,6 +53,7 @@ def demo_digital():
 def demo():
     """Demo: cycle through pins with analog output."""
     import time
+
     pa = PzActuator()
     pa.set_frequency_analog(250)
     pa.start()

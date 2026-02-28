@@ -6,14 +6,14 @@
 
 #include <string.h>
 
-#define SPI_MOSI_GPIO   6
-#define SPI_MISO_GPIO   7
-#define SPI_SCK_GPIO    9
-#define SPI_CS_GPIO     10
-#define POL_A_GPIO      12
-#define POL_B_GPIO      13
+#define SPI_MOSI_GPIO 6
+#define SPI_MISO_GPIO 7
+#define SPI_SCK_GPIO  9
+#define SPI_CS_GPIO   10
+#define POL_A_GPIO    12
+#define POL_B_GPIO    13
 
-#define SPI_CLK_HZ      1000000
+#define SPI_CLK_HZ 1000000
 
 static spi_device_handle_t s_spi_dev;
 static bool s_spi_inited = false;
@@ -61,14 +61,14 @@ void hv509_pol_toggle(void) {
 // After latch, LE stays high (idle state).
 // ISR-safe: only uses gpio_set_level().
 static inline void latch_le(void) {
-    gpio_set_level(SPI_CS_GPIO, 1);  // rising edge latches data; stays high
+    gpio_set_level(SPI_CS_GPIO, 1); // rising edge latches data; stays high
 }
 
 // Clock data into shift register: pull LE low, shift data, leave LE low.
 // Caller must call latch_le() afterwards to commit.
 static void spi_shift_data(uint32_t word32) {
     word32 &= 0x03FFFFC0U;
-    gpio_set_level(SPI_CS_GPIO, 0);  // LE low: enable shifting
+    gpio_set_level(SPI_CS_GPIO, 0); // LE low: enable shifting
     uint8_t buf[4];
     buf[0] = (word32 >> 24) & 0xFF;
     buf[1] = (word32 >> 16) & 0xFF;
@@ -96,7 +96,7 @@ void hv509_init(void) {
         .intr_type = GPIO_INTR_DISABLE,
     };
     gpio_config(&le_conf);
-    gpio_set_level(SPI_CS_GPIO, 1);  // idle state: LE high
+    gpio_set_level(SPI_CS_GPIO, 1); // idle state: LE high
 
     spi_bus_config_t bus_cfg = {
         .mosi_io_num = SPI_MOSI_GPIO,
@@ -110,7 +110,7 @@ void hv509_init(void) {
     spi_device_interface_config_t dev_cfg = {
         .clock_speed_hz = SPI_CLK_HZ,
         .mode = 0,
-        .spics_io_num = -1,  // No automatic CS — we control LE manually
+        .spics_io_num = -1, // No automatic CS — we control LE manually
         .queue_size = 1,
     };
     spi_bus_add_device(SPI2_HOST, &dev_cfg, &s_spi_dev);

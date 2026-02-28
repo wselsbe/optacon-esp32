@@ -8,11 +8,11 @@
 
 #include <string.h>
 
-#define I2C_SDA_GPIO    47
-#define I2C_SCL_GPIO    21
-#define I2C_FREQ_HZ     100000
-#define DRV2665_ADDR    0x59
-#define I2C_TIMEOUT_MS  100
+#define I2C_SDA_GPIO   47
+#define I2C_SCL_GPIO   21
+#define I2C_FREQ_HZ    100000
+#define DRV2665_ADDR   0x59
+#define I2C_TIMEOUT_MS 100
 
 static i2c_master_bus_handle_t s_bus;
 static i2c_master_dev_handle_t s_dev;
@@ -60,7 +60,7 @@ int drv2665_read_reg(uint8_t reg) {
 
 void drv2665_write_reg(uint8_t reg, uint8_t val) {
     if (!s_inited) drv2665_bus_init();
-    uint8_t buf[2] = { reg, val };
+    uint8_t buf[2] = {reg, val};
     i2c_master_transmit(s_dev, buf, 2, I2C_TIMEOUT_MS);
 }
 
@@ -74,7 +74,7 @@ void drv2665_write_fifo_bulk(const uint8_t *data, size_t len) {
 }
 
 void drv2665_write_fifo_byte(uint8_t val) {
-    uint8_t buf[2] = { 0x0B, val };
+    uint8_t buf[2] = {0x0B, val};
     i2c_master_transmit(s_dev, buf, 2, I2C_TIMEOUT_MS);
 }
 

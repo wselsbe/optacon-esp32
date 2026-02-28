@@ -1,11 +1,11 @@
 import math
+
 import pz_drive
 from drv2665 import DRV2665
 from shift_register import ShiftRegister
 
-
-MODE_DIGITAL = 'digital'
-MODE_ANALOG = 'analog'
+MODE_DIGITAL = "digital"
+MODE_ANALOG = "analog"
 
 
 class PzActuator:
@@ -22,7 +22,7 @@ class PzActuator:
         100: DRV2665.GAIN_100,
     }
 
-    WAVEFORMS = {'sine': 0, 'triangle': 1, 'square': 2}
+    WAVEFORMS = {"sine": 0, "triangle": 1, "square": 2}
 
     def __init__(self):
         # pz_drive owns I2C and SPI buses — init happens on first use
@@ -34,7 +34,7 @@ class PzActuator:
         self._gain = 100
         self._fullwave = False
 
-    def set_frequency_digital(self, hz, fullwave=False, waveform='sine'):
+    def set_frequency_digital(self, hz, fullwave=False, waveform="sine"):
         """Configure digital FIFO mode at given frequency.
 
         Args:
@@ -53,44 +53,70 @@ class PzActuator:
 
         if fullwave:
             # Half-period |waveform| — fifo.c handles polarity toggle
-            if waveform == 'sine':
+            if waveform == "sine":
                 self._waveform = bytearray(
                     int(127 * math.sin(math.pi * i / n_samples)) & 0xFF
                     for i in range(n_samples)
                 )
-            elif waveform == 'triangle':
+            elif waveform == "triangle":
                 self._waveform = bytearray(
-                    int(127 * (2 * i / n_samples if i < n_samples // 2
-                               else 2 * (n_samples - i) / n_samples)) & 0xFF
+                    int(
+                        127
+                        * (
+                            2 * i / n_samples
+                            if i < n_samples // 2
+                            else 2 * (n_samples - i) / n_samples
+                        )
+                    )
+                    & 0xFF
                     for i in range(n_samples)
                 )
-            elif waveform == 'square':
+            elif waveform == "square":
                 self._waveform = bytearray(127 for _ in range(n_samples))
         else:
             # Full-period waveform (trough at index 0 for sine)
-            if waveform == 'sine':
+            if waveform == "sine":
                 self._waveform = bytearray(
-                    (int(127 * math.sin(-math.pi / 2 + 2 * math.pi * i / n_samples)) & 0xFF)
+                    (
+                        int(127 * math.sin(-math.pi / 2 + 2 * math.pi * i / n_samples))
+                        & 0xFF
+                    )
                     for i in range(n_samples)
                 )
-            elif waveform == 'triangle':
+            elif waveform == "triangle":
                 self._waveform = bytearray(
-                    (int(127 * (4 * i / n_samples - 1 if i < n_samples // 2
-                                else 3 - 4 * i / n_samples)) & 0xFF)
+                    (
+                        int(
+                            127
+                            * (
+                                4 * i / n_samples - 1
+                                if i < n_samples // 2
+                                else 3 - 4 * i / n_samples
+                            )
+                        )
+                        & 0xFF
+                    )
                     for i in range(n_samples)
                 )
-            elif waveform == 'square':
+            elif waveform == "square":
                 half = n_samples // 2
                 self._waveform = bytearray(
-                    (127 if i < half else ((-128) & 0xFF))
-                    for i in range(n_samples)
+                    (127 if i < half else ((-128) & 0xFF)) for i in range(n_samples)
                 )
 
         self._fullwave = fullwave
         self._mode = MODE_DIGITAL
 
-    def set_frequency_analog(self, hz, resolution=8, amplitude=100, fullwave=False,
-                             dead_time=0, phase_advance=0, waveform='sine'):
+    def set_frequency_analog(
+        self,
+        hz,
+        resolution=8,
+        amplitude=100,
+        fullwave=False,
+        dead_time=0,
+        phase_advance=0,
+        waveform="sine",
+    ):
         """Configure analog PWM+DDS mode at given frequency.
 
         Args:
@@ -109,25 +135,31 @@ class PzActuator:
         if waveform not in self.WAVEFORMS:
             raise ValueError("waveform must be 'sine', 'triangle', or 'square'")
         amp_internal = (amplitude * 128 + 50) // 100
-        pz_drive.pwm_set_frequency(hz, resolution=resolution, amplitude=amp_internal,
-                                   fullwave=fullwave, dead_time=dead_time,
-                                   phase_advance=phase_advance,
-                                   waveform=self.WAVEFORMS[waveform])
+        pz_drive.pwm_set_frequency(
+            hz,
+            resolution=resolution,
+            amplitude=amp_internal,
+            fullwave=fullwave,
+            dead_time=dead_time,
+            phase_advance=phase_advance,
+            waveform=self.WAVEFORMS[waveform],
+        )
         self._fullwave = fullwave
         self._mode = MODE_ANALOG
 
     def start(self, gain=100):
         """Start output in the configured mode."""
         if self._mode is None:
-            raise RuntimeError("call set_frequency_digital() or set_frequency_analog() first")
+            raise RuntimeError(
+                "call set_frequency_digital() or set_frequency_analog() first"
+            )
         if gain not in self.GAINS:
             raise ValueError("gain must be 25, 50, 75, or 100")
         self._gain = gain
         gain_bits = self.GAINS[gain]
 
         if self._mode == MODE_DIGITAL:
-            pz_drive.fifo_start(self._waveform, gain=gain_bits,
-                                fullwave=self._fullwave)
+            pz_drive.fifo_start(self._waveform, gain=gain_bits, fullwave=self._fullwave)
         elif self._mode == MODE_ANALOG:
             self.drv.init_analog(gain_bits)
             pz_drive.pwm_start()

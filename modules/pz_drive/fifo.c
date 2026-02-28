@@ -25,16 +25,16 @@
 
 // ─── DRV2665 constants ──────────────────────────────────────────────────────
 
-#define DRV2665_REG_STATUS      0x00
-#define DRV2665_REG_CTRL1       0x01
-#define DRV2665_REG_CTRL2       0x02
-#define DRV2665_FIFO_SIZE       100
-#define DRV2665_TIMEOUT_20MS    (3 << 2)    // bits [3:2] of CTRL2
-#define DRV2665_STANDBY         (1 << 6)
-#define DRV2665_INPUT_DIGITAL   (0 << 2)
-#define SAMPLE_PERIOD_US        125         // 1/8000 Hz = 125 us per sample
+#define DRV2665_REG_STATUS    0x00
+#define DRV2665_REG_CTRL1     0x01
+#define DRV2665_REG_CTRL2     0x02
+#define DRV2665_FIFO_SIZE     100
+#define DRV2665_TIMEOUT_20MS  (3 << 2) // bits [3:2] of CTRL2
+#define DRV2665_STANDBY       (1 << 6)
+#define DRV2665_INPUT_DIGITAL (0 << 2)
+#define SAMPLE_PERIOD_US      125 // 1/8000 Hz = 125 us per sample
 
-#define REFILL_PERIOD_US        8000        // 8 ms between refills
+#define REFILL_PERIOD_US 8000 // 8 ms between refills
 // At 8kHz, 8ms = 64 samples consumed.  FIFO is 100, so we refill well
 // before underrun (100 - 64 = 36 samples headroom).
 
@@ -75,7 +75,7 @@ static void fill_from_waveform(uint8_t *fill_buf, size_t count) {
 
 static void fifo_enable_digital(uint8_t gain) {
     // Datasheet 8.3.1: exit standby, set digital mode + gain, set timeout
-    drv2665_write_reg(DRV2665_REG_CTRL2, 0x00);  // exit standby, clear timeout
+    drv2665_write_reg(DRV2665_REG_CTRL2, 0x00); // exit standby, clear timeout
 
     TickType_t ticks = pdMS_TO_TICKS(5);
     vTaskDelay(ticks > 0 ? ticks : 1);
@@ -119,7 +119,7 @@ static void fifo_background_task(void *arg) {
 
     while (s_running) {
         // Wait for timer notification (blocks until timer fires)
-        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50));  // 50ms safety timeout
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50)); // 50ms safety timeout
         if (!s_running) break;
 
         // Estimate how many samples the FIFO has consumed since last fill
@@ -150,8 +150,7 @@ bool pzd_fifo_is_running(void) {
 
 void pzd_fifo_start(const uint8_t *buf, size_t len, int gain, bool fullwave) {
     if (s_running) {
-        mp_raise_msg(&mp_type_RuntimeError,
-                     MP_ERROR_TEXT("pz_drive: FIFO already running"));
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("pz_drive: FIFO already running"));
     }
 
     // Set up state
@@ -173,26 +172,23 @@ void pzd_fifo_start(const uint8_t *buf, size_t len, int gain, bool fullwave) {
         esp_err_t err = esp_timer_create(&timer_args, &s_timer_handle);
         if (err != ESP_OK) {
             s_running = false;
-            mp_raise_msg(&mp_type_RuntimeError,
-                         MP_ERROR_TEXT("pz_drive: failed to create timer"));
+            mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("pz_drive: failed to create timer"));
         }
     }
 
     // Pin to core 1 so I2C traffic doesn't starve USB-CDC (TinyUSB on core 0)
-    BaseType_t ret = xTaskCreatePinnedToCore(
-        fifo_background_task, "pz_fifo", 8192, NULL,
-        tskIDLE_PRIORITY + 2, &s_task_handle, 1);
+    BaseType_t ret = xTaskCreatePinnedToCore(fifo_background_task, "pz_fifo", 8192, NULL,
+                                             tskIDLE_PRIORITY + 2, &s_task_handle, 1);
     if (ret != pdPASS) {
         s_running = false;
         esp_timer_delete(s_timer_handle);
         s_timer_handle = NULL;
-        mp_raise_msg(&mp_type_RuntimeError,
-                     MP_ERROR_TEXT("pz_drive: failed to create FIFO task"));
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("pz_drive: failed to create FIFO task"));
     }
 
     mp_printf(&mp_plat_print,
-              "pz_drive: fifo started (waveform=%u samples, gain=%d, fullwave=%d)\n",
-              (unsigned)len, gain, (int)fullwave);
+              "pz_drive: fifo started (waveform=%u samples, gain=%d, fullwave=%d)\n", (unsigned)len,
+              gain, (int)fullwave);
 }
 
 void pzd_fifo_stop(void) {

@@ -26,8 +26,8 @@ uint8_t drv2665_read_status(void);
 
 // ── pwm.c — analog DDS ISR ─────────────────────────────────────────────
 bool pzd_pwm_is_running(void);
-void pzd_pwm_set_frequency(int hz, int resolution, int amplitude, bool fullwave,
-                           int dead_time, int phase_advance, int waveform);
+void pzd_pwm_set_frequency(int hz, int resolution, int amplitude, bool fullwave, int dead_time,
+                           int phase_advance, int waveform);
 void pzd_pwm_start(void);
 void pzd_pwm_stop(void);
 

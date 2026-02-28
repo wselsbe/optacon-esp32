@@ -47,8 +47,7 @@ class ShiftRegister:
 
     def get_all(self):
         return tuple(
-            1 if (self._state & (1 << (25 - i))) else 0
-            for i in range(self.NUM_PINS)
+            1 if (self._state & (1 << (25 - i))) else 0 for i in range(self.NUM_PINS)
         )
 
     def set_pins(self, values, latch=True):

@@ -14,29 +14,29 @@ class DRV2665:
 
     # Registers
     REG_STATUS = 0x00
-    REG_CTRL1  = 0x01
-    REG_CTRL2  = 0x02
-    REG_DATA   = 0x0B
+    REG_CTRL1 = 0x01
+    REG_CTRL2 = 0x02
+    REG_DATA = 0x0B
 
     # Status bits
-    FIFO_FULL  = 0x01
+    FIFO_FULL = 0x01
     FIFO_EMPTY = 0x02
 
     # CTRL1: input mode (bit 2) + gain (bits 1:0)
     INPUT_DIGITAL = 0x00
-    INPUT_ANALOG  = 0x04
-    GAIN_25  = 0x00
-    GAIN_50  = 0x01
-    GAIN_75  = 0x02
+    INPUT_ANALOG = 0x04
+    GAIN_25 = 0x00
+    GAIN_50 = 0x01
+    GAIN_75 = 0x02
     GAIN_100 = 0x03
 
     # CTRL2 bits
-    STANDBY        = 0x40
-    TIMEOUT_5MS    = 0x00
-    TIMEOUT_10MS   = 0x04
-    TIMEOUT_15MS   = 0x08
-    TIMEOUT_20MS   = 0x0C
-    EN_OVERRIDE    = 0x02
+    STANDBY = 0x40
+    TIMEOUT_5MS = 0x00
+    TIMEOUT_10MS = 0x04
+    TIMEOUT_15MS = 0x08
+    TIMEOUT_20MS = 0x0C
+    EN_OVERRIDE = 0x02
 
     def __init__(self):
         # Verify device is present (pz_drive owns I2C bus)
