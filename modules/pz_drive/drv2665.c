@@ -73,12 +73,12 @@ void drv2665_write_fifo_bulk(const uint8_t *data, size_t len) {
     i2c_master_transmit(s_dev, buf, len + 1, I2C_TIMEOUT_MS);
 }
 
-__attribute__((weak)) void drv2665_write_fifo_byte(uint8_t val) {
+void drv2665_write_fifo_byte(uint8_t val) {
     uint8_t buf[2] = { 0x0B, val };
     i2c_master_transmit(s_dev, buf, 2, I2C_TIMEOUT_MS);
 }
 
-__attribute__((weak)) uint8_t drv2665_read_status(void) {
+uint8_t drv2665_read_status(void) {
     uint8_t reg = 0x00;
     uint8_t val = 0;
     i2c_master_transmit_receive(s_dev, &reg, 1, &val, 1, I2C_TIMEOUT_MS);
