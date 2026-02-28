@@ -32,6 +32,8 @@ void pzd_pwm_start(void);
 void pzd_pwm_stop(void);
 
 // ── fifo.c — digital FIFO background task ───────────────────────────────
-bool fifo_is_running(void);
+bool pzd_fifo_is_running(void);
+void pzd_fifo_start(const uint8_t *buf, size_t len, int gain, bool fullwave);
+void pzd_fifo_stop(void);
 
 #endif // PZ_DRIVE_H

@@ -103,6 +103,48 @@ static mp_obj_t pz_drive_pwm_is_running(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_pwm_is_running_obj, pz_drive_pwm_is_running);
 
+// ── fifo_start(waveform_buf, gain=3, fullwave=False) ────────────────────
+static mp_obj_t pz_drive_fifo_start(size_t n_args, const mp_obj_t *pos_args,
+                                     mp_map_t *kw_args) {
+    enum { ARG_waveform, ARG_gain, ARG_fullwave };
+    static const mp_arg_t allowed_args[] = {
+        { MP_QSTR_waveform, MP_ARG_REQUIRED | MP_ARG_OBJ },
+        { MP_QSTR_gain, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 3} },
+        { MP_QSTR_fullwave, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = false} },
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all(n_args, pos_args, kw_args,
+                     MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(args[ARG_waveform].u_obj, &bufinfo, MP_BUFFER_READ);
+    if (bufinfo.len == 0) {
+        mp_raise_ValueError(MP_ERROR_TEXT("waveform must not be empty"));
+    }
+    int gain = args[ARG_gain].u_int;
+    if (gain < 0 || gain > 3) {
+        mp_raise_ValueError(MP_ERROR_TEXT("gain must be 0-3"));
+    }
+
+    pzd_fifo_start((const uint8_t *)bufinfo.buf, bufinfo.len,
+                   gain, args[ARG_fullwave].u_bool);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(pz_drive_fifo_start_obj, 1, pz_drive_fifo_start);
+
+// ── fifo_stop() ─────────────────────────────────────────────────────────
+static mp_obj_t pz_drive_fifo_stop(void) {
+    pzd_fifo_stop();
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_fifo_stop_obj, pz_drive_fifo_stop);
+
+// ── fifo_is_running() ───────────────────────────────────────────────────
+static mp_obj_t pz_drive_fifo_is_running(void) {
+    return mp_obj_new_bool(pzd_fifo_is_running());
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_fifo_is_running_obj, pz_drive_fifo_is_running);
+
 // ── Module table ────────────────────────────────────────────────────────
 static const mp_rom_map_elem_t pz_drive_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_pz_drive) },
@@ -117,6 +159,9 @@ static const mp_rom_map_elem_t pz_drive_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_pwm_start), MP_ROM_PTR(&pz_drive_pwm_start_obj) },
     { MP_ROM_QSTR(MP_QSTR_pwm_stop), MP_ROM_PTR(&pz_drive_pwm_stop_obj) },
     { MP_ROM_QSTR(MP_QSTR_pwm_is_running), MP_ROM_PTR(&pz_drive_pwm_is_running_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fifo_start), MP_ROM_PTR(&pz_drive_fifo_start_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fifo_stop), MP_ROM_PTR(&pz_drive_fifo_stop_obj) },
+    { MP_ROM_QSTR(MP_QSTR_fifo_is_running), MP_ROM_PTR(&pz_drive_fifo_is_running_obj) },
 };
 static MP_DEFINE_CONST_DICT(pz_drive_module_globals, pz_drive_module_globals_table);
 
