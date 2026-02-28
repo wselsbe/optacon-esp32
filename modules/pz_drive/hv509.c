@@ -21,7 +21,6 @@ static bool s_pol_inited = false;
 static bool s_pol_value = false;
 
 // Stage/latch state
-static volatile uint32_t s_pending_word = 0;
 static volatile bool s_latch_pending = false;
 
 // ── Polarity GPIOs ──────────────────────────────────────────────────────
@@ -58,10 +57,18 @@ void hv509_pol_toggle(void) {
 
 // ── SPI shift register ─────────────────────────────────────────────────
 
-static void spi_write_word(uint32_t word32) {
-    // Mask off common bits (only pins 6-25 are valid)
+// Latch: rising edge on LE transfers shift register to outputs.
+// After latch, LE stays high (idle state).
+// ISR-safe: only uses gpio_set_level().
+static inline void latch_le(void) {
+    gpio_set_level(SPI_CS_GPIO, 1);  // rising edge latches data; stays high
+}
+
+// Clock data into shift register: pull LE low, shift data, leave LE low.
+// Caller must call latch_le() afterwards to commit.
+static void spi_shift_data(uint32_t word32) {
     word32 &= 0x03FFFFC0U;
-    // Send big-endian (MSB first)
+    gpio_set_level(SPI_CS_GPIO, 0);  // LE low: enable shifting
     uint8_t buf[4];
     buf[0] = (word32 >> 24) & 0xFF;
     buf[1] = (word32 >> 16) & 0xFF;
@@ -72,12 +79,24 @@ static void spi_write_word(uint32_t word32) {
         .tx_buffer = buf,
     };
     spi_device_transmit(s_spi_dev, &txn);
+    // LE stays low — data is shifted in but not latched yet
 }
 
 void hv509_init(void) {
     if (s_spi_inited) return;
     // Polarity GPIOs MUST be configured before SPI (IOMUX conflict)
     hv509_pol_init();
+
+    // Configure LE (latch enable) as manual GPIO output BEFORE SPI init
+    gpio_config_t le_conf = {
+        .pin_bit_mask = (1ULL << SPI_CS_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&le_conf);
+    gpio_set_level(SPI_CS_GPIO, 1);  // idle state: LE high
 
     spi_bus_config_t bus_cfg = {
         .mosi_io_num = SPI_MOSI_GPIO,
@@ -91,36 +110,41 @@ void hv509_init(void) {
     spi_device_interface_config_t dev_cfg = {
         .clock_speed_hz = SPI_CLK_HZ,
         .mode = 0,
-        .spics_io_num = SPI_CS_GPIO,
+        .spics_io_num = -1,  // No automatic CS — we control LE manually
         .queue_size = 1,
     };
     spi_bus_add_device(SPI2_HOST, &dev_cfg, &s_spi_dev);
 
-    // Clear all outputs
-    spi_write_word(0);
+    // Clear all outputs: shift in zeros, then latch
+    spi_shift_data(0);
+    latch_le();
     s_spi_inited = true;
 }
 
 void hv509_sr_write(uint32_t word32) {
     if (!s_spi_inited) hv509_init();
-    spi_write_word(word32);
+    spi_shift_data(word32);
+    latch_le();
 }
 
 void hv509_sr_stage(uint32_t word32) {
     if (!s_spi_inited) hv509_init();
-    s_pending_word = word32;
-    // If neither ISR nor task is running, write immediately
+    // Clock data into shift register now (safe, non-ISR context)
+    spi_shift_data(word32);
+    // If neither ISR nor task is running, latch immediately
     if (!pzd_pwm_is_running() && !pzd_fifo_is_running()) {
-        spi_write_word(word32);
+        latch_le();
         s_latch_pending = false;
     } else {
+        // ISR will pulse LE at the right moment
         s_latch_pending = true;
     }
 }
 
 void hv509_sr_latch_if_pending(void) {
+    // ISR-safe: only uses gpio_set_level()
     if (s_latch_pending) {
-        spi_write_word(s_pending_word);
+        latch_le();
         s_latch_pending = false;
     }
 }
