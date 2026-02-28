@@ -1,23 +1,21 @@
-// pz_pwm — Standalone MicroPython C module for analog DDS sine wave via LEDC PWM
+// modules/pz_drive/pwm.c — Analog DDS ISR with shift register latch
 //
-// Generates a sine wave on GPIO 5 using a DDS phase accumulator clocked by a
-// GPTimer ISR at 32 kHz. The ISR indexes a 256-entry sine LUT and updates the
-// LEDC duty cycle each tick. Supports 8-bit and 10-bit PWM resolution, variable
-// amplitude, and DC mode (0 Hz = 100% duty).
+// Generates a sine/triangle/square wave on GPIO 5 using a DDS phase
+// accumulator clocked by a GPTimer ISR at 32 kHz.  The ISR indexes a
+// 256-entry sine LUT and updates the LEDC duty cycle each tick.
 //
-// Python API:
-//   pz_pwm.set_frequency(hz, resolution=8, amplitude=128)
-//   pz_pwm.start()
-//   pz_pwm.stop()
-//   pz_pwm.is_running()
+// At zero-crossing (fullwave) or cycle wrap (non-fullwave) the ISR calls
+// hv509_sr_latch_if_pending() so staged shift register data is committed
+// at a safe moment.  Polarity toggling delegates to hv509_pol_set().
+
+#include "pz_drive.h"
 
 #include "py/runtime.h"
 #include "py/obj.h"
 #include "driver/ledc.h"
 #include "driver/gptimer.h"
-#include "esp_log.h"
 
-// ─── Configuration ───────────────────────────────────────────────────────────
+// ---- Configuration ---------------------------------------------------------
 
 #define PWM_GPIO               5
 #define PWM_SAMPLE_RATE_HZ     32000
@@ -26,7 +24,7 @@
 #define LEDC_CHANNEL    LEDC_CHANNEL_0
 #define LEDC_SPEED_MODE LEDC_LOW_SPEED_MODE
 
-// ─── Sine LUT (256 entries, unsigned 0-255) ──────────────────────────────────
+// ---- Sine LUT (256 entries, unsigned 0-255) --------------------------------
 
 #define SINE_LUT_SIZE 256
 
@@ -49,14 +47,14 @@ static const uint8_t sine_lut[SINE_LUT_SIZE] = {
     100, 103, 106, 109, 112, 115, 118, 121, 124,
 };
 
-// ─── Module state ────────────────────────────────────────────────────────────
+// ---- Module state ----------------------------------------------------------
 
 static gptimer_handle_t s_timer = NULL;
 static bool s_hw_initialized = false; // LEDC + GPTimer configured
 static bool s_running = false;        // ISR actively updating duty
 static uint8_t s_resolution = PWM_DEFAULT_RESOLUTION;
 
-// DDS state — written by Python, read by ISR
+// DDS state -- written by Python, read by ISR
 static volatile uint32_t s_phase_acc = 0;
 static volatile uint32_t s_phase_step = 0;
 static volatile uint8_t s_amplitude = 128; // 0-128
@@ -65,29 +63,94 @@ static volatile uint8_t s_amplitude = 128; // 0-128
 static uint16_t s_freq_hz = 0;
 static bool s_freq_configured = false;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// Waveform type
+#define WAVEFORM_SINE     0
+#define WAVEFORM_TRIANGLE 1
+#define WAVEFORM_SQUARE   2
+static volatile uint8_t s_waveform = WAVEFORM_SINE;
+
+// Fullwave mode state
+static volatile bool s_fullwave = false;
+static volatile uint8_t s_prev_half = 0;   // 0=first half (0..pi), 1=second half (pi..2pi)
+static volatile uint32_t s_dead_phase = 0; // phase margin around zero-crossings (force duty=128)
+static volatile uint32_t s_pol_advance =
+    0; // phase advance for polarity toggle (compensate output lag)
+
+// ---- Helpers ---------------------------------------------------------------
 
 static uint32_t ledc_max_duty(void) {
     return (1U << s_resolution) - 1;
 }
 
-// ─── GPTimer ISR: DDS phase accumulator → sine LUT → LEDC duty ──────────────
+// ---- GPTimer ISR: DDS phase accumulator -> waveform LUT -> LEDC duty -------
 
 static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
                                          const gptimer_alarm_event_data_t *edata, void *user_data) {
+    // Save previous phase for cycle-wrap detection
+    uint32_t prev_phase = s_phase_acc;
     s_phase_acc += s_phase_step;
 
-    // Top 8 bits of phase accumulator index the 256-entry LUT
+    // Top 8 bits of phase accumulator index the waveform
     uint8_t index = (uint8_t)(s_phase_acc >> 24);
 
-    // Scale sine by amplitude: center at 128, scale deviation, re-center
-    int32_t raw = (int32_t)sine_lut[index] - 128; // -128 to +127
+    // Generate waveform value centered at 0 (-128 to +127)
+    int32_t raw;
+    switch (s_waveform) {
+    case WAVEFORM_TRIANGLE:
+        raw = (index < 128) ? (index * 2) : (510 - index * 2);
+        raw -= 128;
+        break;
+    case WAVEFORM_SQUARE:
+        raw = (index < 128) ? 127 : -128;
+        break;
+    default: // WAVEFORM_SINE
+        raw = (int32_t)sine_lut[index] - 128;
+        break;
+    }
+
+    // Scale by amplitude and re-center to unsigned 0-255
     int32_t scaled = 128 + ((raw * (int32_t)s_amplitude) >> 7);
     uint32_t duty = (uint32_t)scaled;
 
+    if (s_fullwave) {
+        // Full-wave rectification: mirror negative half around 128
+        uint8_t half = (uint8_t)(s_phase_acc >> 31);
+        if (half) {
+            duty = 256 - duty; // mirror: values below 128 become above 128
+        }
+
+        // Dead time: force zero output near zero-crossings so DRV2665
+        // output settles before polarity toggles
+        if (s_dead_phase) {
+            // Distance from current phase to nearest half-boundary (0 or 0x80000000)
+            uint32_t half_phase = s_phase_acc & 0x7FFFFFFFU;
+            uint32_t dist = half_phase;
+            if (half_phase > 0x40000000U) {
+                dist = 0x80000000U - half_phase;
+            }
+            if (dist < s_dead_phase) {
+                duty = 128; // zero output (midpoint)
+            }
+        }
+
+        // Toggle polarity at zero-crossing, advanced by s_pol_advance to
+        // compensate for DRV2665 output lag
+        uint8_t pol_half = (uint8_t)((s_phase_acc + s_pol_advance) >> 31);
+        if (pol_half != s_prev_half) {
+            s_prev_half = pol_half;
+            hv509_pol_set(pol_half ? true : false);
+            hv509_sr_latch_if_pending(); // latch at zero-crossing
+        }
+    } else {
+        // No fullwave -- latch at cycle start (phase wrap)
+        if (s_phase_acc < prev_phase) {  // phase wrapped around
+            hv509_sr_latch_if_pending(); // latch at cycle start
+        }
+    }
+
     // Scale 8-bit value to current resolution
     if (s_resolution == 10) {
-        duty = (duty << 2) | (duty >> 6); // 0-255 → 0-1023
+        duty = (duty << 2) | (duty >> 6); // 0-255 -> 0-1023
     }
 
     ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, duty);
@@ -96,7 +159,7 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
     return false; // no need to yield
 }
 
-// ─── Hardware init (LEDC + GPTimer) ──────────────────────────────────────────
+// ---- Hardware init (LEDC + GPTimer) ----------------------------------------
 
 static esp_err_t configure_ledc(void) {
     ledc_timer_config_t timer_cfg = {
@@ -159,7 +222,7 @@ static esp_err_t ensure_hw_init(void) {
     return ESP_OK;
 }
 
-// ─── Internal start/stop ─────────────────────────────────────────────────────
+// ---- Internal start/stop ---------------------------------------------------
 
 static esp_err_t pwm_start_internal(void) {
     if (!s_hw_initialized) return ESP_ERR_INVALID_STATE;
@@ -182,6 +245,11 @@ static esp_err_t pwm_start_internal(void) {
     s_phase_acc = 0;
     s_phase_step = (uint32_t)(((uint64_t)s_freq_hz << 32) / PWM_SAMPLE_RATE_HZ);
 
+    if (s_fullwave) {
+        s_prev_half = 0;
+        hv509_pol_set(false);
+    }
+
     // Start GPTimer ISR
     esp_err_t err = gptimer_start(s_timer);
     if (err != ESP_OK) return err;
@@ -196,6 +264,10 @@ static esp_err_t pwm_stop_internal(void) {
     }
     s_running = false;
 
+    if (s_fullwave) {
+        hv509_pol_set(false);
+    }
+
     // Set duty to 0
     if (s_hw_initialized) {
         ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, 0);
@@ -205,23 +277,14 @@ static esp_err_t pwm_stop_internal(void) {
     return ESP_OK;
 }
 
-// ─── MicroPython bindings ────────────────────────────────────────────────────
+// ---- Public API (called by pz_drive.c bindings) ----------------------------
 
-// pz_pwm.set_frequency(hz, resolution=8, amplitude=128)
-static mp_obj_t pz_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
-    enum { ARG_hz, ARG_resolution, ARG_amplitude };
-    static const mp_arg_t allowed_args[] = {
-        {MP_QSTR_hz, MP_ARG_REQUIRED | MP_ARG_INT, {0}},
-        {MP_QSTR_resolution, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 8}},
-        {MP_QSTR_amplitude, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 128}},
-    };
-    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
-    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+bool pzd_pwm_is_running(void) {
+    return s_running;
+}
 
-    int hz = args[ARG_hz].u_int;
-    int resolution = args[ARG_resolution].u_int;
-    int amplitude = args[ARG_amplitude].u_int;
-
+void pzd_pwm_set_frequency(int hz, int resolution, int amplitude, bool fullwave, int dead_time,
+                           int phase_advance, int waveform) {
     // Validate frequency: 0 (DC) or 50-400 Hz
     if (hz != 0 && (hz < 50 || hz > 400)) {
         mp_raise_ValueError(MP_ERROR_TEXT("hz must be 0 (DC) or 50-400"));
@@ -252,9 +315,24 @@ static mp_obj_t pz_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_args, mp
         }
     }
 
+    if (waveform < 0 || waveform > 2) waveform = WAVEFORM_SINE;
+
     s_freq_hz = (uint16_t)hz;
     s_amplitude = (uint8_t)amplitude;
+    s_fullwave = fullwave;
+    s_waveform = (uint8_t)waveform;
     s_freq_configured = true;
+
+    // Compute phase-domain parameters from tick counts
+    uint32_t phase_step = (uint32_t)(((uint64_t)hz << 32) / PWM_SAMPLE_RATE_HZ);
+
+    if (dead_time < 0) dead_time = 0;
+    if (dead_time > 200) dead_time = 200;
+    s_dead_phase = (uint32_t)dead_time * phase_step;
+
+    if (phase_advance < 0) phase_advance = 0;
+    if (phase_advance > 200) phase_advance = 200;
+    s_pol_advance = (uint32_t)phase_advance * phase_step;
 
     // Restart if was running
     if (was_running) {
@@ -265,67 +343,43 @@ static mp_obj_t pz_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_args, mp
     }
 
     if (hz == 0) {
-        mp_printf(&mp_plat_print, "pz_pwm: DC mode, %d-bit, amplitude=%d\n", resolution, amplitude);
-    } else {
-        mp_printf(&mp_plat_print, "pz_pwm: %d Hz, %d-bit, amplitude=%d\n", hz, resolution,
+        mp_printf(&mp_plat_print, "pz_drive: DC mode, %d-bit, amplitude=%d\n", resolution,
                   amplitude);
+    } else {
+        const char *wf_names[] = {"sine", "triangle", "square"};
+        const char *wf_name = wf_names[waveform];
+        if (fullwave) {
+            mp_printf(&mp_plat_print,
+                      "pz_drive: %d Hz, %s, %d-bit, amplitude=%d [fullwave, dt=%d, pa=%d]\n", hz,
+                      wf_name, resolution, amplitude, dead_time, phase_advance);
+        } else {
+            mp_printf(&mp_plat_print, "pz_drive: %d Hz, %s, %d-bit, amplitude=%d\n", hz, wf_name,
+                      resolution, amplitude);
+        }
     }
-
-    return mp_const_none;
 }
-static MP_DEFINE_CONST_FUN_OBJ_KW(pz_pwm_set_frequency_obj, 1, pz_pwm_set_frequency);
 
-// pz_pwm.start()
-static mp_obj_t pz_pwm_start(void) {
+void pzd_pwm_start(void) {
     if (!s_freq_configured) {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("call set_frequency() first"));
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("call pwm_set_frequency() first"));
     }
 
     esp_err_t err = ensure_hw_init();
     if (err != ESP_OK) {
-        mp_printf(&mp_plat_print, "pz_pwm: hardware init failed: %d\n", err);
+        mp_printf(&mp_plat_print, "pz_drive: hardware init failed: %d\n", err);
         mp_raise_OSError(err);
     }
 
     err = pwm_start_internal();
     if (err != ESP_OK) {
-        mp_printf(&mp_plat_print, "pz_pwm: start failed: %d\n", err);
+        mp_printf(&mp_plat_print, "pz_drive: start failed: %d\n", err);
         mp_raise_OSError(err);
     }
 
-    mp_printf(&mp_plat_print, "pz_pwm: started\n");
-    return mp_const_none;
+    mp_printf(&mp_plat_print, "pz_drive: pwm started\n");
 }
-static MP_DEFINE_CONST_FUN_OBJ_0(pz_pwm_start_obj, pz_pwm_start);
 
-// pz_pwm.stop()
-static mp_obj_t pz_pwm_stop(void) {
+void pzd_pwm_stop(void) {
     pwm_stop_internal();
-    mp_printf(&mp_plat_print, "pz_pwm: stopped\n");
-    return mp_const_none;
+    mp_printf(&mp_plat_print, "pz_drive: pwm stopped\n");
 }
-static MP_DEFINE_CONST_FUN_OBJ_0(pz_pwm_stop_obj, pz_pwm_stop);
-
-// pz_pwm.is_running()
-static mp_obj_t pz_pwm_is_running(void) {
-    return mp_obj_new_bool(s_running);
-}
-static MP_DEFINE_CONST_FUN_OBJ_0(pz_pwm_is_running_obj, pz_pwm_is_running);
-
-// ─── Module registration ─────────────────────────────────────────────────────
-
-static const mp_rom_map_elem_t pz_pwm_globals_table[] = {
-    {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_pz_pwm)},
-    {MP_ROM_QSTR(MP_QSTR_set_frequency), MP_ROM_PTR(&pz_pwm_set_frequency_obj)},
-    {MP_ROM_QSTR(MP_QSTR_start), MP_ROM_PTR(&pz_pwm_start_obj)},
-    {MP_ROM_QSTR(MP_QSTR_stop), MP_ROM_PTR(&pz_pwm_stop_obj)},
-    {MP_ROM_QSTR(MP_QSTR_is_running), MP_ROM_PTR(&pz_pwm_is_running_obj)},
-};
-static MP_DEFINE_CONST_DICT(pz_pwm_globals, pz_pwm_globals_table);
-
-const mp_obj_module_t pz_pwm_module = {
-    .base = {&mp_type_module},
-    .globals = (mp_obj_dict_t *)&pz_pwm_globals,
-};
-
-MP_REGISTER_MODULE(MP_QSTR_pz_pwm, pz_pwm_module);

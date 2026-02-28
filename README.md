@@ -2,210 +2,276 @@
 
 MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 shift registers.
 
-## Hardware Requirements
+## Hardware
 
-- **ESP32-S3-WROOM-1** — main microcontroller module
-- **DRV2665** — TI piezo haptic driver, controlled over I2C at address 0x59
-- **2x HV509** — high-voltage shift registers for actuator multiplexing, controlled over SPI
-- **20 piezo actuators** — connected to HV509 outputs
+- **ESP32-S3-WROOM-1** -- main microcontroller
+- **DRV2665** -- TI piezo haptic driver (I2C, address 0x59)
+- **2x HV509** -- high-voltage shift registers, daisy-chained (SPI)
+- **20 piezo actuators** -- connected to HV509 outputs
 
-## Pin Assignments
+### Pin Assignments
 
-| Function        | GPIO |
-|-----------------|------|
-| I2C SDA         | 47   |
-| I2C SCL         | 21   |
-| SPI MOSI        | 6    |
-| SPI MISO        | 7    |
-| SPI SCK         | 9    |
-| SPI CS          | 10   |
-| Polarity toggle | 34   |
+| Function   | GPIO | Notes                                 |
+|------------|------|---------------------------------------|
+| I2C SDA    | 47   | DRV2665 data                          |
+| I2C SCL    | 21   | DRV2665 clock, 100 kHz                |
+| SPI MOSI   | 6    | Shift register data                   |
+| SPI MISO   | 7    | Shift register data (unused)          |
+| SPI SCK    | 9    | Shift register clock, 1 MHz           |
+| SPI CS/LE  | 10   | Latch enable (manual GPIO, not SPI CS)|
+| Polarity A | 12   | HV509 POL_bar (active-low)            |
+| Polarity B | 13   | HV509 POL_bar (active-low)            |
+| PWM out    | 5    | LEDC -> RC filter -> DRV2665 IN+      |
 
 ## Quick Start
 
-Build the Docker image (first time only):
+Connect to the board's MicroPython REPL (`mpremote connect COM7`), then:
 
-```bash
-docker compose build
+```python
+from pz_actuator_py import PzActuator
+
+pa = PzActuator()
+
+# Output a 250 Hz sine wave (analog mode, via PWM + RC filter)
+pa.set_frequency_analog(250)
+pa.set_all(1)       # enable all 20 actuator channels
+pa.start()          # start output at 100 Vpp
+
+# ... actuators are vibrating ...
+
+pa.stop()
 ```
 
-Build the firmware:
+To drive a single pin:
 
-```bash
-docker compose run --rm dev bash /workspace/scripts/build.sh
+```python
+pa.set_frequency_analog(250)
+pa.set_all(0)        # all channels off
+pa.set_pin(4, 1)     # enable channel 4
+pa.start()
 ```
 
-Flash to the device:
+## Python API
 
-```bash
-docker compose run --rm dev bash /workspace/scripts/flash.sh /dev/ttyUSB0
+### `PzActuator` Class
+
+The high-level controller. Import from `pz_actuator_py`:
+
+```python
+from pz_actuator_py import PzActuator
+pa = PzActuator()
 ```
 
-## API Reference
+#### Mode Configuration
 
-The `pz_actuator` MicroPython module exposes the following functions:
+**`set_frequency_analog(hz, resolution=8, amplitude=100, fullwave=False, dead_time=0, phase_advance=0, waveform='sine')`**
 
----
+Configure analog output mode. The ESP32 generates a waveform via DDS (direct digital synthesis) on a 32 kHz GPTimer ISR, outputs it as PWM on GPIO 5, which passes through an RC low-pass filter into the DRV2665 analog input.
 
-### `pz_actuator.init()`
+| Parameter       | Type | Default  | Description                                     |
+|-----------------|------|----------|-------------------------------------------------|
+| `hz`            | int  | required | Frequency: 0 (DC) or 50-400 Hz                 |
+| `resolution`    | int  | 8        | PWM bit depth: 8 or 10                          |
+| `amplitude`     | int  | 100      | Output amplitude, 0-100 (percentage)            |
+| `fullwave`      | bool | False    | Rectified output with polarity toggle (~200 Vpp)|
+| `dead_time`     | int  | 0        | ISR ticks to blank output near zero-crossings   |
+| `phase_advance` | int  | 0        | ISR ticks to advance polarity toggle timing     |
+| `waveform`      | str  | 'sine'   | 'sine', 'triangle', or 'square'                 |
 
-Initializes the DRV2665 haptic driver over I2C, initializes the HV509 shift registers over SPI, and configures default settings (250 Hz, 100 Vpp gain). Must be called before any other function.
+**`set_frequency_digital(hz, fullwave=False, waveform='sine')`**
 
-Raises `OSError` if hardware initialization fails.
+Configure digital output mode. Python generates a waveform buffer, and a FreeRTOS background task streams it to the DRV2665's internal DAC via I2C FIFO at 8 kHz.
 
----
+| Parameter  | Type | Default  | Description                                     |
+|------------|------|----------|-------------------------------------------------|
+| `hz`       | int  | required | Frequency: 1-4000 Hz                            |
+| `fullwave` | bool | False    | Half-period buffer with polarity toggle          |
+| `waveform` | str  | 'sine'   | 'sine', 'triangle', or 'square'                 |
 
-### `pz_actuator.start()`
+#### Playback
 
-Starts the background FreeRTOS task that continuously streams the waveform to the DRV2665 FIFO. Must call `init()` first.
+**`start(gain=100)`** -- Start output in the configured mode. `gain` sets output voltage: 25, 50, 75, or 100 Vpp.
 
-Raises `RuntimeError` if not initialized. Raises `OSError` if the task cannot be created.
+**`stop()`** -- Stop output and put DRV2665 in standby.
 
----
+**`is_running()`** -- Returns `True` if output is active.
 
-### `pz_actuator.stop()`
+#### Actuator Channels (Shift Register)
 
-Stops the background waveform task. Safe to call even if the task is not running.
+The 20 actuator channels are controlled via two daisy-chained HV509 high-voltage shift registers. When output is running, pin changes are synchronized to waveform events (zero-crossings in fullwave mode, cycle start otherwise) to avoid glitches.
 
----
+**`set_pin(pin, value, latch=True)`** -- Set a single channel (0-19) on or off.
 
-### `pz_actuator.set_frequency(hz)`
+**`get_pin(pin)`** -- Read current state of a channel.
 
-Sets the waveform frequency. Range: 50–4000 Hz. Default: 250 Hz.
+**`set_all(value, latch=True)`** -- Set all 20 channels to the same state.
 
-If the task is running, the change is applied asynchronously on the next waveform cycle. If the task is stopped, the change is applied immediately.
+**`get_all()`** -- Returns tuple of 20 values (0 or 1).
 
-Raises `ValueError` if `hz` is outside the valid range.
+**`set_pins(values, latch=True)`** -- Set all channels from a 20-element iterable.
 
----
+**`latch()`** -- Commit pending changes. When `latch=True` (default) on set methods, this happens automatically.
 
-### `pz_actuator.get_frequency()`
+#### Polarity
 
-Returns the current waveform frequency as an `int` (Hz).
+**`toggle_polarity()`** -- Toggle the HV509 polarity pins (GPIO 12/13).
 
----
+**`get_polarity()`** -- Returns current polarity state.
 
-### `pz_actuator.set_pin(pin, value, flush=True)`
+### `DRV2665` Class
 
-Sets a single actuator channel. `pin` is 0–19. `value` is a bool (True = on, False = off).
+Low-level DRV2665 register interface. Import from `drv2665`:
 
-If `flush` is True (default), the change is committed to the shift registers immediately. Pass `flush=False` to batch multiple `set_pin` calls and commit them together with `flush()`.
+```python
+from drv2665 import DRV2665
+drv = DRV2665()
+```
 
-Raises `ValueError` if `pin` is out of range.
+| Method                     | Description                                    |
+|----------------------------|------------------------------------------------|
+| `init_analog(gain)`        | Configure analog input mode + EN_OVERRIDE      |
+| `init_digital(gain)`       | Configure digital FIFO mode                    |
+| `standby()`                | Enter standby (CTRL2 bit 6)                    |
+| `status()`                 | Read STATUS register (FIFO_FULL/FIFO_EMPTY)    |
 
----
+Gain constants: `DRV2665.GAIN_25` (0), `GAIN_50` (1), `GAIN_75` (2), `GAIN_100` (3).
 
-### `pz_actuator.get_pin(pin)`
+### `ShiftRegister` Class
 
-Returns the current logical state of a single actuator channel as a `bool`. `pin` is 0–19.
+Low-level HV509 shift register interface. Import from `shift_register`:
 
-Raises `ValueError` if `pin` is out of range.
+```python
+from shift_register import ShiftRegister
+sr = ShiftRegister()
+```
 
----
+Same pin control methods as `PzActuator` (`set_pin`, `get_pin`, `set_all`, `get_all`, `set_pins`, `latch`). The 32-bit SPI word maps pin N to bit `25 - N`, with bits [31:26] and [5:0] unused.
 
-### `pz_actuator.set_pins(list, flush=True)`
+## C Module: `pz_drive`
 
-Sets all 20 actuator channels at once. `list` must be a list or tuple of exactly 20 `bool` values, where index 0 corresponds to channel 0.
+The `pz_drive` C module handles all real-time hardware interaction. It is used internally by the Python classes above, but can also be called directly:
 
-If `flush` is True (default), all changes are committed to the shift registers immediately.
+```python
+import pz_drive
+```
 
-Raises `ValueError` if the list length is not 20.
+### Analog (PWM/DDS)
 
----
+```python
+pz_drive.pwm_set_frequency(hz, resolution=8, amplitude=128,
+                           fullwave=False, dead_time=0, phase_advance=0,
+                           waveform=0)   # 0=sine, 1=triangle, 2=square
+pz_drive.pwm_start()
+pz_drive.pwm_stop()
+pz_drive.pwm_is_running()               # -> bool
+```
 
-### `pz_actuator.get_all()`
+The DDS runs at 32 kHz via GPTimer ISR. A 32-bit phase accumulator indexes a 256-entry waveform LUT. The output drives LEDC PWM on GPIO 5. In fullwave mode, the ISR generates |waveform| and toggles polarity at zero-crossings. `amplitude` is 0-128 (internal scale; the Python API maps 0-100% to this range).
 
-Returns a tuple of 20 `bool` values representing the current logical state of all actuator channels.
+### Digital (FIFO)
 
----
+```python
+pz_drive.fifo_start(waveform_buf, gain=3, fullwave=False)
+pz_drive.fifo_stop()
+pz_drive.fifo_is_running()              # -> bool
+```
 
-### `pz_actuator.set_all(value, flush=True)`
+`waveform_buf` is a `bytearray` of signed 8-bit samples representing one period. A FreeRTOS task (pinned to core 1) streams samples to the DRV2665's 100-byte FIFO at 8 kHz using `esp_timer` for precise timing. At each period boundary, the task latches pending shift register data and optionally toggles polarity.
 
-Sets all 20 actuator channels to the same state. `value` is a bool.
+### Shift Register
 
-If `flush` is True (default), the change is committed immediately.
+```python
+pz_drive.sr_stage(word32)    # stage data + latch (immediate if no ISR running)
+pz_drive.sr_write(word32)    # immediate write (debug)
+```
 
----
+`sr_stage` clocks data into the shift register via SPI, then either latches immediately (if no ISR/task is running) or sets a pending flag so the ISR/task latches at the next waveform event.
 
-### `pz_actuator.flush()`
+### I2C (DRV2665)
 
-Commits any pending shift register state changes to the hardware. Use this after one or more `set_pin` or `set_pins` calls made with `flush=False`.
+```python
+pz_drive.i2c_read(reg)       # -> int (0-255, or -1 on error)
+pz_drive.i2c_write(reg, val)
+```
 
----
+### Polarity
 
-### `pz_actuator.toggle_polarity()`
+```python
+pz_drive.pol_init()           # configure GPIO 12/13 as outputs
+pz_drive.pol_set(val)         # set both polarity pins
+pz_drive.pol_get()            # -> bool
+```
 
-Requests a polarity toggle on the HV509 shift registers (via GPIO 34). This reverses the high-voltage drive polarity across all actuators and is applied asynchronously by the background task.
+## C Module: `board_utils`
 
----
-
-### `pz_actuator.get_polarity()`
-
-Returns the current polarity state as a `bool` (False = normal, True = inverted).
-
----
-
-### `pz_actuator.set_gain(gain)`
-
-Sets the DRV2665 output gain. Valid values are 25, 50, 75, or 100 (Vpp). Default: 100.
-
-Raises `ValueError` if `gain` is not one of the four valid values. Raises `OSError` if the I2C write fails.
-
----
-
-### `pz_actuator.is_running()`
-
-Returns `True` if the background waveform task is currently active, `False` otherwise.
-
----
+```python
+import board_utils
+board_utils.enter_bootloader()  # switch to USB download mode (never returns)
+```
 
 ## Architecture
 
-- `modules/pz_actuator/` — C user module (DRV2665 I2C, shift register SPI, FreeRTOS background task)
-- `python/` — MicroPython scripts (frozen into firmware)
-- `scripts/` — Build and flash helpers
+### Signal Paths
 
-The background task keeps the DRV2665's 100-byte FIFO filled by regenerating the sine waveform on demand. Frequency changes and polarity toggles are signaled to the task via atomic flags so the MicroPython thread never blocks on hardware I/O.
+There are two independent signal paths from the ESP32 to the DRV2665:
+
+**Analog path** (PWM -> RC filter -> DRV2665 IN+): A GPTimer ISR at 32 kHz runs a DDS phase accumulator that generates waveform samples. Each sample sets the LEDC PWM duty cycle on GPIO 5. An external RC low-pass filter (R=390R, C=100nF, fc~4 kHz) smooths the PWM into an analog voltage that feeds the DRV2665 analog input. The DRV2665's internal boost converter amplifies this to the configured gain (25-100 Vpp).
+
+**Digital path** (I2C FIFO -> DRV2665 internal DAC): Python pre-computes one period of the waveform as a `bytearray`. A FreeRTOS background task streams these samples to the DRV2665's 100-byte FIFO register over I2C. The DRV2665's internal DAC converts samples to analog at 8 kHz. An `esp_timer` fires every 8 ms, waking the task to refill the FIFO with the estimated number of consumed samples.
+
+### Fullwave Mode
+
+For higher output voltage (~200 Vpp), fullwave mode generates the absolute value of the waveform (`|sin(t)|`) and toggles the HV509 polarity pins at each zero-crossing. This effectively doubles the output voltage by using both halves of the waveform constructively. The `dead_time` and `phase_advance` parameters compensate for the DRV2665 output settling time during polarity transitions.
+
+### Shift Register Synchronization
+
+Pin changes are staged via `sr_stage()` which clocks data into the shift register immediately (SPI is safe from the main thread), but defers the latch (LE rising edge on GPIO 10) to the next waveform event. This prevents glitches from mid-cycle actuator switching. If no ISR or FIFO task is running, the latch happens immediately.
+
+### Project Structure
+
+```
+modules/pz_drive/         C module: all real-time hardware control
+  pz_drive.c              module registration + Python bindings
+  pz_drive.h              shared internal header
+  pwm.c                   analog DDS ISR (32 kHz GPTimer)
+  fifo.c                  digital FIFO task (8 kHz esp_timer)
+  hv509.c                 SPI shift register + polarity GPIOs
+  drv2665.c               I2C bus init, register access, FIFO helpers
+modules/board_utils/      C module: enter_bootloader()
+python/
+  pz_actuator_py.py       high-level PzActuator orchestrator
+  drv2665.py              DRV2665 register driver
+  shift_register.py       HV509 shift register driver
+  main.py                 boot script + demo functions
+scripts/                  build and flash helpers
+```
 
 ## Building
 
-Build the Docker image (required once before first build):
+### Docker (no local toolchain needed)
 
 ```bash
-docker compose build
-```
-
-Build the firmware inside the container:
-
-```bash
+docker compose build               # first time only
 docker compose run --rm dev bash /workspace/scripts/build.sh
 ```
 
-Flash the firmware to the device:
+### Local (Windows, requires ESP-IDF + GNU Make)
 
 ```bash
-docker compose run --rm dev bash /workspace/scripts/flash.sh /dev/ttyUSB0
+source ~/esp/v5.5.1/export.sh      # or export.bat on CMD
+export MICROPYTHON_DIR=C:/Projects/Optacon/micropython
+./scripts/build.sh
 ```
 
-To clean the build output before rebuilding:
+### Flashing
 
 ```bash
-docker compose run --rm dev bash -c "cd /workspace && make clean"
+./scripts/flash.sh COM7             # adjust COM port as needed
 ```
 
-## Troubleshooting
+To enter bootloader mode from the REPL:
 
-**USB device not found during flash**
-
-The flash script cannot open the serial port. Try the following:
-
-- Verify the device is connected and recognized: `ls /dev/tty*`
-- The port may be `/dev/ttyACM0` instead of `/dev/ttyUSB0` depending on your OS and USB adapter
-- On Linux, add your user to the `dialout` group: `sudo usermod -aG dialout $USER` (requires logout/login)
-- Pass the correct port explicitly: `bash /workspace/scripts/flash.sh /dev/ttyACM0`
-
-**Build fails inside Docker**
-
-- Ensure the Docker image is built: `docker compose build`
-- If a previous build left a corrupt cache, clean it: `docker compose run --rm dev bash -c "cd /workspace && make clean"`
-- Check that the `modules/` directory is correctly mounted inside the container
+```python
+import board_utils
+board_utils.enter_bootloader()
+```
