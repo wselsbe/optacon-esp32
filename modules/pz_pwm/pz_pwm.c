@@ -78,9 +78,17 @@ static bool s_freq_configured = false;
 static bool s_polarity = false;  // false=LOW (inverted mode), true=HIGH
 static bool s_pol_gpio_initialized = false;
 
+// Waveform type
+#define WAVEFORM_SINE     0
+#define WAVEFORM_TRIANGLE 1
+#define WAVEFORM_SQUARE   2
+static volatile uint8_t s_waveform = WAVEFORM_SINE;
+
 // Fullwave mode state
 static volatile bool s_fullwave = false;
 static volatile uint8_t s_prev_half = 0;  // 0=first half (0..pi), 1=second half (pi..2pi)
+static volatile uint32_t s_dead_phase = 0;  // phase margin around zero-crossings (force duty=128)
+static volatile uint32_t s_pol_advance = 0;  // phase advance for polarity toggle (compensate output lag)
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -95,11 +103,25 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
                                          void *user_data) {
     s_phase_acc += s_phase_step;
 
-    // Top 8 bits of phase accumulator index the 256-entry LUT
+    // Top 8 bits of phase accumulator index the waveform
     uint8_t index = (uint8_t)(s_phase_acc >> 24);
 
-    // Scale sine by amplitude: center at 128, scale deviation, re-center
-    int32_t raw = (int32_t)sine_lut[index] - 128;  // -128 to +127
+    // Generate waveform value centered at 0 (-128 to +127)
+    int32_t raw;
+    switch (s_waveform) {
+    case WAVEFORM_TRIANGLE:
+        raw = (index < 128) ? (index * 2) : (510 - index * 2);
+        raw -= 128;
+        break;
+    case WAVEFORM_SQUARE:
+        raw = (index < 128) ? 127 : -128;
+        break;
+    default:  // WAVEFORM_SINE
+        raw = (int32_t)sine_lut[index] - 128;
+        break;
+    }
+
+    // Scale by amplitude and re-center to unsigned 0-255
     int32_t scaled = 128 + ((raw * (int32_t)s_amplitude) >> 7);
     uint32_t duty = (uint32_t)scaled;
 
@@ -110,10 +132,26 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
             duty = 256 - duty;  // mirror: values below 128 become above 128
         }
 
-        // Toggle polarity at zero-crossing (when half-cycle changes)
-        if (half != s_prev_half) {
-            s_prev_half = half;
-            uint32_t pol_val = half ? 1 : 0;
+        // Dead time: force zero output near zero-crossings so DRV2665
+        // output settles before polarity toggles
+        if (s_dead_phase) {
+            // Distance from current phase to nearest half-boundary (0 or 0x80000000)
+            uint32_t half_phase = s_phase_acc & 0x7FFFFFFFU;
+            uint32_t dist = half_phase;
+            if (half_phase > 0x40000000U) {
+                dist = 0x80000000U - half_phase;
+            }
+            if (dist < s_dead_phase) {
+                duty = 128;  // zero output (midpoint)
+            }
+        }
+
+        // Toggle polarity at zero-crossing, advanced by s_pol_advance to
+        // compensate for DRV2665 output lag
+        uint8_t pol_half = (uint8_t)((s_phase_acc + s_pol_advance) >> 31);
+        if (pol_half != s_prev_half) {
+            s_prev_half = pol_half;
+            uint32_t pol_val = pol_half ? 1 : 0;
             gpio_set_level(POL_A_GPIO, pol_val);
             gpio_set_level(POL_B_GPIO, pol_val);
         }
@@ -274,12 +312,15 @@ static esp_err_t pwm_stop_internal(void) {
 
 // pz_pwm.set_frequency(hz, resolution=8, amplitude=128)
 static mp_obj_t pz_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
-    enum { ARG_hz, ARG_resolution, ARG_amplitude, ARG_fullwave };
+    enum { ARG_hz, ARG_resolution, ARG_amplitude, ARG_fullwave, ARG_dead_time, ARG_phase_advance, ARG_waveform };
     static const mp_arg_t allowed_args[] = {
-        {MP_QSTR_hz,         MP_ARG_REQUIRED | MP_ARG_INT,  {0}},
-        {MP_QSTR_resolution, MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = 8}},
-        {MP_QSTR_amplitude,  MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = 128}},
-        {MP_QSTR_fullwave,   MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = false}},
+        {MP_QSTR_hz,            MP_ARG_REQUIRED | MP_ARG_INT,  {0}},
+        {MP_QSTR_resolution,    MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = 8}},
+        {MP_QSTR_amplitude,     MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = 128}},
+        {MP_QSTR_fullwave,      MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = false}},
+        {MP_QSTR_dead_time,     MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = 0}},
+        {MP_QSTR_phase_advance, MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = 0}},
+        {MP_QSTR_waveform,      MP_ARG_KW_ONLY | MP_ARG_INT,  {.u_int = WAVEFORM_SINE}},
     };
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
     mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
@@ -320,10 +361,27 @@ static mp_obj_t pz_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_args, mp
         }
     }
 
+    int waveform = args[ARG_waveform].u_int;
+    if (waveform < 0 || waveform > 2) waveform = WAVEFORM_SINE;
+
     s_freq_hz = (uint16_t)hz;
     s_amplitude = (uint8_t)amplitude;
     s_fullwave = fullwave;
+    s_waveform = (uint8_t)waveform;
     s_freq_configured = true;
+
+    // Compute phase-domain parameters from tick counts
+    uint32_t phase_step = (uint32_t)(((uint64_t)hz << 32) / PWM_SAMPLE_RATE_HZ);
+
+    int dead_time = args[ARG_dead_time].u_int;
+    if (dead_time < 0) dead_time = 0;
+    if (dead_time > 200) dead_time = 200;
+    s_dead_phase = (uint32_t)dead_time * phase_step;
+
+    int phase_advance = args[ARG_phase_advance].u_int;
+    if (phase_advance < 0) phase_advance = 0;
+    if (phase_advance > 200) phase_advance = 200;
+    s_pol_advance = (uint32_t)phase_advance * phase_step;
 
     // Restart if was running
     if (was_running) {
@@ -336,8 +394,17 @@ static mp_obj_t pz_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_args, mp
     if (hz == 0) {
         mp_printf(&mp_plat_print, "pz_pwm: DC mode, %d-bit, amplitude=%d\n", resolution, amplitude);
     } else {
-        mp_printf(&mp_plat_print, "pz_pwm: %d Hz, %d-bit, amplitude=%d%s\n", hz, resolution,
-                  amplitude, fullwave ? " [fullwave]" : "");
+        {
+            const char *wf_names[] = {"sine", "triangle", "square"};
+            const char *wf_name = wf_names[waveform];
+            if (fullwave) {
+                mp_printf(&mp_plat_print, "pz_pwm: %d Hz, %s, %d-bit, amplitude=%d [fullwave, dt=%d, pa=%d]\n",
+                          hz, wf_name, resolution, amplitude, dead_time, phase_advance);
+            } else {
+                mp_printf(&mp_plat_print, "pz_pwm: %d Hz, %s, %d-bit, amplitude=%d\n",
+                          hz, wf_name, resolution, amplitude);
+            }
+        }
     }
 
     return mp_const_none;

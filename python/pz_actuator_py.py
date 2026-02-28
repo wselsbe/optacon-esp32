@@ -24,6 +24,8 @@ class PzActuator:
         100: DRV2665.GAIN_100,
     }
 
+    WAVEFORMS = {'sine': 0, 'triangle': 1, 'square': 2}
+
     def __init__(self):
         # Configure polarity GPIOs before SPI (IOMUX conflict on GPIO 10-13)
         pz_pwm.init_polarity()
@@ -57,19 +59,30 @@ class PzActuator:
         )
         self._mode = MODE_DIGITAL
 
-    def set_frequency_analog(self, hz, resolution=8, amplitude=100, fullwave=False):
+    def set_frequency_analog(self, hz, resolution=8, amplitude=100, fullwave=False,
+                             dead_time=0, phase_advance=0, waveform='sine'):
         """Configure analog PWM+DDS mode at given frequency.
 
         Args:
             hz: 0-400 (0 = DC output)
             resolution: 8 or 10 bits
             amplitude: 0-100 (percentage, mapped to internal 0-128)
-            fullwave: if True, generate |sin| and toggle polarity at zero-crossings
+            fullwave: if True, generate |waveform| and toggle polarity at zero-crossings
+            dead_time: ISR ticks (at 32 kHz) to force zero output near each
+                       zero-crossing, giving the DRV2665 output time to settle
+            phase_advance: ISR ticks to advance polarity toggle, compensating
+                           for DRV2665 output lag (~3 ticks at 250 Hz)
+            waveform: 'sine', 'triangle', or 'square'
         """
         if hz < 0 or hz > 400:
             raise ValueError("hz must be 0-400")
+        if waveform not in self.WAVEFORMS:
+            raise ValueError("waveform must be 'sine', 'triangle', or 'square'")
         amp_internal = (amplitude * 128 + 50) // 100
-        pz_pwm.set_frequency(hz, resolution=resolution, amplitude=amp_internal, fullwave=fullwave)
+        pz_pwm.set_frequency(hz, resolution=resolution, amplitude=amp_internal,
+                             fullwave=fullwave, dead_time=dead_time,
+                             phase_advance=phase_advance,
+                             waveform=self.WAVEFORMS[waveform])
         self._mode = MODE_ANALOG
 
     def start(self, gain=100):
