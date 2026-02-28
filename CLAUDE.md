@@ -67,7 +67,7 @@ pa.is_running()
 pa.set_pin(pin, value, latch=True) / pa.get_pin(pin)  # single actuator channel (0-19)
 pa.set_all(value, latch=True) / pa.get_all()  # bulk pin control
 pa.latch()  # commit pending shift register changes
-pa.toggle_polarity() / pa.get_polarity()
+pa.get_polarity()  # read-only; polarity toggling is internal to ISR/task
 ```
 
 ### C Module APIs
@@ -89,7 +89,7 @@ pz_drive.sr_write(word32)  # immediate SPI write (debug)
 # I2C
 pz_drive.i2c_read(reg) / pz_drive.i2c_write(reg, val)
 # Polarity
-pz_drive.pol_init() / pz_drive.pol_set(val) / pz_drive.pol_get()
+pz_drive.pol_init() / pz_drive.pol_get()  # pol_toggle is internal only
 ```
 
 **board_utils**:

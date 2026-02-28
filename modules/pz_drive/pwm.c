@@ -6,7 +6,7 @@
 //
 // At zero-crossing (fullwave) or cycle wrap (non-fullwave) the ISR calls
 // hv509_sr_latch_if_pending() so staged shift register data is committed
-// at a safe moment.  Polarity toggling delegates to hv509_pol_set().
+// at a safe moment.  Polarity toggling delegates to hv509_pol_toggle().
 
 #include "pz_drive.h"
 
@@ -138,7 +138,7 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
         uint8_t pol_half = (uint8_t)((s_phase_acc + s_pol_advance) >> 31);
         if (pol_half != s_prev_half) {
             s_prev_half = pol_half;
-            hv509_pol_set(pol_half ? true : false);
+            hv509_pol_toggle();
             hv509_sr_latch_if_pending(); // latch at zero-crossing
         }
     } else {
@@ -247,7 +247,7 @@ static esp_err_t pwm_start_internal(void) {
 
     if (s_fullwave) {
         s_prev_half = 0;
-        hv509_pol_set(false);
+        // polarity starts at true (from init), ISR toggles from here
     }
 
     // Start GPTimer ISR
@@ -264,9 +264,7 @@ static esp_err_t pwm_stop_internal(void) {
     }
     s_running = false;
 
-    if (s_fullwave) {
-        hv509_pol_set(false);
-    }
+    hv509_pol_init();
 
     // Set duty to 0
     if (s_hw_initialized) {

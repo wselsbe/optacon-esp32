@@ -217,6 +217,9 @@ void pzd_fifo_stop(void) {
         s_timer_handle = NULL;
     }
 
+    // Reset polarity to safe default
+    hv509_pol_init();
+
     // Clear waveform pointers (Python owns the buffer)
     s_waveform_buf = NULL;
     s_waveform_len = 0;

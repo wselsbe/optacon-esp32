@@ -194,8 +194,3 @@ class PzActuator:
     def latch(self):
         self.sr.latch()
 
-    def toggle_polarity(self):
-        pz_drive.pol_set(not pz_drive.pol_get())
-
-    def get_polarity(self):
-        return pz_drive.pol_get()

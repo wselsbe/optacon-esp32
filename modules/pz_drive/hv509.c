@@ -26,25 +26,20 @@ static volatile bool s_latch_pending = false;
 // ── Polarity GPIOs ──────────────────────────────────────────────────────
 
 void hv509_pol_init(void) {
-    if (s_pol_inited) return;
-    gpio_config_t io_conf = {
-        .pin_bit_mask = (1ULL << POL_A_GPIO) | (1ULL << POL_B_GPIO),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
-    };
-    gpio_config(&io_conf);
-    gpio_set_level(POL_A_GPIO, 0);
-    gpio_set_level(POL_B_GPIO, 0);
-    s_pol_value = false;
-    s_pol_inited = true;
-}
-
-void hv509_pol_set(bool val) {
-    s_pol_value = val;
-    gpio_set_level(POL_A_GPIO, val ? 1 : 0);
-    gpio_set_level(POL_B_GPIO, val ? 1 : 0);
+    if (!s_pol_inited) {
+        gpio_config_t io_conf = {
+            .pin_bit_mask = (1ULL << POL_A_GPIO) | (1ULL << POL_B_GPIO),
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        gpio_config(&io_conf);
+        s_pol_inited = true;
+    }
+    gpio_set_level(POL_A_GPIO, 1);
+    gpio_set_level(POL_B_GPIO, 1);
+    s_pol_value = true;
 }
 
 bool hv509_pol_get(void) {
@@ -52,7 +47,9 @@ bool hv509_pol_get(void) {
 }
 
 void hv509_pol_toggle(void) {
-    hv509_pol_set(!s_pol_value);
+    s_pol_value = !s_pol_value;
+    gpio_set_level(POL_A_GPIO, s_pol_value ? 1 : 0);
+    gpio_set_level(POL_B_GPIO, s_pol_value ? 1 : 0);
 }
 
 // ── SPI shift register ─────────────────────────────────────────────────
