@@ -25,7 +25,11 @@ void drv2665_write_fifo_byte(uint8_t val);
 uint8_t drv2665_read_status(void);
 
 // ── pwm.c — analog DDS ISR ─────────────────────────────────────────────
-bool pwm_is_running(void);
+bool pzd_pwm_is_running(void);
+void pzd_pwm_set_frequency(int hz, int resolution, int amplitude, bool fullwave,
+                           int dead_time, int phase_advance, int waveform);
+void pzd_pwm_start(void);
+void pzd_pwm_stop(void);
 
 // ── fifo.c — digital FIFO background task ───────────────────────────────
 bool fifo_is_running(void);

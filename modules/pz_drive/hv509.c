@@ -110,7 +110,7 @@ void hv509_sr_stage(uint32_t word32) {
     if (!s_spi_inited) hv509_init();
     s_pending_word = word32;
     // If neither ISR nor task is running, write immediately
-    if (!pwm_is_running() && !fifo_is_running()) {
+    if (!pzd_pwm_is_running() && !fifo_is_running()) {
         spi_write_word(word32);
         s_latch_pending = false;
     } else {
