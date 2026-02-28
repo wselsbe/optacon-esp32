@@ -1,9 +1,126 @@
+// modules/pz_drive/hv509.c
 #include "pz_drive.h"
-void hv509_init(void) {}
-void hv509_sr_stage(uint32_t word32) { (void)word32; }
-void hv509_sr_write(uint32_t word32) { (void)word32; }
-void hv509_sr_latch_if_pending(void) {}
-void hv509_pol_init(void) {}
-void hv509_pol_set(bool val) { (void)val; }
-bool hv509_pol_get(void) { return false; }
-void hv509_pol_toggle(void) {}
+
+#include "driver/spi_master.h"
+#include "driver/gpio.h"
+
+#include <string.h>
+
+#define SPI_MOSI_GPIO   6
+#define SPI_MISO_GPIO   7
+#define SPI_SCK_GPIO    9
+#define SPI_CS_GPIO     10
+#define POL_A_GPIO      12
+#define POL_B_GPIO      13
+
+#define SPI_CLK_HZ      1000000
+
+static spi_device_handle_t s_spi_dev;
+static bool s_spi_inited = false;
+static bool s_pol_inited = false;
+static bool s_pol_value = false;
+
+// Stage/latch state
+static volatile uint32_t s_pending_word = 0;
+static volatile bool s_latch_pending = false;
+
+// ── Polarity GPIOs ──────────────────────────────────────────────────────
+
+void hv509_pol_init(void) {
+    if (s_pol_inited) return;
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << POL_A_GPIO) | (1ULL << POL_B_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&io_conf);
+    gpio_set_level(POL_A_GPIO, 0);
+    gpio_set_level(POL_B_GPIO, 0);
+    s_pol_value = false;
+    s_pol_inited = true;
+}
+
+void hv509_pol_set(bool val) {
+    s_pol_value = val;
+    gpio_set_level(POL_A_GPIO, val ? 1 : 0);
+    gpio_set_level(POL_B_GPIO, val ? 1 : 0);
+}
+
+bool hv509_pol_get(void) {
+    return s_pol_value;
+}
+
+void hv509_pol_toggle(void) {
+    hv509_pol_set(!s_pol_value);
+}
+
+// ── SPI shift register ─────────────────────────────────────────────────
+
+static void spi_write_word(uint32_t word32) {
+    // Mask off common bits (only pins 6-25 are valid)
+    word32 &= 0x03FFFFC0U;
+    // Send big-endian (MSB first)
+    uint8_t buf[4];
+    buf[0] = (word32 >> 24) & 0xFF;
+    buf[1] = (word32 >> 16) & 0xFF;
+    buf[2] = (word32 >> 8) & 0xFF;
+    buf[3] = word32 & 0xFF;
+    spi_transaction_t txn = {
+        .length = 32,
+        .tx_buffer = buf,
+    };
+    spi_device_transmit(s_spi_dev, &txn);
+}
+
+void hv509_init(void) {
+    if (s_spi_inited) return;
+    // Polarity GPIOs MUST be configured before SPI (IOMUX conflict)
+    hv509_pol_init();
+
+    spi_bus_config_t bus_cfg = {
+        .mosi_io_num = SPI_MOSI_GPIO,
+        .miso_io_num = SPI_MISO_GPIO,
+        .sclk_io_num = SPI_SCK_GPIO,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+    };
+    spi_bus_initialize(SPI2_HOST, &bus_cfg, SPI_DMA_DISABLED);
+
+    spi_device_interface_config_t dev_cfg = {
+        .clock_speed_hz = SPI_CLK_HZ,
+        .mode = 0,
+        .spics_io_num = SPI_CS_GPIO,
+        .queue_size = 1,
+    };
+    spi_bus_add_device(SPI2_HOST, &dev_cfg, &s_spi_dev);
+
+    // Clear all outputs
+    spi_write_word(0);
+    s_spi_inited = true;
+}
+
+void hv509_sr_write(uint32_t word32) {
+    if (!s_spi_inited) hv509_init();
+    spi_write_word(word32);
+}
+
+void hv509_sr_stage(uint32_t word32) {
+    if (!s_spi_inited) hv509_init();
+    s_pending_word = word32;
+    // If neither ISR nor task is running, write immediately
+    if (!pwm_is_running() && !fifo_is_running()) {
+        spi_write_word(word32);
+        s_latch_pending = false;
+    } else {
+        s_latch_pending = true;
+    }
+}
+
+void hv509_sr_latch_if_pending(void) {
+    if (s_latch_pending) {
+        spi_write_word(s_pending_word);
+        s_latch_pending = false;
+    }
+}
