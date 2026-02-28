@@ -28,7 +28,7 @@ jobs:
       - run: pip install clang-format
       - name: Check formatting
         run: |
-          find modules/pz_actuator -name '*.c' -o -name '*.h' \
+          find modules -name '*.c' -o -name '*.h' \
             | xargs clang-format --dry-run --Werror
 
   build:
