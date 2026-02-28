@@ -1,7 +1,5 @@
 import math
-import pz_fifo
-import pz_pwm
-from machine import I2C, SPI, Pin
+import pz_drive
 from drv2665 import DRV2665
 from shift_register import ShiftRegister
 
@@ -14,7 +12,7 @@ class PzActuator:
     """High-level piezo actuator controller.
 
     Wraps DRV2665 (I2C), HV509 shift registers (SPI), and
-    real-time C modules (pz_fifo, pz_pwm).
+    real-time C module (pz_drive).
     """
 
     GAINS = {
@@ -27,36 +25,68 @@ class PzActuator:
     WAVEFORMS = {'sine': 0, 'triangle': 1, 'square': 2}
 
     def __init__(self):
-        # Configure polarity GPIOs before SPI (IOMUX conflict on GPIO 10-13)
-        pz_pwm.init_polarity()
-        # Own the I2C bus
-        self.i2c = I2C(0, sda=Pin(47), scl=Pin(21), freq=100_000)
-        # Own the SPI bus
-        self.spi = SPI(1, baudrate=1_000_000, polarity=0, phase=0,
-                       sck=Pin(9), mosi=Pin(6), miso=Pin(7))
-        # Initialize drivers
-        self.drv = DRV2665(self.i2c)
-        self.sr = ShiftRegister(self.spi, Pin(10, Pin.OUT))
+        # pz_drive owns I2C and SPI buses — init happens on first use
+        self.drv = DRV2665()
+        self.sr = ShiftRegister()
 
         self._mode = None
         self._waveform = None
         self._gain = 100
+        self._fullwave = False
 
-    def set_frequency_digital(self, hz):
+    def set_frequency_digital(self, hz, fullwave=False, waveform='sine'):
         """Configure digital FIFO mode at given frequency.
 
-        Generates one period of signed sine samples for 8 kHz playback.
+        Args:
+            hz: 1-4000
+            fullwave: if True, generate |waveform| half-period buffer,
+                      fifo.c toggles polarity at period boundary
+            waveform: 'sine', 'triangle', or 'square'
         """
         if hz < 1 or hz > 4000:
             raise ValueError("hz must be 1-4000")
+        if waveform not in self.WAVEFORMS:
+            raise ValueError("waveform must be 'sine', 'triangle', or 'square'")
         n_samples = round(8000 / hz)
         if n_samples < 2:
             n_samples = 2
-        # Generate sine: trough at index 0 (phase offset -pi/2)
-        self._waveform = bytearray(
-            (int(127 * math.sin(-math.pi / 2 + 2 * math.pi * i / n_samples)) & 0xFF)
-            for i in range(n_samples)
-        )
+
+        if fullwave:
+            # Half-period |waveform| — fifo.c handles polarity toggle
+            if waveform == 'sine':
+                self._waveform = bytearray(
+                    int(127 * math.sin(math.pi * i / n_samples)) & 0xFF
+                    for i in range(n_samples)
+                )
+            elif waveform == 'triangle':
+                self._waveform = bytearray(
+                    int(127 * (2 * i / n_samples if i < n_samples // 2
+                               else 2 * (n_samples - i) / n_samples)) & 0xFF
+                    for i in range(n_samples)
+                )
+            elif waveform == 'square':
+                self._waveform = bytearray(127 for _ in range(n_samples))
+        else:
+            # Full-period waveform (trough at index 0 for sine)
+            if waveform == 'sine':
+                self._waveform = bytearray(
+                    (int(127 * math.sin(-math.pi / 2 + 2 * math.pi * i / n_samples)) & 0xFF)
+                    for i in range(n_samples)
+                )
+            elif waveform == 'triangle':
+                self._waveform = bytearray(
+                    (int(127 * (4 * i / n_samples - 1 if i < n_samples // 2
+                                else 3 - 4 * i / n_samples)) & 0xFF)
+                    for i in range(n_samples)
+                )
+            elif waveform == 'square':
+                half = n_samples // 2
+                self._waveform = bytearray(
+                    (127 if i < half else ((-128) & 0xFF))
+                    for i in range(n_samples)
+                )
+
+        self._fullwave = fullwave
         self._mode = MODE_DIGITAL
 
     def set_frequency_analog(self, hz, resolution=8, amplitude=100, fullwave=False,
@@ -79,10 +109,11 @@ class PzActuator:
         if waveform not in self.WAVEFORMS:
             raise ValueError("waveform must be 'sine', 'triangle', or 'square'")
         amp_internal = (amplitude * 128 + 50) // 100
-        pz_pwm.set_frequency(hz, resolution=resolution, amplitude=amp_internal,
-                             fullwave=fullwave, dead_time=dead_time,
-                             phase_advance=phase_advance,
-                             waveform=self.WAVEFORMS[waveform])
+        pz_drive.pwm_set_frequency(hz, resolution=resolution, amplitude=amp_internal,
+                                   fullwave=fullwave, dead_time=dead_time,
+                                   phase_advance=phase_advance,
+                                   waveform=self.WAVEFORMS[waveform])
+        self._fullwave = fullwave
         self._mode = MODE_ANALOG
 
     def start(self, gain=100):
@@ -95,50 +126,44 @@ class PzActuator:
         gain_bits = self.GAINS[gain]
 
         if self._mode == MODE_DIGITAL:
-            # pz_fifo handles DRV2665 digital config internally
-            pz_fifo.start(self.i2c, self._waveform, gain=gain_bits)
+            pz_drive.fifo_start(self._waveform, gain=gain_bits,
+                                fullwave=self._fullwave)
         elif self._mode == MODE_ANALOG:
             self.drv.init_analog(gain_bits)
-            pz_pwm.start()
+            pz_drive.pwm_start()
 
     def stop(self):
         """Stop output and put DRV2665 in standby."""
-        if pz_fifo.is_running():
-            pz_fifo.stop()
-        if pz_pwm.is_running():
-            pz_pwm.stop()
+        if pz_drive.fifo_is_running():
+            pz_drive.fifo_stop()
+        if pz_drive.pwm_is_running():
+            pz_drive.pwm_stop()
         self.drv.standby()
 
     def is_running(self):
-        return pz_fifo.is_running() or pz_pwm.is_running()
+        return pz_drive.fifo_is_running() or pz_drive.pwm_is_running()
 
     # ── Shift register pass-through ─────────────────────────────────────
-    def set_pin(self, pin, value, flush=True):
-        self.sr.set_pin(pin, value)
-        if flush:
-            self.sr.flush()
+    def set_pin(self, pin, value, latch=True):
+        self.sr.set_pin(pin, value, latch=latch)
 
     def get_pin(self, pin):
         return self.sr.get_pin(pin)
 
-    def set_pins(self, values, flush=True):
-        self.sr.set_pins(values)
-        if flush:
-            self.sr.flush()
+    def set_pins(self, values, latch=True):
+        self.sr.set_pins(values, latch=latch)
 
     def get_all(self):
         return self.sr.get_all()
 
-    def set_all(self, value, flush=True):
-        self.sr.set_all(value)
-        if flush:
-            self.sr.flush()
+    def set_all(self, value, latch=True):
+        self.sr.set_all(value, latch=latch)
 
-    def flush(self):
-        self.sr.flush()
+    def latch(self):
+        self.sr.latch()
 
     def toggle_polarity(self):
-        pz_pwm.set_polarity(not pz_pwm.get_polarity())
+        pz_drive.pol_set(not pz_drive.pol_get())
 
     def get_polarity(self):
-        return pz_pwm.get_polarity()
+        return pz_drive.pol_get()
