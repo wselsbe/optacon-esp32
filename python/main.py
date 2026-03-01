@@ -70,7 +70,7 @@ def demo():
         pa.stop()
 
 
-
-# To start web server (blocks REPL):
-#   import web_server
-#   web_server.start()
+# Start web server in background thread (keeps REPL available)
+import _thread
+import web_server
+_thread.start_new_thread(web_server.start, ())
