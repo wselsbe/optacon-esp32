@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Optacon — WiFi</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#edebe7;--card:#fff;--border:#ccc9c2;--text:#1a1a20;--text2:#68686e;--text3:#98989e;
+  --input:#f5f4f0;--esp:#2856a0;--green:#1a8848;--red:#c82e20;--radius:6px;
+}
+html{font-family:system-ui,-apple-system,sans-serif;font-size:14px;background:var(--bg);color:var(--text)}
+body{max-width:520px;margin:0 auto;padding:10px 12px 28px}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;
+  box-shadow:0 1px 3px #0001}
+.brand{font-family:"Consolas","SF Mono","Menlo",monospace;font-weight:700;font-size:15px;letter-spacing:3px;color:var(--text2)}
+a.back{font-size:13px;color:var(--esp);text-decoration:none;font-weight:600}
+a.back:hover{text-decoration:underline}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:10px;box-shadow:0 1px 3px #0001;overflow:hidden}
+.card-h{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2);
+  display:flex;align-items:center;gap:6px}
+.card-h b{color:var(--esp);font-size:14px}
+.card-b{padding:14px}
+.field{margin-bottom:12px}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-size:11px;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.field input[type=text],.field input[type=password]{
+  width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:5px;
+  font-family:inherit;font-size:14px;background:var(--input);color:var(--text)}
+.info-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;
+  border-bottom:1px solid #eee}
+.info-row:last-child{border-bottom:none}
+.info-label{color:var(--text3);font-weight:600}
+.info-val{color:var(--text);font-family:"Consolas","SF Mono",monospace;font-size:13px}
+.big-btn{width:100%;padding:12px;border:none;border-radius:5px;font-family:inherit;
+  font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .15s;
+  margin-top:8px}
+.big-btn.apply{background:var(--esp);color:#fff}
+.big-btn.apply:hover{filter:brightness(1.1)}
+.big-btn:disabled{opacity:.5;cursor:not-allowed}
+.msg{margin-top:10px;padding:10px;border-radius:5px;font-size:13px;text-align:center;display:none}
+.msg.ok{background:#1a884815;color:var(--green);display:block}
+.msg.err{background:#c82e2015;color:var(--red);display:block}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">OPTACON</div>
+  <a href="/" class="back">Control Panel</a>
+</header>
+
+<div class="card">
+  <div class="card-h"><b>WiFi</b> <span>Current Connection</span></div>
+  <div class="card-b" id="info">
+    <div class="info-row"><span class="info-label">Mode</span><span class="info-val" id="w-mode">--</span></div>
+    <div class="info-row"><span class="info-label">SSID</span><span class="info-val" id="w-ssid">--</span></div>
+    <div class="info-row"><span class="info-label">IP</span><span class="info-val" id="w-ip">--</span></div>
+    <div class="info-row"><span class="info-label">Hostname</span><span class="info-val" id="w-host">--</span></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-h"><b>WiFi</b> <span>Configuration</span></div>
+  <div class="card-b">
+    <div class="field">
+      <label>SSID</label>
+      <input type="text" id="ssid" placeholder="Network name" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="pass" placeholder="Password" autocomplete="off">
+    </div>
+    <button class="big-btn apply" id="apply-btn">APPLY &amp; REBOOT</button>
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+
+<script>
+var ws;
+
+fetch('/wifi/status').then(function(r){return r.json()}).then(function(d){
+  document.getElementById('w-mode').textContent=d.mode==='sta'?'Station':'Access Point';
+  document.getElementById('w-ssid').textContent=d.ssid||'--';
+  document.getElementById('w-ip').textContent=d.ip||'--';
+  document.getElementById('w-host').textContent=d.hostname||'--';
+}).catch(function(){});
+
+function showMsg(text,ok){
+  var m=document.getElementById('msg');
+  m.textContent=text;
+  m.className='msg '+(ok?'ok':'err');
+}
+
+document.getElementById('apply-btn').onclick=function(){
+  var ssid=document.getElementById('ssid').value.trim();
+  if(!ssid){showMsg('SSID is required',false);return;}
+  var pass=document.getElementById('pass').value;
+  var btn=this;
+  btn.disabled=true;
+  btn.textContent='SAVING...';
+
+  var proto=location.protocol==='https:'?'wss:':'ws:';
+  ws=new WebSocket(proto+'//'+location.host+'/ws');
+  ws.onopen=function(){
+    ws.send(JSON.stringify({cmd:'wifi_config',ssid:ssid,password:pass}));
+  };
+  ws.onmessage=function(e){
+    var d=JSON.parse(e.data);
+    if(d.reboot){
+      showMsg('Config saved. Rebooting...',true);
+      btn.textContent='REBOOTING...';
+    }else if(d.error){
+      showMsg('Error: '+d.error,false);
+      btn.disabled=false;
+      btn.textContent='APPLY & REBOOT';
+    }
+  };
+  ws.onerror=function(){
+    showMsg('Connection error',false);
+    btn.disabled=false;
+    btn.textContent='APPLY & REBOOT';
+  };
+};
+</script>
+</body>
+</html>

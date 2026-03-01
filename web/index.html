@@ -26,6 +26,9 @@ header{display:flex;align-items:center;justify-content:space-between;padding:10p
   font-family:"Consolas","SF Mono",monospace}
 .badge.run{background:#1a884815;color:var(--green);border:1px solid #1a884830}
 .badge.stop{background:#68686e12;color:var(--text3);border:1px solid #68686e30}
+.wifi-link{font-size:11px;color:var(--esp);text-decoration:none;font-weight:600;
+  padding:2px 6px;border:1px solid var(--esp);border-radius:4px}
+.wifi-link:hover{background:var(--esp);color:#fff}
 
 /* Cards */
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
@@ -120,6 +123,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
   <div class="status">
     <span><span class="dot" id="dot"></span><span id="conn">--</span></span>
     <span id="badge" class="badge stop">STOPPED</span>
+    <a href="/wifi" class="wifi-link" title="WiFi Settings">WiFi</a>
   </div>
 </header>
 
