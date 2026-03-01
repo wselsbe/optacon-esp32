@@ -70,7 +70,7 @@ def demo():
         pa.stop()
 
 
-# Start web server (blocks — Ctrl+C to access REPL)
-import web_server  # noqa: E402
 
-web_server.start()
+# To start web server (blocks REPL):
+#   import web_server
+#   web_server.start()

@@ -10,7 +10,7 @@
 
 #define I2C_SDA_GPIO   47
 #define I2C_SCL_GPIO   21
-#define I2C_FREQ_HZ    100000
+#define I2C_FREQ_HZ    400000
 #define DRV2665_ADDR   0x59
 #define I2C_TIMEOUT_MS 100
 
@@ -64,23 +64,46 @@ void drv2665_write_reg(uint8_t reg, uint8_t val) {
     i2c_master_transmit(s_dev, buf, 2, I2C_TIMEOUT_MS);
 }
 
-void drv2665_write_fifo_bulk(const uint8_t *data, size_t len) {
+esp_err_t drv2665_write_fifo_bulk(const uint8_t *data, size_t len) {
     // Prepend FIFO register address (0x0B)
     uint8_t buf[101]; // max 100 data bytes + 1 reg byte
     if (len > 100) len = 100;
     buf[0] = 0x0B;
     memcpy(buf + 1, data, len);
-    i2c_master_transmit(s_dev, buf, len + 1, I2C_TIMEOUT_MS);
+    return i2c_master_transmit(s_dev, buf, len + 1, I2C_TIMEOUT_MS);
 }
 
-void drv2665_write_fifo_byte(uint8_t val) {
+esp_err_t drv2665_write_fifo_byte(uint8_t val) {
     uint8_t buf[2] = {0x0B, val};
-    i2c_master_transmit(s_dev, buf, 2, I2C_TIMEOUT_MS);
+    return i2c_master_transmit(s_dev, buf, 2, I2C_TIMEOUT_MS);
 }
 
 uint8_t drv2665_read_status(void) {
     uint8_t reg = 0x00;
     uint8_t val = 0;
-    i2c_master_transmit_receive(s_dev, &reg, 1, &val, 1, I2C_TIMEOUT_MS);
+    esp_err_t err = i2c_master_transmit_receive(s_dev, &reg, 1, &val, 1, I2C_TIMEOUT_MS);
+    if (err != ESP_OK) return 0xFF; // sentinel: I2C error
     return val;
+}
+
+void drv2665_reset(void) {
+    if (!s_inited) drv2665_bus_init();
+    uint8_t buf[2] = {0x02, 0x80}; // CTRL2: DEV_RST
+    i2c_master_transmit(s_dev, buf, 2, I2C_TIMEOUT_MS);
+    // Datasheet: 1ms after reset before device is ready
+    vTaskDelay(pdMS_TO_TICKS(2) > 0 ? pdMS_TO_TICKS(2) : 1);
+}
+
+esp_err_t drv2665_write_bulk(uint8_t reg, const uint8_t *data, size_t len) {
+    if (!s_inited) drv2665_bus_init();
+    if (len > 255) len = 255;
+    uint8_t buf[256];
+    buf[0] = reg;
+    memcpy(buf + 1, data, len);
+    return i2c_master_transmit(s_dev, buf, len + 1, I2C_TIMEOUT_MS);
+}
+
+esp_err_t drv2665_read_bulk(uint8_t reg, uint8_t *out, size_t len) {
+    if (!s_inited) drv2665_bus_init();
+    return i2c_master_transmit_receive(s_dev, &reg, 1, out, len, I2C_TIMEOUT_MS);
 }

@@ -6,12 +6,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "esp_err.h"
+
 // ── hv509.c — SPI shift register + polarity GPIOs ──────────────────────
 void hv509_init(void);
 void hv509_sr_stage(uint32_t word32);
 void hv509_sr_write(uint32_t word32);
 void hv509_sr_latch_if_pending(void);
 void hv509_pol_init(void);
+void hv509_pol_set(bool val);
 bool hv509_pol_get(void);
 void hv509_pol_toggle(void);
 
@@ -19,9 +22,12 @@ void hv509_pol_toggle(void);
 void drv2665_bus_init(void);
 int drv2665_read_reg(uint8_t reg);
 void drv2665_write_reg(uint8_t reg, uint8_t val);
-void drv2665_write_fifo_bulk(const uint8_t *data, size_t len);
-void drv2665_write_fifo_byte(uint8_t val);
+void drv2665_reset(void);
+esp_err_t drv2665_write_fifo_bulk(const uint8_t *data, size_t len);
+esp_err_t drv2665_write_fifo_byte(uint8_t val);
 uint8_t drv2665_read_status(void);
+esp_err_t drv2665_write_bulk(uint8_t reg, const uint8_t *data, size_t len);
+esp_err_t drv2665_read_bulk(uint8_t reg, uint8_t *out, size_t len);
 
 // ── pwm.c — analog DDS ISR ─────────────────────────────────────────────
 bool pzd_pwm_is_running(void);

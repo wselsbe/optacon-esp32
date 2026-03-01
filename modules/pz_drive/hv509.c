@@ -37,9 +37,15 @@ void hv509_pol_init(void) {
         gpio_config(&io_conf);
         s_pol_inited = true;
     }
-    gpio_set_level(POL_A_GPIO, 1);
-    gpio_set_level(POL_B_GPIO, 1);
-    s_pol_value = true;
+    gpio_set_level(POL_A_GPIO, 0);
+    gpio_set_level(POL_B_GPIO, 0);
+    s_pol_value = false;
+}
+
+void hv509_pol_set(bool val) {
+    s_pol_value = val;
+    gpio_set_level(POL_A_GPIO, val ? 1 : 0);
+    gpio_set_level(POL_B_GPIO, val ? 1 : 0);
 }
 
 bool hv509_pol_get(void) {

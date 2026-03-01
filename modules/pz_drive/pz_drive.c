@@ -26,11 +26,25 @@ static mp_obj_t pz_drive_pol_init(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_pol_init_obj, pz_drive_pol_init);
 
+// ── pol_set(val) ────────────────────────────────────────────────────────
+static mp_obj_t pz_drive_pol_set(mp_obj_t val_obj) {
+    hv509_pol_set(mp_obj_is_true(val_obj));
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_1(pz_drive_pol_set_obj, pz_drive_pol_set);
+
 // ── pol_get() ───────────────────────────────────────────────────────────
 static mp_obj_t pz_drive_pol_get(void) {
     return mp_obj_new_bool(hv509_pol_get());
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_pol_get_obj, pz_drive_pol_get);
+
+// ── reset() ─────────────────────────────────────────────────────────────
+static mp_obj_t pz_drive_reset(void) {
+    drv2665_reset();
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_reset_obj, pz_drive_reset);
 
 // ── i2c_read(reg) ───────────────────────────────────────────────────────
 static mp_obj_t pz_drive_i2c_read(mp_obj_t reg_obj) {
@@ -48,6 +62,32 @@ static mp_obj_t pz_drive_i2c_write(mp_obj_t reg_obj, mp_obj_t val_obj) {
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(pz_drive_i2c_write_obj, pz_drive_i2c_write);
+
+// ── i2c_write_bytes(reg, data) → esp_err_t ───────────────────────────
+static mp_obj_t pz_drive_i2c_write_bytes(mp_obj_t reg_obj, mp_obj_t data_obj) {
+    uint8_t reg = mp_obj_get_int(reg_obj);
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(data_obj, &bufinfo, MP_BUFFER_READ);
+    esp_err_t err = drv2665_write_bulk(reg, bufinfo.buf, bufinfo.len);
+    return mp_obj_new_int(err);
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(pz_drive_i2c_write_bytes_obj, pz_drive_i2c_write_bytes);
+
+// ── i2c_read_bytes(reg, count) → bytes ──────────────────────────────
+static mp_obj_t pz_drive_i2c_read_bytes(mp_obj_t reg_obj, mp_obj_t count_obj) {
+    uint8_t reg = mp_obj_get_int(reg_obj);
+    int count = mp_obj_get_int(count_obj);
+    if (count <= 0 || count > 256) {
+        mp_raise_ValueError(MP_ERROR_TEXT("count must be 1-256"));
+    }
+    uint8_t buf[256];
+    esp_err_t err = drv2665_read_bulk(reg, buf, count);
+    if (err != 0) {
+        return mp_obj_new_int(-1);
+    }
+    return mp_obj_new_bytes(buf, count);
+}
+static MP_DEFINE_CONST_FUN_OBJ_2(pz_drive_i2c_read_bytes_obj, pz_drive_i2c_read_bytes);
 
 // ── pwm_set_frequency(hz, resolution=8, amplitude=128, fullwave=False,
 //                      dead_time=0, phase_advance=0, waveform=0) ────────
@@ -146,9 +186,13 @@ static const mp_rom_map_elem_t pz_drive_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_sr_stage), MP_ROM_PTR(&pz_drive_sr_stage_obj)},
     {MP_ROM_QSTR(MP_QSTR_sr_write), MP_ROM_PTR(&pz_drive_sr_write_obj)},
     {MP_ROM_QSTR(MP_QSTR_pol_init), MP_ROM_PTR(&pz_drive_pol_init_obj)},
+    {MP_ROM_QSTR(MP_QSTR_pol_set), MP_ROM_PTR(&pz_drive_pol_set_obj)},
     {MP_ROM_QSTR(MP_QSTR_pol_get), MP_ROM_PTR(&pz_drive_pol_get_obj)},
+    {MP_ROM_QSTR(MP_QSTR_reset), MP_ROM_PTR(&pz_drive_reset_obj)},
     {MP_ROM_QSTR(MP_QSTR_i2c_read), MP_ROM_PTR(&pz_drive_i2c_read_obj)},
     {MP_ROM_QSTR(MP_QSTR_i2c_write), MP_ROM_PTR(&pz_drive_i2c_write_obj)},
+    {MP_ROM_QSTR(MP_QSTR_i2c_write_bytes), MP_ROM_PTR(&pz_drive_i2c_write_bytes_obj)},
+    {MP_ROM_QSTR(MP_QSTR_i2c_read_bytes), MP_ROM_PTR(&pz_drive_i2c_read_bytes_obj)},
     {MP_ROM_QSTR(MP_QSTR_pwm_set_frequency), MP_ROM_PTR(&pz_drive_pwm_set_frequency_obj)},
     {MP_ROM_QSTR(MP_QSTR_pwm_start), MP_ROM_PTR(&pz_drive_pwm_start_obj)},
     {MP_ROM_QSTR(MP_QSTR_pwm_stop), MP_ROM_PTR(&pz_drive_pwm_stop_obj)},

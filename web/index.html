@@ -75,16 +75,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 .freq-row input[type=range]{flex:1}
 .freq-row input[type=number]{width:72px;text-align:right;flex:none}
 
-/* Segmented buttons */
-.seg{display:inline-flex;border:1.5px solid var(--border);border-radius:6px;overflow:hidden}
-.seg-btn{padding:9px 18px;background:var(--card);border:none;border-right:1px solid var(--border);
-  font-family:inherit;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;
-  transition:all .12s;letter-spacing:.5px}
-.seg-btn:last-child{border-right:none}
-.seg-btn:hover{background:var(--input)}
-.seg-btn.sel{color:#fff}
-.card.drv .seg-btn.sel{background:var(--drv)}
-
 /* Gain buttons */
 .gain-row{display:flex;align-items:center;gap:6px}
 .gain-btn{padding:8px 0;width:48px;background:var(--card);border:1.5px solid var(--border);border-radius:5px;
@@ -101,11 +91,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 .big-btn.halt{background:var(--red);color:#fff}
 .big-btn.halt:hover{background:#b42818}
 
-/* Analog sub-section */
-.sub-h{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-weight:600;
-  padding:6px 0;margin:8px 0 10px;border-top:1px dashed var(--border)}
-.analog-wrap{max-height:400px;overflow:hidden;transition:max-height .3s ease,opacity .25s ease;opacity:1}
-.analog-wrap.hide{max-height:0;opacity:0;margin-top:-4px}
 
 /* Pin grid */
 .pin-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
@@ -142,13 +127,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 <div class="card drv">
   <div class="card-h"><b>DRV2665</b> <span>Boost Amplifier</span></div>
   <div class="card-b">
-    <div class="field">
-      <label>Input</label>
-      <div class="seg">
-        <button class="seg-btn sel" id="btn-analog">ANALOG</button>
-        <button class="seg-btn" id="btn-digital">DIGITAL</button>
-      </div>
-    </div>
     <div class="field">
       <label>Gain</label>
       <div class="gain-row">
@@ -189,8 +167,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
         <label for="fullwave" style="cursor:pointer;text-transform:none;white-space:nowrap">Fullwave (toggle polarity)</label>
       </div>
     </div>
-    <div class="analog-wrap" id="analog-wrap">
-      <div class="sub-h">Analog Parameters</div>
+    <div>
       <div class="field">
         <label>Amplitude <span id="amp-val" style="color:var(--text);font-family:'Consolas','SF Mono',monospace">100%</span></label>
         <input type="range" id="amplitude" min="0" max="100" value="100">
@@ -230,13 +207,13 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 <div class="toast" id="toast"></div>
 
 <script>
-var ws=null,state={},upd=false,rdelay=1e3,selMode='analog',selGain=100;
+var ws=null,state={},upd=false,rdelay=1e3,selGain=100;
 var $=function(id){return document.getElementById(id)};
 var dot=$('dot'),conn=$('conn'),badge=$('badge');
 var freqSlider=$('freq-slider'),freq=$('freq'),waveform=$('waveform'),fullwave=$('fullwave');
 var amplitude=$('amplitude'),ampVal=$('amp-val');
 var deadTime=$('dead-time'),phaseAdv=$('phase-advance');
-var startStop=$('start-stop'),analogWrap=$('analog-wrap');
+var startStop=$('start-stop');
 
 // Slider fill
 function fillSlider(el,color){
@@ -279,15 +256,10 @@ function sendFreq(){
   var hz=parseInt(freq.value)||0;
   var wf=waveform.value;
   var fw=fullwave.checked;
-  if(selMode==='analog'){
-    send({cmd:'set_frequency_analog',hz:hz,
-      amplitude:parseInt(amplitude.value)||100,
-      fullwave:fw,dead_time:parseInt(deadTime.value)||0,
-      phase_advance:parseInt(phaseAdv.value)||0,waveform:wf});
-  }else{
-    if(hz<1)hz=1;
-    send({cmd:'set_frequency_digital',hz:hz,fullwave:fw,waveform:wf});
-  }
+  send({cmd:'set_frequency_analog',hz:hz,
+    amplitude:parseInt(amplitude.value)||100,
+    fullwave:fw,dead_time:parseInt(deadTime.value)||0,
+    phase_advance:parseInt(phaseAdv.value)||0,waveform:wf});
 }
 
 function updateUI(){
@@ -298,10 +270,6 @@ function updateUI(){
     badge.textContent='STOPPED';badge.className='badge stop';
     startStop.textContent='START';startStop.className='big-btn go';
   }
-  if(state.mode)selMode=state.mode;
-  $('btn-analog').classList.toggle('sel',selMode==='analog');
-  $('btn-digital').classList.toggle('sel',selMode==='digital');
-  analogWrap.classList.toggle('hide',selMode!=='analog');
   // Freq range
   freq.min=0;freq.max=400;freqSlider.min=0;freqSlider.max=400;
   // Values
@@ -321,16 +289,6 @@ function updateUI(){
   if(state.ip)conn.textContent=state.ip;
   updateSliders();
 }
-
-// Mode
-$('btn-analog').onclick=function(){selMode='analog';
-  $('btn-analog').classList.add('sel');$('btn-digital').classList.remove('sel');
-  analogWrap.classList.remove('hide');
-  updateSliders();sendFreq()};
-$('btn-digital').onclick=function(){selMode='digital';
-  $('btn-digital').classList.add('sel');$('btn-analog').classList.remove('sel');
-  analogWrap.classList.add('hide');
-  updateSliders();sendFreq()};
 
 // Frequency slider <-> input sync
 freqSlider.oninput=function(){freq.value=this.value;updateSliders()};
