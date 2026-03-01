@@ -8,9 +8,10 @@
 // that count via bulk I2C write.  This keeps the FIFO topped up without
 // polling FIFO_FULL (which was too slow and caused underruns).
 //
-// At each period boundary (waveform wrap), the task:
-//   - Toggles polarity via hv509_pol_toggle() if fullwave mode is active
-//   - Latches any pending shift register data via hv509_sr_latch_if_pending()
+// Polarity toggling (fullwave) and shift register latching are driven by a
+// separate "boundary timer" that fires at the waveform playback rate
+// (waveform_len * 125µs).  This keeps the polarity toggle synchronized to
+// actual DRV2665 playback rather than the write-ahead cursor.
 
 #include "pz_drive.h"
 
@@ -48,6 +49,7 @@ static volatile bool s_fullwave = false;
 static volatile bool s_running = false;
 static TaskHandle_t s_task_handle = NULL;
 static esp_timer_handle_t s_timer_handle = NULL;
+static esp_timer_handle_t s_boundary_timer = NULL;
 
 // ─── Waveform helpers ───────────────────────────────────────────────────────
 
@@ -56,11 +58,6 @@ static inline int8_t next_sample(void) {
     s_write_index++;
     if (s_write_index >= s_waveform_len) {
         s_write_index = 0;
-        // Period boundary — latch shift register + toggle polarity
-        if (s_fullwave) {
-            hv509_pol_toggle();
-        }
-        hv509_sr_latch_if_pending();
     }
     return s;
 }
@@ -88,12 +85,24 @@ static void fifo_standby(void) {
     drv2665_write_reg(DRV2665_REG_CTRL2, DRV2665_STANDBY);
 }
 
-// ─── Timer callback (ISR context) ───────────────────────────────────────────
+// ─── Timer callbacks ────────────────────────────────────────────────────────
 
+// Refill timer: wakes the FIFO task every 8ms to top up the FIFO
 static void fifo_timer_callback(void *arg) {
     if (s_task_handle != NULL) {
         xTaskNotifyGive(s_task_handle);
     }
+}
+
+// Boundary timer: fires at each waveform period boundary (playback rate).
+// Toggles polarity for fullwave mode and latches pending SR data.
+// Runs in esp_timer task context — gpio_set_level() is safe here.
+static void boundary_timer_callback(void *arg) {
+    if (!s_running) return;
+    if (s_fullwave) {
+        hv509_pol_toggle();
+    }
+    hv509_sr_latch_if_pending();
 }
 
 // ─── Background task ────────────────────────────────────────────────────────
@@ -110,6 +119,12 @@ static void fifo_background_task(void *arg) {
     // ── INITIAL FILL ─────────────────────────────────────────────
     fill_from_waveform(fill_buf, DRV2665_FIFO_SIZE);
     drv2665_write_fifo_bulk(fill_buf, DRV2665_FIFO_SIZE);
+
+    // DRV2665 starts playing from sample 0 as soon as FIFO data arrives.
+    // Start the boundary timer now — first callback fires at exactly one
+    // waveform period after playback begins, toggling polarity in sync.
+    uint64_t boundary_us = (uint64_t)s_waveform_len * SAMPLE_PERIOD_US;
+    esp_timer_start_periodic(s_boundary_timer, boundary_us);
 
     // Track time for consumed sample estimation
     int64_t fill_time = esp_timer_get_time();
@@ -137,6 +152,7 @@ static void fifo_background_task(void *arg) {
     }
 
     esp_timer_stop(s_timer_handle);
+    esp_timer_stop(s_boundary_timer);
     fifo_standby();
     s_task_handle = NULL;
     vTaskDelete(NULL);
@@ -161,7 +177,7 @@ void pzd_fifo_start(const uint8_t *buf, size_t len, int gain, bool fullwave) {
     s_fullwave = fullwave;
     s_running = true;
 
-    // Create esp_timer for precise periodic wakeups
+    // Create esp_timer for periodic FIFO refill wakeups
     if (s_timer_handle == NULL) {
         esp_timer_create_args_t timer_args = {
             .callback = fifo_timer_callback,
@@ -176,6 +192,24 @@ void pzd_fifo_start(const uint8_t *buf, size_t len, int gain, bool fullwave) {
         }
     }
 
+    // Create esp_timer for playback-synchronized boundary events
+    if (s_boundary_timer == NULL) {
+        esp_timer_create_args_t bnd_args = {
+            .callback = boundary_timer_callback,
+            .arg = NULL,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "pz_fifo_boundary",
+        };
+        esp_err_t err = esp_timer_create(&bnd_args, &s_boundary_timer);
+        if (err != ESP_OK) {
+            s_running = false;
+            esp_timer_delete(s_timer_handle);
+            s_timer_handle = NULL;
+            mp_raise_msg(&mp_type_RuntimeError,
+                         MP_ERROR_TEXT("pz_drive: failed to create boundary timer"));
+        }
+    }
+
     // Pin to core 1 so I2C traffic doesn't starve USB-CDC (TinyUSB on core 0)
     BaseType_t ret = xTaskCreatePinnedToCore(fifo_background_task, "pz_fifo", 8192, NULL,
                                              tskIDLE_PRIORITY + 2, &s_task_handle, 1);
@@ -183,6 +217,8 @@ void pzd_fifo_start(const uint8_t *buf, size_t len, int gain, bool fullwave) {
         s_running = false;
         esp_timer_delete(s_timer_handle);
         s_timer_handle = NULL;
+        esp_timer_delete(s_boundary_timer);
+        s_boundary_timer = NULL;
         mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("pz_drive: failed to create FIFO task"));
     }
 
@@ -211,10 +247,14 @@ void pzd_fifo_stop(void) {
         s_task_handle = NULL;
     }
 
-    // Clean up timer
+    // Clean up timers
     if (s_timer_handle != NULL) {
         esp_timer_delete(s_timer_handle);
         s_timer_handle = NULL;
+    }
+    if (s_boundary_timer != NULL) {
+        esp_timer_delete(s_boundary_timer);
+        s_boundary_timer = NULL;
     }
 
     // Reset polarity to safe default
