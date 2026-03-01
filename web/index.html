@@ -6,88 +6,125 @@
 <title>Optacon</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html{font-family:"Consolas","SF Mono","Menlo",monospace;font-size:14px;background:#08080e;color:#9090a0}
-body{max-width:480px;margin:0 auto;padding:8px 12px 24px}
+:root{
+  --bg:#edebe7;--card:#fff;--border:#ccc9c2;--text:#1a1a20;--text2:#68686e;--text3:#98989e;
+  --input:#f5f4f0;--drv:#b85a14;--esp:#2856a0;--hv:#167868;--green:#1a8848;--red:#c82e20;--radius:6px;
+}
+html{font-family:system-ui,-apple-system,sans-serif;font-size:14px;background:var(--bg);color:var(--text)}
+body{max-width:520px;margin:0 auto;padding:10px 12px 28px}
 
-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
-  background:#0e0e18;border:1px solid #1a1a28;border-radius:8px;margin-bottom:10px}
-.brand{font-size:15px;font-weight:700;letter-spacing:4px;color:#6a6a7a}
-.status{display:flex;align-items:center;gap:12px;font-size:12px}
-.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#d03030;
-  margin-right:4px;vertical-align:middle;transition:background .3s}
-.dot.on{background:#18b050;box-shadow:0 0 6px #18b05080}
-.badge{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:1px}
-.badge.run{background:#18b05025;color:#18b050;border:1px solid #18b05040}
-.badge.stop{background:#d0303020;color:#d03030;border:1px solid #d0303030}
+/* Header */
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;
+  box-shadow:0 1px 3px #0001}
+.brand{font-family:"Consolas","SF Mono","Menlo",monospace;font-weight:700;font-size:15px;letter-spacing:3px;color:var(--text2)}
+.status{display:flex;align-items:center;gap:10px;font-size:12px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);
+  margin-right:3px;vertical-align:middle;transition:background .3s}
+.dot.on{background:var(--green);box-shadow:0 0 6px #1a884880}
+.badge{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:1px;
+  font-family:"Consolas","SF Mono",monospace}
+.badge.run{background:#1a884815;color:var(--green);border:1px solid #1a884830}
+.badge.stop{background:#68686e12;color:var(--text3);border:1px solid #68686e30}
 
-.card{background:#10101a;border:1px solid #1a1a28;border-radius:8px;margin-bottom:10px;overflow:hidden}
-.card-h{padding:8px 14px;font-size:11px;font-weight:700;letter-spacing:2px;color:#5a5a6a;
-  background:#0c0c16;border-bottom:1px solid #1a1a28;text-transform:uppercase}
-.card-b{padding:12px 14px}
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:12px;overflow:hidden;box-shadow:0 1px 3px #0001}
+.card.drv{border-left:4px solid var(--drv)}
+.card.esp{border-left:4px solid var(--esp)}
+.card.hv{border-left:4px solid var(--hv)}
+.card-h{padding:9px 16px;border-bottom:1px solid var(--border);background:#faf9f7;display:flex;align-items:baseline;gap:8px}
+.card-h b{font-family:"Consolas","SF Mono","Menlo",monospace;font-size:13px;letter-spacing:.5px}
+.card.drv .card-h b{color:var(--drv)}.card.esp .card-h b{color:var(--esp)}.card.hv .card-h b{color:var(--hv)}
+.card-h span{font-size:12px;color:var(--text3);font-weight:400}
+.card-b{padding:14px 16px}
 
-.field{margin-bottom:10px}
-.field:last-child{margin-bottom:0}
-.field label{display:block;font-size:11px;color:#6a6a7a;margin-bottom:4px;letter-spacing:.5px}
-.field.row{display:flex;align-items:center;gap:8px;flex-direction:row}
-.field.row label{margin-bottom:0}
+/* Fields */
+.field{margin-bottom:12px}.field:last-child{margin-bottom:0}
+.field>label{display:block;font-size:11px;color:var(--text2);margin-bottom:5px;font-weight:600;
+  letter-spacing:.3px;text-transform:uppercase}
+.field.row{display:flex;align-items:center;gap:8px}
+.field.row>label{margin-bottom:0;text-transform:none}
+.field-row{display:flex;gap:12px;margin-bottom:12px}
+.field-row:last-child{margin-bottom:0}
+.field-row .field{flex:1;margin-bottom:0}
 
-input[type=number],select{width:100%;padding:8px 10px;background:#0a0a14;border:1px solid #1e1e2c;
-  border-radius:6px;color:#c8c8d4;font-family:inherit;font-size:14px;outline:none;transition:border-color .2s}
-input[type=number]:focus,select:focus{border-color:#b87010}
+/* Inputs */
+input[type=number],select{width:100%;padding:7px 10px;background:var(--input);border:1.5px solid var(--border);
+  border-radius:5px;color:var(--text);font-family:"Consolas","SF Mono",monospace;font-size:14px;outline:none;
+  transition:border-color .15s}
+input[type=number]:focus,select:focus{border-color:var(--esp)}
 select{cursor:pointer;-webkit-appearance:none;appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236a6a7a' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 10px center}
-
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2398989e' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
 .input-row{display:flex;align-items:center;gap:6px}
 .input-row input[type=number]{flex:1}
-.suffix{font-size:12px;color:#5a5a6a;white-space:nowrap}
+.unit{font-size:12px;color:var(--text3);white-space:nowrap;font-family:"Consolas","SF Mono",monospace}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--esp);cursor:pointer}
 
+/* Sliders */
 input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;
-  border-radius:3px;background:#0a0a14;border:1px solid #1e1e2c;outline:none;cursor:pointer}
+  border-radius:3px;background:#d8d6d0;outline:none;cursor:pointer;border:none}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;
-  border-radius:50%;background:#b87010;border:2px solid #0a0a14;cursor:pointer}
+  border-radius:50%;background:var(--esp);border:3px solid #fff;box-shadow:0 1px 4px #0003;cursor:pointer}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
+  background:var(--esp);border:3px solid #fff;box-shadow:0 1px 4px #0003;cursor:pointer}
 
-input[type=checkbox]{width:16px;height:16px;accent-color:#b87010;cursor:pointer}
+/* Frequency combo */
+.freq-row{display:flex;align-items:center;gap:10px}
+.freq-row input[type=range]{flex:1}
+.freq-row input[type=number]{width:72px;text-align:right;flex:none}
 
-.mode-btns{display:flex;gap:6px}
-.mode-btn{flex:1;padding:10px;background:#0a0a14;border:1px solid #1e1e2c;border-radius:6px;
-  color:#707080;font-family:inherit;font-size:13px;font-weight:700;letter-spacing:1px;
-  cursor:pointer;transition:all .15s;text-align:center}
-.mode-btn:hover{border-color:#3a3a4a}
-.mode-btn.sel{background:#b8701018;border-color:#b87010;color:#d89030}
+/* Segmented buttons */
+.seg{display:inline-flex;border:1.5px solid var(--border);border-radius:6px;overflow:hidden}
+.seg-btn{padding:9px 18px;background:var(--card);border:none;border-right:1px solid var(--border);
+  font-family:inherit;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;
+  transition:all .12s;letter-spacing:.5px}
+.seg-btn:last-child{border-right:none}
+.seg-btn:hover{background:var(--input)}
+.seg-btn.sel{color:#fff}
+.card.drv .seg-btn.sel{background:var(--drv)}
 
-.gain-btns{display:flex;align-items:center;gap:6px}
-.gain-btn{padding:8px 0;width:48px;background:#0a0a14;border:1px solid #1e1e2c;border-radius:6px;
-  color:#707080;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;text-align:center}
-.gain-btn:hover{border-color:#3a3a4a}
-.gain-btn.sel{background:#b8701018;border-color:#b87010;color:#d89030}
+/* Gain buttons */
+.gain-row{display:flex;align-items:center;gap:6px}
+.gain-btn{padding:8px 0;width:48px;background:var(--card);border:1.5px solid var(--border);border-radius:5px;
+  font-family:"Consolas","SF Mono",monospace;font-size:13px;font-weight:700;color:var(--text2);
+  cursor:pointer;transition:all .12s;text-align:center}
+.gain-btn:hover{border-color:var(--text3)}
+.gain-btn.sel{background:var(--drv);border-color:var(--drv);color:#fff}
 
-.big-btn{display:block;width:100%;padding:14px;margin-top:12px;border:none;border-radius:8px;
-  font-family:inherit;font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all .15s}
-.big-btn.go{background:#18b050;color:#fff}
-.big-btn.go:hover{background:#14a045}
-.big-btn.halt{background:#d03030;color:#fff}
-.big-btn.halt:hover{background:#c02828}
+/* Start/Stop */
+.big-btn{display:block;width:100%;padding:14px;margin-top:14px;border:none;border-radius:var(--radius);
+  font-family:inherit;font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all .12s}
+.big-btn.go{background:var(--green);color:#fff}
+.big-btn.go:hover{background:#168040}
+.big-btn.halt{background:var(--red);color:#fff}
+.big-btn.halt:hover{background:#b42818}
 
+/* Analog sub-section */
+.sub-h{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-weight:600;
+  padding:6px 0;margin:8px 0 10px;border-top:1px dashed var(--border)}
+.analog-wrap{max-height:400px;overflow:hidden;transition:max-height .3s ease,opacity .25s ease;opacity:1}
+.analog-wrap.hide{max-height:0;opacity:0;margin-top:-4px}
+
+/* Pin grid */
 .pin-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
-@media(min-width:420px){.pin-grid{grid-template-columns:repeat(10,1fr)}}
-.pin-btn{padding:10px 0;background:#0a0a14;border:1px solid #1e1e2c;border-radius:6px;
-  color:#5a5a6a;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;
-  transition:all .15s;text-align:center}
-.pin-btn:hover{border-color:#3a3a4a}
-.pin-btn.on{background:#b8701020;border-color:#b87010;color:#d89030;box-shadow:0 0 8px #b8701020}
-
+@media(min-width:440px){.pin-grid{grid-template-columns:repeat(10,1fr)}}
+.pin-btn{padding:10px 0;background:var(--card);border:1.5px solid var(--border);border-radius:5px;
+  font-family:"Consolas","SF Mono",monospace;font-size:12px;font-weight:700;color:var(--text3);
+  cursor:pointer;transition:all .12s;text-align:center}
+.pin-btn:hover{border-color:var(--text2)}
+.pin-btn.on{background:#16786810;border-color:var(--hv);color:var(--hv);font-weight:800}
 .pin-actions{display:flex;gap:6px}
-.sm-btn{flex:1;padding:8px;background:#0a0a14;border:1px solid #1e1e2c;border-radius:6px;
-  color:#707080;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
-.sm-btn:hover{border-color:#3a3a4a;color:#a0a0b0}
+.sm-btn{flex:1;padding:8px;background:var(--input);border:1.5px solid var(--border);border-radius:5px;
+  font-family:inherit;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;transition:all .12s}
+.sm-btn:hover{border-color:var(--text3);background:#eeedea}
 
-.analog-wrap{max-height:300px;overflow:hidden;transition:max-height .3s ease,opacity .3s ease;opacity:1}
-.analog-wrap.hide{max-height:0;opacity:0}
-
+/* Toast */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(60px);
-  padding:10px 20px;background:#d03030;color:#fff;border-radius:8px;font-size:13px;
-  opacity:0;transition:all .3s ease;pointer-events:none;z-index:10;max-width:90%;text-align:center}
+  padding:10px 20px;background:var(--red);color:#fff;border-radius:var(--radius);font-size:13px;
+  opacity:0;transition:all .3s ease;pointer-events:none;z-index:10;max-width:90%;text-align:center;
+  box-shadow:0 4px 12px #0003}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
@@ -101,86 +138,86 @@ input[type=checkbox]{width:16px;height:16px;accent-color:#b87010;cursor:pointer}
   </div>
 </header>
 
-<div class="card">
-  <div class="card-h">Mode</div>
-  <div class="card-b">
-    <div class="mode-btns">
-      <button class="mode-btn sel" id="btn-analog">ANALOG</button>
-      <button class="mode-btn" id="btn-digital">DIGITAL</button>
-    </div>
-  </div>
-</div>
-
-<div class="card">
-  <div class="card-h">Signal</div>
+<!-- DRV2665 -->
+<div class="card drv">
+  <div class="card-h"><b>DRV2665</b> <span>Boost Amplifier</span></div>
   <div class="card-b">
     <div class="field">
-      <label>Frequency</label>
-      <div class="input-row">
-        <input type="number" id="freq" value="250" min="0" max="400" step="1">
-        <span class="suffix">Hz</span>
+      <label>Input</label>
+      <div class="seg">
+        <button class="seg-btn sel" id="btn-analog">ANALOG</button>
+        <button class="seg-btn" id="btn-digital">DIGITAL</button>
       </div>
     </div>
-    <div class="field">
-      <label>Waveform</label>
-      <select id="waveform">
-        <option value="sine">Sine</option>
-        <option value="triangle">Triangle</option>
-        <option value="square">Square</option>
-      </select>
-    </div>
-    <div class="field row">
-      <input type="checkbox" id="fullwave">
-      <label for="fullwave" style="cursor:pointer">Fullwave</label>
-    </div>
-  </div>
-</div>
-
-<div class="analog-wrap" id="analog-wrap">
-  <div class="card">
-    <div class="card-h">Analog Parameters</div>
-    <div class="card-b">
-      <div class="field">
-        <label>Amplitude <span id="amp-val" style="color:#c8c8d4">100%</span></label>
-        <input type="range" id="amplitude" min="0" max="100" value="100">
-      </div>
-      <div class="field">
-        <label>Dead Time</label>
-        <div class="input-row">
-          <input type="number" id="dead-time" min="0" value="0">
-          <span class="suffix">ticks</span>
-        </div>
-      </div>
-      <div class="field">
-        <label>Phase Advance</label>
-        <div class="input-row">
-          <input type="number" id="phase-advance" min="0" value="0">
-          <span class="suffix">ticks</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="card">
-  <div class="card-h">Output</div>
-  <div class="card-b">
     <div class="field">
       <label>Gain</label>
-      <div class="gain-btns">
+      <div class="gain-row">
         <button class="gain-btn" data-g="25">25</button>
         <button class="gain-btn" data-g="50">50</button>
         <button class="gain-btn" data-g="75">75</button>
         <button class="gain-btn sel" data-g="100">100</button>
-        <span class="suffix">Vpp</span>
+        <span class="unit">Vpp</span>
       </div>
     </div>
     <button class="big-btn go" id="start-stop">START</button>
   </div>
 </div>
 
-<div class="card">
-  <div class="card-h">Pins</div>
+<!-- ESP32 Signal Generator -->
+<div class="card esp">
+  <div class="card-h"><b>ESP32</b> <span>Signal Generator</span></div>
+  <div class="card-b">
+    <div class="field">
+      <label>Frequency</label>
+      <div class="freq-row">
+        <input type="range" id="freq-slider" min="0" max="400" value="250">
+        <input type="number" id="freq" min="0" max="400" value="250" step="1">
+        <span class="unit">Hz</span>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Waveform</label>
+        <select id="waveform">
+          <option value="sine">Sine</option>
+          <option value="triangle">Triangle</option>
+          <option value="square">Square</option>
+        </select>
+      </div>
+      <div class="field row" style="flex:0;padding-top:18px">
+        <input type="checkbox" id="fullwave">
+        <label for="fullwave" style="cursor:pointer;text-transform:none;white-space:nowrap">Fullwave</label>
+      </div>
+    </div>
+    <div class="analog-wrap" id="analog-wrap">
+      <div class="sub-h">Analog Parameters</div>
+      <div class="field">
+        <label>Amplitude <span id="amp-val" style="color:var(--text);font-family:'Consolas','SF Mono',monospace">100%</span></label>
+        <input type="range" id="amplitude" min="0" max="100" value="100">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Dead Time</label>
+          <div class="input-row">
+            <input type="number" id="dead-time" min="0" value="0">
+            <span class="unit">ticks</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Phase Advance</label>
+          <div class="input-row">
+            <input type="number" id="phase-advance" min="0" value="0">
+            <span class="unit">ticks</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HV509 -->
+<div class="card hv">
+  <div class="card-h"><b>HV509</b> <span>Shift Register</span></div>
   <div class="card-b">
     <div class="pin-grid" id="pin-grid"></div>
     <div class="pin-actions">
@@ -194,14 +231,22 @@ input[type=checkbox]{width:16px;height:16px;accent-color:#b87010;cursor:pointer}
 
 <script>
 var ws=null,state={},upd=false,rdelay=1e3,selMode='analog',selGain=100;
-
-// Elements
 var $=function(id){return document.getElementById(id)};
 var dot=$('dot'),conn=$('conn'),badge=$('badge');
-var freq=$('freq'),waveform=$('waveform'),fullwave=$('fullwave');
+var freqSlider=$('freq-slider'),freq=$('freq'),waveform=$('waveform'),fullwave=$('fullwave');
 var amplitude=$('amplitude'),ampVal=$('amp-val');
 var deadTime=$('dead-time'),phaseAdv=$('phase-advance');
 var startStop=$('start-stop'),analogWrap=$('analog-wrap');
+
+// Slider fill
+function fillSlider(el,color){
+  var p=((el.value-el.min)/(el.max-el.min))*100;
+  el.style.background='linear-gradient(to right,'+color+' '+p+'%,#d8d6d0 '+p+'%)';
+}
+function updateSliders(){
+  fillSlider(freqSlider,'#2856a0');
+  fillSlider(amplitude,'#2856a0');
+}
 
 // Pin grid
 var pinGrid=$('pin-grid');
@@ -229,7 +274,6 @@ function connect(){
 function schedReconn(){setTimeout(connect,rdelay);rdelay=Math.min(rdelay*2,3e4)}
 function send(cmd){if(ws&&ws.readyState===1)ws.send(JSON.stringify(cmd))}
 
-// Send frequency config
 function sendFreq(){
   if(upd)return;
   var hz=parseInt(freq.value)||0;
@@ -245,9 +289,7 @@ function sendFreq(){
   }
 }
 
-// Update UI from state
 function updateUI(){
-  // Run status
   if(state.running){
     badge.textContent='RUNNING';badge.className='badge run';
     startStop.textContent='STOP';startStop.className='big-btn halt';
@@ -255,50 +297,57 @@ function updateUI(){
     badge.textContent='STOPPED';badge.className='badge stop';
     startStop.textContent='START';startStop.className='big-btn go';
   }
-  // Mode
-  if(state.mode){selMode=state.mode}
+  if(state.mode)selMode=state.mode;
   $('btn-analog').classList.toggle('sel',selMode==='analog');
   $('btn-digital').classList.toggle('sel',selMode==='digital');
   analogWrap.classList.toggle('hide',selMode!=='analog');
   // Freq range
-  if(selMode==='digital'){freq.min=1;freq.max=4000}else{freq.min=0;freq.max=400}
+  var fmax=selMode==='digital'?4000:400;
+  var fmin=selMode==='digital'?1:0;
+  freq.min=fmin;freq.max=fmax;freqSlider.min=fmin;freqSlider.max=fmax;
   // Values
-  freq.value=state.frequency||0;
+  var fv=state.frequency||0;
+  freq.value=fv;freqSlider.value=fv;
   waveform.value=state.waveform||'sine';
   fullwave.checked=!!state.fullwave;
   if(state.amplitude!=null){amplitude.value=state.amplitude;ampVal.textContent=state.amplitude+'%'}
   if(state.dead_time!=null)deadTime.value=state.dead_time;
   if(state.phase_advance!=null)phaseAdv.value=state.phase_advance;
-  // Gain
   if(state.gain)selGain=state.gain;
   var gbs=document.querySelectorAll('.gain-btn');
   for(var i=0;i<gbs.length;i++)gbs[i].classList.toggle('sel',parseInt(gbs[i].dataset.g)===selGain);
-  // Pins
   if(state.pins){
-    for(var i=0;i<20;i++){
-      var p=$('pin-'+i);if(p)p.classList.toggle('on',!!state.pins[i]);
-    }
+    for(var i=0;i<20;i++){var p=$('pin-'+i);if(p)p.classList.toggle('on',!!state.pins[i])}
   }
-  // IP
   if(state.ip)conn.textContent=state.ip;
+  updateSliders();
 }
 
-// Event handlers
+// Mode
 $('btn-analog').onclick=function(){selMode='analog';
   $('btn-analog').classList.add('sel');$('btn-digital').classList.remove('sel');
-  analogWrap.classList.remove('hide');freq.min=0;freq.max=400;sendFreq()};
+  analogWrap.classList.remove('hide');
+  freq.min=0;freq.max=400;freqSlider.min=0;freqSlider.max=400;
+  updateSliders();sendFreq()};
 $('btn-digital').onclick=function(){selMode='digital';
   $('btn-digital').classList.add('sel');$('btn-analog').classList.remove('sel');
-  analogWrap.classList.add('hide');freq.min=1;freq.max=4000;sendFreq()};
+  analogWrap.classList.add('hide');
+  freq.min=1;freq.max=4000;freqSlider.min=1;freqSlider.max=4000;
+  updateSliders();sendFreq()};
 
-freq.onchange=sendFreq;
+// Frequency slider <-> input sync
+freqSlider.oninput=function(){freq.value=this.value;updateSliders()};
+freqSlider.onchange=sendFreq;
+freq.onchange=function(){freqSlider.value=this.value;updateSliders();sendFreq()};
+
 waveform.onchange=sendFreq;
 fullwave.onchange=sendFreq;
-amplitude.oninput=function(){ampVal.textContent=amplitude.value+'%'};
+amplitude.oninput=function(){ampVal.textContent=this.value+'%';updateSliders()};
 amplitude.onchange=sendFreq;
 deadTime.onchange=sendFreq;
 phaseAdv.onchange=sendFreq;
 
+// Gain
 var gbs=document.querySelectorAll('.gain-btn');
 for(var i=0;i<gbs.length;i++){
   gbs[i].onclick=(function(btn){return function(){
@@ -310,20 +359,18 @@ for(var i=0;i<gbs.length;i++){
 }
 
 startStop.onclick=function(){
-  if(state.running){send({cmd:'stop'})}
-  else{send({cmd:'start',gain:selGain})}
+  if(state.running)send({cmd:'stop'});
+  else send({cmd:'start',gain:selGain});
 };
-
 $('set-all').onclick=function(){send({cmd:'set_all',value:true})};
 $('clear-all').onclick=function(){send({cmd:'set_all',value:false})};
 
-// Error toast
 function showErr(msg){
   var t=$('toast');t.textContent=msg;t.classList.add('show');
   clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show')},4e3);
 }
 
-// Start
+updateSliders();
 connect();
 </script>
 </body>
