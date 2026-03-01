@@ -21,13 +21,13 @@
 
 // ─── DRV2665 constants ──────────────────────────────────────────────────────
 
-#define DRV2665_REG_CTRL1    0x01
-#define DRV2665_REG_CTRL2    0x02
-#define DRV2665_FIFO_SIZE    100
-#define DRV2665_TIMEOUT_20MS (3 << 2)
-#define DRV2665_STANDBY      (1 << 6)
+#define DRV2665_REG_CTRL1     0x01
+#define DRV2665_REG_CTRL2     0x02
+#define DRV2665_FIFO_SIZE     100
+#define DRV2665_TIMEOUT_20MS  (3 << 2)
+#define DRV2665_STANDBY       (1 << 6)
 #define DRV2665_INPUT_DIGITAL (0 << 2)
-#define SAMPLE_PERIOD_US     125 // 1/8000 Hz = 125 us per sample
+#define SAMPLE_PERIOD_US      125 // 1/8000 Hz = 125 us per sample
 
 #define REFILL_PERIOD_US 8000 // 8 ms between refills
 // At 8kHz, 8ms = 64 samples consumed.  FIFO is 100, so we refill well
