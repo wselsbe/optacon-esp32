@@ -2,6 +2,7 @@ import asyncio
 import json
 import time
 
+import machine
 import network
 from microdot import Microdot, send_file
 from microdot.websocket import with_websocket
@@ -10,14 +11,15 @@ from pz_actuator_py import PzActuator
 app = Microdot()
 pa = PzActuator()
 
+HOSTNAME = "esp-optacon"
 STA_TIMEOUT = 10  # seconds to wait for station connection
-AP_SSID = "Optacon"
-AP_PASSWORD = ""  # open network
+AP_SSID = "esp-optacon"
+AP_PASSWORD = "123456"
 
 
 def _connect_wifi():
-    """Try STA mode from wifi_config.json, fall back to AP."""
-    ip = None
+    """Try STA mode from wifi_config.json, fall back to AP. Sets mDNS hostname."""
+    network.hostname(HOSTNAME)
 
     # Try station mode
     try:
@@ -30,7 +32,8 @@ def _connect_wifi():
             if sta.isconnected():
                 ip = sta.ifconfig()[0]
                 print("WiFi STA connected:", ip)
-                return ip
+                print("Web UI: http://" + HOSTNAME + ".local")
+                return ip, "sta", cfg["ssid"]
             time.sleep_ms(100)
         sta.active(False)
         print("WiFi STA failed, starting AP")
@@ -43,7 +46,8 @@ def _connect_wifi():
     ap.config(essid=AP_SSID, password=AP_PASSWORD)
     ip = ap.ifconfig()[0]
     print("WiFi AP started:", AP_SSID, "IP:", ip)
-    return ip
+    print("Web UI: http://" + HOSTNAME + ".local")
+    return ip, "ap", AP_SSID
 
 
 def _get_status(ip=None):
@@ -51,6 +55,7 @@ def _get_status(ip=None):
     status = pa.get_status()
     if ip:
         status["ip"] = ip
+    status["hostname"] = HOSTNAME + ".local"
     return status
 
 
@@ -96,6 +101,10 @@ def _handle_command(msg):
         pa.set_all(data["value"])
     elif cmd == "get_status":
         pass  # status is always returned
+    elif cmd == "wifi_config":
+        with open("wifi_config.json", "w") as f:
+            json.dump({"ssid": data["ssid"], "password": data.get("password", "")}, f)
+        return {"msg": "WiFi config saved. Rebooting...", "reboot": True}
     else:
         return {"error": f"unknown command: {cmd}"}
 
@@ -103,6 +112,8 @@ def _handle_command(msg):
 
 
 _server_ip = None
+_wifi_mode = None
+_wifi_ssid = None
 
 
 @app.route("/")
@@ -117,6 +128,22 @@ async def static(request, path):
     return send_file("/web/" + path)
 
 
+@app.route("/wifi")
+async def wifi_page(request):
+    return send_file("/web/wifi.html")
+
+
+@app.route("/wifi/status")
+async def wifi_status(request):
+    info = {
+        "mode": _wifi_mode,
+        "ssid": _wifi_ssid,
+        "ip": _server_ip,
+        "hostname": HOSTNAME + ".local",
+    }
+    return json.dumps(info), 200, {"Content-Type": "application/json"}
+
+
 @app.route("/ws")
 @with_websocket
 async def websocket(request, ws):
@@ -129,6 +156,9 @@ async def websocket(request, ws):
                 err = _handle_command(msg)
                 if err:
                     await ws.send(json.dumps(err))
+                    if err.get("reboot"):
+                        await asyncio.sleep(1)
+                        machine.reset()
                 else:
                     await ws.send(json.dumps(_get_status(_server_ip)))
             except Exception as e:
@@ -138,8 +168,8 @@ async def websocket(request, ws):
 
 
 def start():
-    """Connect WiFi and start the web server (blocks)."""
-    global _server_ip
-    _server_ip = _connect_wifi()
-    print(f"Starting web server on http://{_server_ip}:80")
-    app.run(host="0.0.0.0", port=80)
+    """Connect WiFi and start the web server (runs forever)."""
+    global _server_ip, _wifi_mode, _wifi_ssid
+    _server_ip, _wifi_mode, _wifi_ssid = _connect_wifi()
+    print("Starting web server on http://" + _server_ip + ":80")
+    asyncio.run(app.start_server(host="0.0.0.0", port=80))
