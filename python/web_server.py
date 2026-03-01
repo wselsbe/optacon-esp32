@@ -1,8 +1,8 @@
+import asyncio
 import json
 import time
-import asyncio
-import network
 
+import network
 from microdot import Microdot, send_file
 from microdot.websocket import with_websocket
 from pz_actuator_py import PzActuator
@@ -141,5 +141,5 @@ def start():
     """Connect WiFi and start the web server (blocks)."""
     global _server_ip
     _server_ip = _connect_wifi()
-    print("Starting web server on http://{}:80".format(_server_ip))
+    print(f"Starting web server on http://{_server_ip}:80")
     app.run(host="0.0.0.0", port=80)

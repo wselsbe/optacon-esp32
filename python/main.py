@@ -71,6 +71,6 @@ def demo():
 
 
 # Start web server (blocks — Ctrl+C to access REPL)
-import web_server
+import web_server  # noqa: E402
 
 web_server.start()
