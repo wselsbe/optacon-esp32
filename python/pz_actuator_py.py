@@ -33,6 +33,11 @@ class PzActuator:
         self._waveform = None
         self._gain = 100
         self._fullwave = False
+        self._frequency = 0
+        self._waveform_name = "sine"
+        self._amplitude = 100
+        self._dead_time = 0
+        self._phase_advance = 0
 
     def set_frequency_digital(self, hz, fullwave=False, waveform="sine"):
         """Configure digital FIFO mode at given frequency.
@@ -105,6 +110,8 @@ class PzActuator:
                 )
 
         self._fullwave = fullwave
+        self._frequency = hz
+        self._waveform_name = waveform
         self._mode = MODE_DIGITAL
 
     def set_frequency_analog(
@@ -145,6 +152,11 @@ class PzActuator:
             waveform=self.WAVEFORMS[waveform],
         )
         self._fullwave = fullwave
+        self._frequency = hz
+        self._waveform_name = waveform
+        self._amplitude = amplitude
+        self._dead_time = dead_time
+        self._phase_advance = phase_advance
         self._mode = MODE_ANALOG
 
     def start(self, gain=100):
@@ -193,4 +205,21 @@ class PzActuator:
 
     def latch(self):
         self.sr.latch()
+
+    def get_status(self):
+        """Return current state as a dict (for web UI)."""
+        status = {
+            "running": self.is_running(),
+            "mode": self._mode,
+            "frequency": self._frequency,
+            "gain": self._gain,
+            "fullwave": self._fullwave,
+            "waveform": self._waveform_name,
+            "pins": list(self.get_all()),
+        }
+        if self._mode == MODE_ANALOG:
+            status["amplitude"] = self._amplitude
+            status["dead_time"] = self._dead_time
+            status["phase_advance"] = self._phase_advance
+        return status
 

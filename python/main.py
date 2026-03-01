@@ -70,5 +70,7 @@ def demo():
         pa.stop()
 
 
-# Auto-run disabled for debugging - call demo() manually from REPL
-# demo()
+# Start web server (blocks — Ctrl+C to access REPL)
+import web_server
+
+web_server.start()

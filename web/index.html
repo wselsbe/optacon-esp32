@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Optacon</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html{font-family:"Consolas","SF Mono","Menlo",monospace;font-size:14px;background:#08080e;color:#9090a0}
+body{max-width:480px;margin:0 auto;padding:8px 12px 24px}
+
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;
+  background:#0e0e18;border:1px solid #1a1a28;border-radius:8px;margin-bottom:10px}
+.brand{font-size:15px;font-weight:700;letter-spacing:4px;color:#6a6a7a}
+.status{display:flex;align-items:center;gap:12px;font-size:12px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#d03030;
+  margin-right:4px;vertical-align:middle;transition:background .3s}
+.dot.on{background:#18b050;box-shadow:0 0 6px #18b05080}
+.badge{padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:1px}
+.badge.run{background:#18b05025;color:#18b050;border:1px solid #18b05040}
+.badge.stop{background:#d0303020;color:#d03030;border:1px solid #d0303030}
+
+.card{background:#10101a;border:1px solid #1a1a28;border-radius:8px;margin-bottom:10px;overflow:hidden}
+.card-h{padding:8px 14px;font-size:11px;font-weight:700;letter-spacing:2px;color:#5a5a6a;
+  background:#0c0c16;border-bottom:1px solid #1a1a28;text-transform:uppercase}
+.card-b{padding:12px 14px}
+
+.field{margin-bottom:10px}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-size:11px;color:#6a6a7a;margin-bottom:4px;letter-spacing:.5px}
+.field.row{display:flex;align-items:center;gap:8px;flex-direction:row}
+.field.row label{margin-bottom:0}
+
+input[type=number],select{width:100%;padding:8px 10px;background:#0a0a14;border:1px solid #1e1e2c;
+  border-radius:6px;color:#c8c8d4;font-family:inherit;font-size:14px;outline:none;transition:border-color .2s}
+input[type=number]:focus,select:focus{border-color:#b87010}
+select{cursor:pointer;-webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236a6a7a' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center}
+
+.input-row{display:flex;align-items:center;gap:6px}
+.input-row input[type=number]{flex:1}
+.suffix{font-size:12px;color:#5a5a6a;white-space:nowrap}
+
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:6px;
+  border-radius:3px;background:#0a0a14;border:1px solid #1e1e2c;outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;
+  border-radius:50%;background:#b87010;border:2px solid #0a0a14;cursor:pointer}
+
+input[type=checkbox]{width:16px;height:16px;accent-color:#b87010;cursor:pointer}
+
+.mode-btns{display:flex;gap:6px}
+.mode-btn{flex:1;padding:10px;background:#0a0a14;border:1px solid #1e1e2c;border-radius:6px;
+  color:#707080;font-family:inherit;font-size:13px;font-weight:700;letter-spacing:1px;
+  cursor:pointer;transition:all .15s;text-align:center}
+.mode-btn:hover{border-color:#3a3a4a}
+.mode-btn.sel{background:#b8701018;border-color:#b87010;color:#d89030}
+
+.gain-btns{display:flex;align-items:center;gap:6px}
+.gain-btn{padding:8px 0;width:48px;background:#0a0a14;border:1px solid #1e1e2c;border-radius:6px;
+  color:#707080;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;text-align:center}
+.gain-btn:hover{border-color:#3a3a4a}
+.gain-btn.sel{background:#b8701018;border-color:#b87010;color:#d89030}
+
+.big-btn{display:block;width:100%;padding:14px;margin-top:12px;border:none;border-radius:8px;
+  font-family:inherit;font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all .15s}
+.big-btn.go{background:#18b050;color:#fff}
+.big-btn.go:hover{background:#14a045}
+.big-btn.halt{background:#d03030;color:#fff}
+.big-btn.halt:hover{background:#c02828}
+
+.pin-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
+@media(min-width:420px){.pin-grid{grid-template-columns:repeat(10,1fr)}}
+.pin-btn{padding:10px 0;background:#0a0a14;border:1px solid #1e1e2c;border-radius:6px;
+  color:#5a5a6a;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;
+  transition:all .15s;text-align:center}
+.pin-btn:hover{border-color:#3a3a4a}
+.pin-btn.on{background:#b8701020;border-color:#b87010;color:#d89030;box-shadow:0 0 8px #b8701020}
+
+.pin-actions{display:flex;gap:6px}
+.sm-btn{flex:1;padding:8px;background:#0a0a14;border:1px solid #1e1e2c;border-radius:6px;
+  color:#707080;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.sm-btn:hover{border-color:#3a3a4a;color:#a0a0b0}
+
+.analog-wrap{max-height:300px;overflow:hidden;transition:max-height .3s ease,opacity .3s ease;opacity:1}
+.analog-wrap.hide{max-height:0;opacity:0}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(60px);
+  padding:10px 20px;background:#d03030;color:#fff;border-radius:8px;font-size:13px;
+  opacity:0;transition:all .3s ease;pointer-events:none;z-index:10;max-width:90%;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">OPTACON</div>
+  <div class="status">
+    <span><span class="dot" id="dot"></span><span id="conn">--</span></span>
+    <span id="badge" class="badge stop">STOPPED</span>
+  </div>
+</header>
+
+<div class="card">
+  <div class="card-h">Mode</div>
+  <div class="card-b">
+    <div class="mode-btns">
+      <button class="mode-btn sel" id="btn-analog">ANALOG</button>
+      <button class="mode-btn" id="btn-digital">DIGITAL</button>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-h">Signal</div>
+  <div class="card-b">
+    <div class="field">
+      <label>Frequency</label>
+      <div class="input-row">
+        <input type="number" id="freq" value="250" min="0" max="400" step="1">
+        <span class="suffix">Hz</span>
+      </div>
+    </div>
+    <div class="field">
+      <label>Waveform</label>
+      <select id="waveform">
+        <option value="sine">Sine</option>
+        <option value="triangle">Triangle</option>
+        <option value="square">Square</option>
+      </select>
+    </div>
+    <div class="field row">
+      <input type="checkbox" id="fullwave">
+      <label for="fullwave" style="cursor:pointer">Fullwave</label>
+    </div>
+  </div>
+</div>
+
+<div class="analog-wrap" id="analog-wrap">
+  <div class="card">
+    <div class="card-h">Analog Parameters</div>
+    <div class="card-b">
+      <div class="field">
+        <label>Amplitude <span id="amp-val" style="color:#c8c8d4">100%</span></label>
+        <input type="range" id="amplitude" min="0" max="100" value="100">
+      </div>
+      <div class="field">
+        <label>Dead Time</label>
+        <div class="input-row">
+          <input type="number" id="dead-time" min="0" value="0">
+          <span class="suffix">ticks</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>Phase Advance</label>
+        <div class="input-row">
+          <input type="number" id="phase-advance" min="0" value="0">
+          <span class="suffix">ticks</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-h">Output</div>
+  <div class="card-b">
+    <div class="field">
+      <label>Gain</label>
+      <div class="gain-btns">
+        <button class="gain-btn" data-g="25">25</button>
+        <button class="gain-btn" data-g="50">50</button>
+        <button class="gain-btn" data-g="75">75</button>
+        <button class="gain-btn sel" data-g="100">100</button>
+        <span class="suffix">Vpp</span>
+      </div>
+    </div>
+    <button class="big-btn go" id="start-stop">START</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-h">Pins</div>
+  <div class="card-b">
+    <div class="pin-grid" id="pin-grid"></div>
+    <div class="pin-actions">
+      <button class="sm-btn" id="set-all">SET ALL</button>
+      <button class="sm-btn" id="clear-all">CLEAR ALL</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var ws=null,state={},upd=false,rdelay=1e3,selMode='analog',selGain=100;
+
+// Elements
+var $=function(id){return document.getElementById(id)};
+var dot=$('dot'),conn=$('conn'),badge=$('badge');
+var freq=$('freq'),waveform=$('waveform'),fullwave=$('fullwave');
+var amplitude=$('amplitude'),ampVal=$('amp-val');
+var deadTime=$('dead-time'),phaseAdv=$('phase-advance');
+var startStop=$('start-stop'),analogWrap=$('analog-wrap');
+
+// Pin grid
+var pinGrid=$('pin-grid');
+for(var i=0;i<20;i++){
+  var b=document.createElement('button');
+  b.className='pin-btn';b.id='pin-'+i;b.textContent=i;
+  b.onclick=(function(n){return function(){
+    send({cmd:'set_pin',pin:n,value:state.pins?!state.pins[n]:1});
+  }})(i);
+  pinGrid.appendChild(b);
+}
+
+// WebSocket
+function connect(){
+  try{ws=new WebSocket('ws://'+location.host+'/ws')}catch(e){schedReconn();return}
+  ws.onopen=function(){rdelay=1e3;dot.classList.add('on');conn.textContent='Connected'};
+  ws.onclose=function(){dot.classList.remove('on');conn.textContent='Disconnected';schedReconn()};
+  ws.onerror=function(){};
+  ws.onmessage=function(e){
+    var d;try{d=JSON.parse(e.data)}catch(x){return}
+    if(d.error){showErr(d.error);return}
+    state=d;upd=true;updateUI();upd=false;
+  };
+}
+function schedReconn(){setTimeout(connect,rdelay);rdelay=Math.min(rdelay*2,3e4)}
+function send(cmd){if(ws&&ws.readyState===1)ws.send(JSON.stringify(cmd))}
+
+// Send frequency config
+function sendFreq(){
+  if(upd)return;
+  var hz=parseInt(freq.value)||0;
+  var wf=waveform.value;
+  var fw=fullwave.checked;
+  if(selMode==='analog'){
+    send({cmd:'set_frequency_analog',hz:hz,
+      amplitude:parseInt(amplitude.value)||100,
+      fullwave:fw,dead_time:parseInt(deadTime.value)||0,
+      phase_advance:parseInt(phaseAdv.value)||0,waveform:wf});
+  }else{
+    send({cmd:'set_frequency_digital',hz:hz,fullwave:fw,waveform:wf});
+  }
+}
+
+// Update UI from state
+function updateUI(){
+  // Run status
+  if(state.running){
+    badge.textContent='RUNNING';badge.className='badge run';
+    startStop.textContent='STOP';startStop.className='big-btn halt';
+  }else{
+    badge.textContent='STOPPED';badge.className='badge stop';
+    startStop.textContent='START';startStop.className='big-btn go';
+  }
+  // Mode
+  if(state.mode){selMode=state.mode}
+  $('btn-analog').classList.toggle('sel',selMode==='analog');
+  $('btn-digital').classList.toggle('sel',selMode==='digital');
+  analogWrap.classList.toggle('hide',selMode!=='analog');
+  // Freq range
+  if(selMode==='digital'){freq.min=1;freq.max=4000}else{freq.min=0;freq.max=400}
+  // Values
+  freq.value=state.frequency||0;
+  waveform.value=state.waveform||'sine';
+  fullwave.checked=!!state.fullwave;
+  if(state.amplitude!=null){amplitude.value=state.amplitude;ampVal.textContent=state.amplitude+'%'}
+  if(state.dead_time!=null)deadTime.value=state.dead_time;
+  if(state.phase_advance!=null)phaseAdv.value=state.phase_advance;
+  // Gain
+  if(state.gain)selGain=state.gain;
+  var gbs=document.querySelectorAll('.gain-btn');
+  for(var i=0;i<gbs.length;i++)gbs[i].classList.toggle('sel',parseInt(gbs[i].dataset.g)===selGain);
+  // Pins
+  if(state.pins){
+    for(var i=0;i<20;i++){
+      var p=$('pin-'+i);if(p)p.classList.toggle('on',!!state.pins[i]);
+    }
+  }
+  // IP
+  if(state.ip)conn.textContent=state.ip;
+}
+
+// Event handlers
+$('btn-analog').onclick=function(){selMode='analog';
+  $('btn-analog').classList.add('sel');$('btn-digital').classList.remove('sel');
+  analogWrap.classList.remove('hide');freq.min=0;freq.max=400;sendFreq()};
+$('btn-digital').onclick=function(){selMode='digital';
+  $('btn-digital').classList.add('sel');$('btn-analog').classList.remove('sel');
+  analogWrap.classList.add('hide');freq.min=1;freq.max=4000;sendFreq()};
+
+freq.onchange=sendFreq;
+waveform.onchange=sendFreq;
+fullwave.onchange=sendFreq;
+amplitude.oninput=function(){ampVal.textContent=amplitude.value+'%'};
+amplitude.onchange=sendFreq;
+deadTime.onchange=sendFreq;
+phaseAdv.onchange=sendFreq;
+
+var gbs=document.querySelectorAll('.gain-btn');
+for(var i=0;i<gbs.length;i++){
+  gbs[i].onclick=(function(btn){return function(){
+    selGain=parseInt(btn.dataset.g);
+    var all=document.querySelectorAll('.gain-btn');
+    for(var j=0;j<all.length;j++)all[j].classList.toggle('sel',all[j]===btn);
+    if(state.running)send({cmd:'start',gain:selGain});
+  }})(gbs[i]);
+}
+
+startStop.onclick=function(){
+  if(state.running){send({cmd:'stop'})}
+  else{send({cmd:'start',gain:selGain})}
+};
+
+$('set-all').onclick=function(){send({cmd:'set_all',value:true})};
+$('clear-all').onclick=function(){send({cmd:'set_all',value:false})};
+
+// Error toast
+function showErr(msg){
+  var t=$('toast');t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove('show')},4e3);
+}
+
+// Start
+connect();
+</script>
+</body>
+</html>
