@@ -186,7 +186,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
       </div>
       <div class="field row" style="flex:0;padding-top:18px">
         <input type="checkbox" id="fullwave">
-        <label for="fullwave" style="cursor:pointer;text-transform:none;white-space:nowrap">Fullwave</label>
+        <label for="fullwave" style="cursor:pointer;text-transform:none;white-space:nowrap">Fullwave (toggle polarity)</label>
       </div>
     </div>
     <div class="analog-wrap" id="analog-wrap">
@@ -195,7 +195,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
         <label>Amplitude <span id="amp-val" style="color:var(--text);font-family:'Consolas','SF Mono',monospace">100%</span></label>
         <input type="range" id="amplitude" min="0" max="100" value="100">
       </div>
-      <div class="field-row">
+      <div class="field-row" style="visibility:hidden;display:none">
         <div class="field">
           <label>Dead Time</label>
           <div class="input-row">
