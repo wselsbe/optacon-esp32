@@ -285,6 +285,7 @@ function sendFreq(){
       fullwave:fw,dead_time:parseInt(deadTime.value)||0,
       phase_advance:parseInt(phaseAdv.value)||0,waveform:wf});
   }else{
+    if(hz<1)hz=1;
     send({cmd:'set_frequency_digital',hz:hz,fullwave:fw,waveform:wf});
   }
 }
@@ -302,9 +303,7 @@ function updateUI(){
   $('btn-digital').classList.toggle('sel',selMode==='digital');
   analogWrap.classList.toggle('hide',selMode!=='analog');
   // Freq range
-  var fmax=selMode==='digital'?4000:400;
-  var fmin=selMode==='digital'?1:0;
-  freq.min=fmin;freq.max=fmax;freqSlider.min=fmin;freqSlider.max=fmax;
+  freq.min=0;freq.max=400;freqSlider.min=0;freqSlider.max=400;
   // Values
   var fv=state.frequency||0;
   freq.value=fv;freqSlider.value=fv;
@@ -327,12 +326,10 @@ function updateUI(){
 $('btn-analog').onclick=function(){selMode='analog';
   $('btn-analog').classList.add('sel');$('btn-digital').classList.remove('sel');
   analogWrap.classList.remove('hide');
-  freq.min=0;freq.max=400;freqSlider.min=0;freqSlider.max=400;
   updateSliders();sendFreq()};
 $('btn-digital').onclick=function(){selMode='digital';
   $('btn-digital').classList.add('sel');$('btn-analog').classList.remove('sel');
   analogWrap.classList.add('hide');
-  freq.min=1;freq.max=4000;freqSlider.min=1;freqSlider.max=4000;
   updateSliders();sendFreq()};
 
 // Frequency slider <-> input sync
