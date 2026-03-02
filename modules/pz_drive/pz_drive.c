@@ -180,6 +180,40 @@ static mp_obj_t pz_drive_fifo_is_running(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_fifo_is_running_obj, pz_drive_fifo_is_running);
 
+// ── pwm_play_samples(buf, sample_rate, loop=False) ──────────────────────
+static mp_obj_t pz_drive_pwm_play_samples(size_t n_args, const mp_obj_t *pos_args,
+                                           mp_map_t *kw_args) {
+    enum { ARG_buf, ARG_sample_rate, ARG_loop };
+    static const mp_arg_t allowed_args[] = {
+        {MP_QSTR_buf, MP_ARG_REQUIRED | MP_ARG_OBJ},
+        {MP_QSTR_sample_rate, MP_ARG_REQUIRED | MP_ARG_INT},
+        {MP_QSTR_loop, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = false}},
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    mp_buffer_info_t bufinfo;
+    mp_get_buffer_raise(args[ARG_buf].u_obj, &bufinfo, MP_BUFFER_READ);
+    if (bufinfo.len == 0) {
+        mp_raise_ValueError(MP_ERROR_TEXT("buffer must not be empty"));
+    }
+    uint32_t sample_rate = (uint32_t)args[ARG_sample_rate].u_int;
+    if (sample_rate == 0 || sample_rate > 48000) {
+        mp_raise_ValueError(MP_ERROR_TEXT("sample_rate must be 1-48000"));
+    }
+
+    pzd_pwm_play_samples((const uint8_t *)bufinfo.buf, bufinfo.len, sample_rate,
+                          args[ARG_loop].u_bool);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(pz_drive_pwm_play_samples_obj, 2, pz_drive_pwm_play_samples);
+
+// ── pwm_is_sample_done() ────────────────────────────────────────────────
+static mp_obj_t pz_drive_pwm_is_sample_done(void) {
+    return mp_obj_new_bool(pzd_pwm_is_sample_done());
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_pwm_is_sample_done_obj, pz_drive_pwm_is_sample_done);
+
 // ── Module table ────────────────────────────────────────────────────────
 static const mp_rom_map_elem_t pz_drive_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_pz_drive)},
@@ -200,6 +234,8 @@ static const mp_rom_map_elem_t pz_drive_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_fifo_start), MP_ROM_PTR(&pz_drive_fifo_start_obj)},
     {MP_ROM_QSTR(MP_QSTR_fifo_stop), MP_ROM_PTR(&pz_drive_fifo_stop_obj)},
     {MP_ROM_QSTR(MP_QSTR_fifo_is_running), MP_ROM_PTR(&pz_drive_fifo_is_running_obj)},
+    {MP_ROM_QSTR(MP_QSTR_pwm_play_samples), MP_ROM_PTR(&pz_drive_pwm_play_samples_obj)},
+    {MP_ROM_QSTR(MP_QSTR_pwm_is_sample_done), MP_ROM_PTR(&pz_drive_pwm_is_sample_done_obj)},
 };
 static MP_DEFINE_CONST_DICT(pz_drive_module_globals, pz_drive_module_globals_table);
 
