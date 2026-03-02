@@ -76,8 +76,8 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 .freq-row input[type=number]{width:72px;text-align:right;flex:none}
 
 /* Gain buttons */
-.gain-row{display:flex;align-items:center;gap:6px}
-.gain-btn{padding:6px 0 5px;width:56px;background:var(--card);border:1.5px solid var(--border);border-radius:5px;
+.gain-row{display:flex;align-items:center;gap:6px;justify-content:center}
+.gain-btn{padding:7px 0 6px;flex:1;max-width:100px;background:var(--card);border:1.5px solid var(--border);border-radius:5px;
   font-family:"Consolas","SF Mono",monospace;color:var(--text2);
   cursor:pointer;transition:all .12s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:1px}
 .gain-btn:hover{border-color:var(--text3)}
@@ -140,16 +140,15 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
   <div class="card-h"><b>ESP32</b> <span>Signal Generator</span></div>
   <div class="card-b">
     <div class="field">
-      <label>Frequency</label>
-      <div class="freq-row">
-        <input type="range" id="freq-slider" min="0" max="400" value="250">
-        <input type="number" id="freq" min="0" max="400" value="250" step="1">
-        <span class="unit">Hz</span>
-      </div>
-    </div>
-    <div class="field">
       <label>Waveform</label>
       <div class="wf-row">
+        <button class="wf-btn" data-wf="dc">
+          <svg viewBox="0 0 60 28" width="56" height="26">
+            <line x1="0" y1="6" x2="60" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line class="center-line" x1="0" y1="14" x2="60" y2="14" stroke="var(--drv)" stroke-width="0.8" stroke-dasharray="2,2" style="display:none"/>
+          </svg>
+          <span class="wf-label">DC</span>
+        </button>
         <button class="wf-btn sel" data-wf="sine">
           <svg viewBox="0 0 60 28" width="56" height="26">
             <path d="M0,14 C2.5,8.2 5,3 7.5,3 C10,3 12.5,8.2 15,14 C17.5,19.8 20,25 22.5,25 C25,25 27.5,19.8 30,14 C32.5,8.2 35,3 37.5,3 C40,3 42.5,8.2 45,14 C47.5,19.8 50,25 52.5,25 C55,25 57.5,19.8 60,14" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round"/>
@@ -171,6 +170,14 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
           </svg>
           <span class="wf-label">Square</span>
         </button>
+      </div>
+    </div>
+    <div class="field" id="freq-field">
+      <label>Frequency</label>
+      <div class="freq-row">
+        <input type="range" id="freq-slider" min="0" max="400" value="250">
+        <input type="number" id="freq" min="0" max="400" value="250" step="1">
+        <span class="unit">Hz</span>
       </div>
     </div>
     <div class="field row" style="margin-bottom:12px">
@@ -207,11 +214,10 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
     <div class="field">
       <label>Gain</label>
       <div class="gain-row">
-        <button class="gain-btn" data-g="25"><span class="db">28.8</span><span class="vpp">25 Vpp</span></button>
-        <button class="gain-btn" data-g="50"><span class="db">34.8</span><span class="vpp">50 Vpp</span></button>
-        <button class="gain-btn" data-g="75"><span class="db">38.4</span><span class="vpp">75 Vpp</span></button>
-        <button class="gain-btn sel" data-g="100"><span class="db">40.7</span><span class="vpp">100 Vpp</span></button>
-        <span class="unit">dB</span>
+        <button class="gain-btn" data-g="25"><span class="db">28.8 dB</span><span class="vpp">25 Vpp</span></button>
+        <button class="gain-btn" data-g="50"><span class="db">34.8 dB</span><span class="vpp">50 Vpp</span></button>
+        <button class="gain-btn" data-g="75"><span class="db">38.4 dB</span><span class="vpp">75 Vpp</span></button>
+        <button class="gain-btn sel" data-g="100"><span class="db">40.7 dB</span><span class="vpp">100 Vpp</span></button>
       </div>
     </div>
     <button class="big-btn go" id="start-stop">START</button>
@@ -236,7 +242,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 var ws=null,state={},upd=false,rdelay=1e3,selGain=100,selWaveform='sine';
 var $=function(id){return document.getElementById(id)};
 var dot=$('dot'),conn=$('conn'),badge=$('badge');
-var freqSlider=$('freq-slider'),freq=$('freq'),fullwave=$('fullwave');
+var freqField=$('freq-field'),freqSlider=$('freq-slider'),freq=$('freq'),fullwave=$('fullwave');
 var amplitude=$('amplitude'),ampVal=$('amp-val');
 var deadTime=$('dead-time'),phaseAdv=$('phase-advance');
 var startStop=$('start-stop');
@@ -277,10 +283,22 @@ function connect(){
 function schedReconn(){setTimeout(connect,rdelay);rdelay=Math.min(rdelay*2,3e4)}
 function send(cmd){if(ws&&ws.readyState===1)ws.send(JSON.stringify(cmd))}
 
+function updateDcState(){
+  var isDc=selWaveform==='dc';
+  freqField.style.opacity=isDc?'0.35':'1';
+  freqField.style.pointerEvents=isDc?'none':'';
+}
+
 function sendFreq(){
   if(upd)return;
-  var hz=parseInt(freq.value)||0;
   var wf=selWaveform;
+  if(wf==='dc'){
+    send({cmd:'set_frequency_analog',hz:0,
+      amplitude:parseInt(amplitude.value)||50,
+      fullwave:false,dead_time:0,phase_advance:0,waveform:'sine'});
+    return;
+  }
+  var hz=parseInt(freq.value)||0;
   var fw=fullwave.checked;
   send({cmd:'set_frequency_analog',hz:hz,
     amplitude:parseInt(amplitude.value)||50,
@@ -305,14 +323,17 @@ function updateUI(){
   }
   // Freq range
   freq.min=0;freq.max=400;freqSlider.min=0;freqSlider.max=400;
-  // Values
+  // Values — don't overwrite frequency with 0 when in AC mode (keep user/default value)
   var fv=state.frequency||0;
-  freq.value=fv;freqSlider.value=fv;
-  // Waveform buttons
-  selWaveform=state.waveform||'sine';
+  if(fv>0||selWaveform==='dc'){freq.value=fv;freqSlider.value=fv;}
+  // Waveform buttons — only sync AC waveform from server, leave DC as client choice
+  if(selWaveform!=='dc'){
+    selWaveform=state.waveform||'sine';
+  }
   var wfBtns=document.querySelectorAll('.wf-btn');
   for(var i=0;i<wfBtns.length;i++)wfBtns[i].classList.toggle('sel',wfBtns[i].dataset.wf===selWaveform);
-  fullwave.checked=!!state.fullwave;
+  fullwave.checked=selWaveform==='dc'?!!state.polarity:!!state.fullwave;
+  updateDcState();
   updateCenterlines();
   if(state.amplitude!=null){amplitude.value=state.amplitude;ampVal.textContent=state.amplitude+'%'}
   if(state.dead_time!=null)deadTime.value=state.dead_time;
@@ -336,14 +357,27 @@ freq.onchange=function(){freqSlider.value=this.value;updateSliders();sendFreq()}
 var wfBtns=document.querySelectorAll('.wf-btn');
 for(var i=0;i<wfBtns.length;i++){
   wfBtns[i].onclick=(function(btn){return function(){
+    var wasDc=selWaveform==='dc';
     selWaveform=btn.dataset.wf;
+    if(wasDc&&selWaveform!=='dc'&&(parseInt(freq.value)||0)===0){
+      freq.value=250;freqSlider.value=250;
+    }
     var all=document.querySelectorAll('.wf-btn');
     for(var j=0;j<all.length;j++)all[j].classList.toggle('sel',all[j]===btn);
+    updateDcState();
+    updateSliders();
     sendFreq();
   }})(wfBtns[i]);
 }
 
-fullwave.onchange=function(){updateCenterlines();sendFreq()};
+fullwave.onchange=function(){
+  updateCenterlines();
+  if(selWaveform==='dc'){
+    send({cmd:'set_polarity',value:fullwave.checked});
+  }else{
+    sendFreq();
+  }
+};
 amplitude.oninput=function(){ampVal.textContent=this.value+'%';updateSliders()};
 amplitude.onchange=sendFreq;
 deadTime.onchange=sendFreq;
@@ -373,6 +407,7 @@ function showErr(msg){
 }
 
 updateSliders();
+updateDcState();
 connect();
 </script>
 </body>

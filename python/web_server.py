@@ -99,6 +99,10 @@ def _handle_command(msg):
         pa.set_pin(data["pin"], data["value"])
     elif cmd == "set_all":
         pa.set_all(data["value"])
+    elif cmd == "set_polarity":
+        import pz_drive
+
+        pz_drive.pol_set(bool(data.get("value", False)))
     elif cmd == "get_status":
         pass  # status is always returned
     elif cmd == "wifi_config":

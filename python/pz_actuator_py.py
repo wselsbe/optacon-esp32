@@ -260,6 +260,7 @@ class PzActuator:
             "gain": self._gain,
             "fullwave": self._fullwave,
             "waveform": self._waveform_name,
+            "polarity": pz_drive.pol_get(),
             "pins": list(self.get_all()),
         }
         if self._mode == MODE_ANALOG:

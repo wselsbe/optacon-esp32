@@ -278,8 +278,9 @@ static esp_err_t pwm_start_internal(void) {
     }
 
     if (s_freq_hz == 0) {
-        // DC mode: 100% duty, no timer needed
-        ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, ledc_max_duty());
+        // DC mode: constant duty based on amplitude, no timer needed
+        uint32_t duty = ((uint32_t)s_amplitude * ledc_max_duty()) / 128;
+        ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, duty);
         ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL);
         s_running = true;
         return ESP_OK;
