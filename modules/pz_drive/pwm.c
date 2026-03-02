@@ -71,11 +71,11 @@ static volatile uint8_t s_waveform = WAVEFORM_SINE;
 
 // ─── Sample playback state ──────────────────────────────────────────────────
 static const uint8_t *s_sample_buf = NULL;
-static volatile uint32_t s_sample_len = 0;     // buffer length in samples
-static volatile uint32_t s_sample_pos = 0;      // fixed-point position (16.16)
-static volatile uint32_t s_sample_step = 0;     // fixed-point step per ISR tick
+static volatile uint32_t s_sample_len = 0;  // buffer length in samples
+static volatile uint32_t s_sample_pos = 0;  // fixed-point position (16.16)
+static volatile uint32_t s_sample_step = 0; // fixed-point step per ISR tick
 static volatile bool s_sample_loop = false;
-static volatile bool s_sample_mode = false;     // true = sample playback, false = DDS
+static volatile bool s_sample_mode = false; // true = sample playback, false = DDS
 
 // Fullwave mode state
 static volatile bool s_fullwave = false;

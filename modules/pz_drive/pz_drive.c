@@ -182,7 +182,7 @@ static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_fifo_is_running_obj, pz_drive_fifo_is_
 
 // ── pwm_play_samples(buf, sample_rate, loop=False) ──────────────────────
 static mp_obj_t pz_drive_pwm_play_samples(size_t n_args, const mp_obj_t *pos_args,
-                                           mp_map_t *kw_args) {
+                                          mp_map_t *kw_args) {
     enum { ARG_buf, ARG_sample_rate, ARG_loop };
     static const mp_arg_t allowed_args[] = {
         {MP_QSTR_buf, MP_ARG_REQUIRED | MP_ARG_OBJ},
@@ -203,7 +203,7 @@ static mp_obj_t pz_drive_pwm_play_samples(size_t n_args, const mp_obj_t *pos_arg
     }
 
     pzd_pwm_play_samples((const uint8_t *)bufinfo.buf, bufinfo.len, sample_rate,
-                          args[ARG_loop].u_bool);
+                         args[ARG_loop].u_bool);
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pz_drive_pwm_play_samples_obj, 2, pz_drive_pwm_play_samples);
