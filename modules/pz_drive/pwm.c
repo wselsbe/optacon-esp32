@@ -84,6 +84,14 @@ static volatile uint32_t s_dead_phase = 0; // phase margin around zero-crossings
 static volatile uint32_t s_pol_advance =
     0; // phase advance for polarity toggle (compensate output lag)
 
+// ─── Sweep state ────────────────────────────────────────────────────────────
+static volatile bool     s_sweep_active = false;   // ISR modulates phase_step
+static volatile uint32_t s_sweep_target = 0;       // end phase_step (clamp here)
+static volatile bool     s_sweep_linear = true;    // true=linear, false=log
+static volatile bool     s_sweep_up = true;        // true=freq increasing
+static volatile int32_t  s_sweep_delta = 0;        // per-tick add (linear)
+static volatile uint32_t s_sweep_ratio = 0;        // 1.31 fixed-point multiplier (log)
+
 // ---- Helpers ---------------------------------------------------------------
 
 static uint32_t ledc_max_duty(void) {
@@ -133,6 +141,21 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
     // Save previous phase for cycle-wrap detection
     uint32_t prev_phase = s_phase_acc;
     s_phase_acc += s_phase_step;
+
+    // ── Sweep: modulate phase_step each tick ─────────────────────────
+    if (s_sweep_active) {
+        if (s_sweep_linear) {
+            s_phase_step = (uint32_t)((int32_t)s_phase_step + s_sweep_delta);
+        } else {
+            s_phase_step = (uint32_t)(((uint64_t)s_phase_step * s_sweep_ratio) >> 31);
+        }
+        // Clamp at target and stop sweeping
+        if (s_sweep_up ? (s_phase_step >= s_sweep_target)
+                       : (s_phase_step <= s_sweep_target)) {
+            s_phase_step = s_sweep_target;
+            s_sweep_active = false;
+        }
+    }
 
     // Top 8 bits of phase accumulator index the waveform
     uint8_t index = (uint8_t)(s_phase_acc >> 24);
@@ -313,6 +336,7 @@ static esp_err_t pwm_stop_internal(void) {
     s_sample_mode = false;
     s_sample_buf = NULL;
     s_sample_len = 0;
+    s_sweep_active = false;
 
     hv509_pol_init();
 
@@ -407,6 +431,26 @@ void pzd_pwm_set_frequency(int hz, int resolution, int amplitude, bool fullwave,
     }
 }
 
+void pzd_pwm_set_sweep(int target_step, int increment, bool logarithmic) {
+    s_sweep_target = (uint32_t)target_step;
+    s_sweep_linear = !logarithmic;
+    s_sweep_up = ((uint32_t)target_step > s_phase_step);
+
+    if (logarithmic) {
+        // increment is offset from 1.0 in 1.31 fixed-point
+        // ratio = 0x80000000 + increment
+        s_sweep_ratio = (uint32_t)((int32_t)0x80000000 + increment);
+    } else {
+        s_sweep_delta = (int32_t)increment;
+    }
+
+    // Activate last so ISR sees consistent state
+    s_sweep_active = true;
+
+    mp_printf(&mp_plat_print, "pz_drive: sweep %s to step=%u (inc=%d)\n",
+              logarithmic ? "log" : "linear", (unsigned)target_step, increment);
+}
+
 void pzd_pwm_start(void) {
     if (!s_freq_configured) {
         mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("call pwm_set_frequency() first"));
@@ -459,4 +503,8 @@ void pzd_pwm_play_samples(const uint8_t *buf, size_t len, uint32_t sample_rate, 
 
 bool pzd_pwm_is_sample_done(void) {
     return !s_sample_mode && s_sample_buf != NULL;
+}
+
+bool pzd_pwm_is_sweep_done(void) {
+    return !s_sweep_active;
 }
