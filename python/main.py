@@ -18,7 +18,7 @@ def demo_analog():
         for freq in [50, 100, 200, 250, 300, 400]:
             print(f"Analog: {freq}Hz")
             pa.set_frequency_analog(freq)
-            pa.set_all(1)
+            pa.shift_register.set_all(1)
             pa.start()
             time.sleep(2)
             pa.stop()
@@ -43,7 +43,7 @@ def demo_digital():
         for freq in [50, 100, 200, 250, 300]:
             print(f"Digital: {freq}Hz")
             pa.set_frequency_digital(freq)
-            pa.set_all(1)
+            pa.shift_register.set_all(1)
             pa.start()
             time.sleep(2)
             pa.stop()
@@ -64,8 +64,8 @@ def demo():
     try:
         while True:
             for i in range(20):
-                pa.set_all(0)
-                pa.set_pin(i, 1)
+                pa.shift_register.set_all(0)
+                pa.shift_register.set_pin(i, 1)
                 time.sleep_ms(200)
     except KeyboardInterrupt:
         pass

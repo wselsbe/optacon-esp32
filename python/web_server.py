@@ -96,9 +96,9 @@ def _handle_command(msg):
     elif cmd == "stop":
         pa.stop()
     elif cmd == "set_pin":
-        pa.set_pin(data["pin"], data["value"])
+        pa.shift_register.set_pin(data["pin"], data["value"])
     elif cmd == "set_all":
-        pa.set_all(data["value"])
+        pa.shift_register.set_all(data["value"])
     elif cmd == "set_polarity":
         import pz_drive
 

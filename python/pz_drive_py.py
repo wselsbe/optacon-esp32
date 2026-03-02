@@ -27,7 +27,7 @@ class PzActuator:
     def __init__(self):
         # pz_drive owns I2C and SPI buses — init happens on first use
         self.drv = DRV2665()
-        self.sr = ShiftRegister()
+        self.shift_register = ShiftRegister()
 
         self._mode = None
         self._waveform = None
@@ -232,25 +232,6 @@ class PzActuator:
         self.drv.init_analog(self.GAINS[self._gain])
         pz_drive.pwm_play_samples(raw, sample_rate, loop=loop)
 
-    # ── Shift register pass-through ─────────────────────────────────────
-    def set_pin(self, pin, value, latch=True):
-        self.sr.set_pin(pin, value, latch=latch)
-
-    def get_pin(self, pin):
-        return self.sr.get_pin(pin)
-
-    def set_pins(self, values, latch=True):
-        self.sr.set_pins(values, latch=latch)
-
-    def get_all(self):
-        return self.sr.get_all()
-
-    def set_all(self, value, latch=True):
-        self.sr.set_all(value, latch=latch)
-
-    def latch(self):
-        self.sr.latch()
-
     def get_status(self):
         """Return current state as a dict (for web UI)."""
         status = {
@@ -261,7 +242,7 @@ class PzActuator:
             "fullwave": self._fullwave,
             "waveform": self._waveform_name,
             "polarity": pz_drive.pol_get(),
-            "pins": list(self.get_all()),
+            "pins": list(self.shift_register.get_all()),
         }
         if self._mode == MODE_ANALOG:
             status["amplitude"] = self._amplitude
