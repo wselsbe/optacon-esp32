@@ -147,9 +147,9 @@ async def wifi_status(request):
 @app.route("/ws")
 @with_websocket
 async def websocket(request, ws):
-    # Send initial status
-    await ws.send(json.dumps(_get_status(_server_ip)))
     try:
+        # Send initial status
+        await ws.send(json.dumps(_get_status(_server_ip)))
         while True:
             msg = await ws.receive()
             try:
@@ -163,8 +163,8 @@ async def websocket(request, ws):
                     await ws.send(json.dumps(_get_status(_server_ip)))
             except Exception as e:
                 await ws.send(json.dumps({"error": str(e)}))
-    except asyncio.CancelledError:
-        pass
+    except Exception as e:
+        print("WebSocket error:", type(e).__name__, e)
 
 
 def start():

@@ -1,5 +1,8 @@
 # Put DRV2665 into standby on boot — its state persists across ESP32 reboots
+import _thread
+
 import pz_drive
+import web_server
 from pz_actuator_py import PzActuator
 
 pz_drive.i2c_write(0x02, 0x40)
@@ -71,6 +74,5 @@ def demo():
 
 
 # Start web server in background thread (keeps REPL available)
-import _thread
-import web_server
+_thread.stack_size(32768)
 _thread.start_new_thread(web_server.start, ())
