@@ -68,6 +68,9 @@ pa.set_pin(pin, value, latch=True) / pa.get_pin(pin)  # single actuator channel 
 pa.set_all(value, latch=True) / pa.get_all()  # bulk pin control
 pa.latch()  # commit pending shift register changes
 pa.get_polarity()  # read-only; polarity toggling is internal to ISR/task
+pa.sweep_analog(start_hz, end_hz, duration_ms,
+                logarithmic=False, waveform='sine',
+                resolution=8, amplitude=100, gain=100)  # frequency sweep
 ```
 
 ### C Module APIs
@@ -80,6 +83,8 @@ pz_drive.pwm_set_frequency(hz, resolution=8, amplitude=128,
                            fullwave=False, dead_time=0, phase_advance=0,
                            waveform=0)  # 0=sine, 1=triangle, 2=square
 pz_drive.pwm_start() / pz_drive.pwm_stop() / pz_drive.pwm_is_running()
+pz_drive.pwm_set_sweep(target_step, increment, logarithmic=False)
+pz_drive.pwm_is_sweep_done()
 # FIFO / Digital
 pz_drive.fifo_start(waveform_buf, gain=3, fullwave=False)
 pz_drive.fifo_stop() / pz_drive.fifo_is_running()
