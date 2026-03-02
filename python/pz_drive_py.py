@@ -39,75 +39,49 @@ class PzActuator:
         self._dead_time = 0
         self._phase_advance = 0
 
+    @staticmethod
+    def _gen_sine(n):
+        """Full-period sine: trough at index 0, peak at n//2."""
+        return bytearray(
+            int(127 * math.sin(-math.pi / 2 + 2 * math.pi * i / n)) & 0xFF
+            for i in range(n)
+        )
+
+    @staticmethod
+    def _gen_triangle(n):
+        """Full-period triangle: trough at index 0, peak at n//2."""
+        return bytearray(
+            int(127 * (4 * i / n - 1 if i < n // 2 else 3 - 4 * i / n)) & 0xFF
+            for i in range(n)
+        )
+
+    @staticmethod
+    def _gen_square(n):
+        """Full-period square: high for first half, low for second."""
+        half = n // 2
+        return bytearray(
+            (127 if i < half else (-128) & 0xFF) for i in range(n)
+        )
+
     def set_frequency_digital(self, hz, fullwave=False, waveform="sine"):
         """Configure digital FIFO mode at given frequency.
 
         Args:
-            hz: 1-4000
-            fullwave: if True, generate |waveform| half-period buffer,
-                      fifo.c toggles polarity at period boundary
+            hz: 1-500
+            fullwave: if True, play waveform at 2x rate with polarity toggle
             waveform: 'sine', 'triangle', or 'square'
         """
-        if hz < 1 or hz > 4000:
-            raise ValueError("hz must be 1-4000")
+        if hz < 1 or hz > 500:
+            raise ValueError("hz must be 1-500")
         if waveform not in self.WAVEFORMS:
             raise ValueError("waveform must be 'sine', 'triangle', or 'square'")
-        n_samples = round(8000 / hz)
-        if n_samples < 2:
-            n_samples = 2
 
-        if fullwave:
-            # Half-period |waveform| — fifo.c handles polarity toggle
-            if waveform == "sine":
-                self._waveform = bytearray(
-                    int(127 * math.sin(math.pi * i / n_samples)) & 0xFF
-                    for i in range(n_samples)
-                )
-            elif waveform == "triangle":
-                self._waveform = bytearray(
-                    int(
-                        127
-                        * (
-                            2 * i / n_samples
-                            if i < n_samples // 2
-                            else 2 * (n_samples - i) / n_samples
-                        )
-                    )
-                    & 0xFF
-                    for i in range(n_samples)
-                )
-            elif waveform == "square":
-                self._waveform = bytearray(127 for _ in range(n_samples))
-        else:
-            # Full-period waveform (trough at index 0 for sine)
-            if waveform == "sine":
-                self._waveform = bytearray(
-                    (
-                        int(127 * math.sin(-math.pi / 2 + 2 * math.pi * i / n_samples))
-                        & 0xFF
-                    )
-                    for i in range(n_samples)
-                )
-            elif waveform == "triangle":
-                self._waveform = bytearray(
-                    (
-                        int(
-                            127
-                            * (
-                                4 * i / n_samples - 1
-                                if i < n_samples // 2
-                                else 3 - 4 * i / n_samples
-                            )
-                        )
-                        & 0xFF
-                    )
-                    for i in range(n_samples)
-                )
-            elif waveform == "square":
-                half = n_samples // 2
-                self._waveform = bytearray(
-                    (127 if i < half else ((-128) & 0xFF)) for i in range(n_samples)
-                )
+        effective_hz = hz * 2 if fullwave else hz
+        n_samples = max(2, round(8000 / effective_hz))
+
+        gen = {"sine": self._gen_sine, "triangle": self._gen_triangle,
+               "square": self._gen_square}[waveform]
+        self._waveform = gen(n_samples)
 
         self._fullwave = fullwave
         self._frequency = hz
