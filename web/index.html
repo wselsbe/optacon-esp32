@@ -57,9 +57,6 @@ input[type=number],select{width:100%;padding:7px 10px;background:var(--input);bo
   border-radius:5px;color:var(--text);font-family:"Consolas","SF Mono",monospace;font-size:14px;outline:none;
   transition:border-color .15s}
 input[type=number]:focus,select:focus{border-color:var(--esp)}
-select{cursor:pointer;-webkit-appearance:none;appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2398989e' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
 .input-row{display:flex;align-items:center;gap:6px}
 .input-row input[type=number]{flex:1}
 .unit{font-size:12px;color:var(--text3);white-space:nowrap;font-family:"Consolas","SF Mono",monospace}
@@ -80,11 +77,23 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 
 /* Gain buttons */
 .gain-row{display:flex;align-items:center;gap:6px}
-.gain-btn{padding:8px 0;width:48px;background:var(--card);border:1.5px solid var(--border);border-radius:5px;
-  font-family:"Consolas","SF Mono",monospace;font-size:13px;font-weight:700;color:var(--text2);
-  cursor:pointer;transition:all .12s;text-align:center}
+.gain-btn{padding:6px 0 5px;width:56px;background:var(--card);border:1.5px solid var(--border);border-radius:5px;
+  font-family:"Consolas","SF Mono",monospace;color:var(--text2);
+  cursor:pointer;transition:all .12s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:1px}
 .gain-btn:hover{border-color:var(--text3)}
 .gain-btn.sel{background:var(--drv);border-color:var(--drv);color:#fff}
+.gain-btn .db{font-size:13px;font-weight:700}
+.gain-btn .vpp{font-size:10px;font-weight:400;opacity:.65}
+
+/* Waveform buttons */
+.wf-row{display:flex;gap:8px}
+.wf-btn{flex:1;padding:10px 4px 8px;background:var(--card);border:1.5px solid var(--border);
+  border-radius:5px;cursor:pointer;transition:all .12s;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:5px;color:var(--text3)}
+.wf-btn:hover{border-color:var(--text3)}
+.wf-btn.sel{border-color:var(--esp);color:var(--esp);background:#2856a006}
+.wf-btn svg{display:block}
+.wf-label{font-family:"Consolas","SF Mono",monospace;font-size:11px;font-weight:600;letter-spacing:.3px}
 
 /* Start/Stop */
 .big-btn{display:block;width:100%;padding:14px;margin-top:14px;border:none;border-radius:var(--radius);
@@ -93,7 +102,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 .big-btn.go:hover{background:#168040}
 .big-btn.halt{background:var(--red);color:#fff}
 .big-btn.halt:hover{background:#b42818}
-
 
 /* Pin grid */
 .pin-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
@@ -127,24 +135,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
   </div>
 </header>
 
-<!-- DRV2665 -->
-<div class="card drv">
-  <div class="card-h"><b>DRV2665</b> <span>Boost Amplifier</span></div>
-  <div class="card-b">
-    <div class="field">
-      <label>Gain</label>
-      <div class="gain-row">
-        <button class="gain-btn" data-g="25">25</button>
-        <button class="gain-btn" data-g="50">50</button>
-        <button class="gain-btn" data-g="75">75</button>
-        <button class="gain-btn sel" data-g="100">100</button>
-        <span class="unit">Vpp</span>
-      </div>
-    </div>
-    <button class="big-btn go" id="start-stop">START</button>
-  </div>
-</div>
-
 <!-- ESP32 Signal Generator -->
 <div class="card esp">
   <div class="card-h"><b>ESP32</b> <span>Signal Generator</span></div>
@@ -157,48 +147,80 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
         <span class="unit">Hz</span>
       </div>
     </div>
-    <div class="field-row">
-      <div class="field">
-        <label>Waveform</label>
-        <select id="waveform">
-          <option value="sine">Sine</option>
-          <option value="triangle">Triangle</option>
-          <option value="square">Square</option>
-        </select>
-      </div>
-      <div class="field row" style="flex:0;padding-top:18px">
-        <input type="checkbox" id="fullwave">
-        <label for="fullwave" style="cursor:pointer;text-transform:none;white-space:nowrap">Fullwave (toggle polarity)</label>
+    <div class="field">
+      <label>Waveform</label>
+      <div class="wf-row">
+        <button class="wf-btn sel" data-wf="sine">
+          <svg viewBox="0 0 60 28" width="56" height="26">
+            <path d="M0,14 C2.5,8.2 5,3 7.5,3 C10,3 12.5,8.2 15,14 C17.5,19.8 20,25 22.5,25 C25,25 27.5,19.8 30,14 C32.5,8.2 35,3 37.5,3 C40,3 42.5,8.2 45,14 C47.5,19.8 50,25 52.5,25 C55,25 57.5,19.8 60,14" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round"/>
+            <line class="center-line" x1="0" y1="14" x2="60" y2="14" stroke="var(--drv)" stroke-width="0.8" stroke-dasharray="2,2" style="display:none"/>
+          </svg>
+          <span class="wf-label">Sine</span>
+        </button>
+        <button class="wf-btn" data-wf="triangle">
+          <svg viewBox="0 0 60 28" width="56" height="26">
+            <polyline points="0,14 7.5,3 22.5,25 37.5,3 52.5,25 60,14" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+            <line class="center-line" x1="0" y1="14" x2="60" y2="14" stroke="var(--drv)" stroke-width="0.8" stroke-dasharray="2,2" style="display:none"/>
+          </svg>
+          <span class="wf-label">Triangle</span>
+        </button>
+        <button class="wf-btn" data-wf="square">
+          <svg viewBox="0 0 60 28" width="56" height="26">
+            <polyline points="0,3 15,3 15,25 30,25 30,3 45,3 45,25 60,25" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+            <line class="center-line" x1="0" y1="14" x2="60" y2="14" stroke="var(--drv)" stroke-width="0.8" stroke-dasharray="2,2" style="display:none"/>
+          </svg>
+          <span class="wf-label">Square</span>
+        </button>
       </div>
     </div>
-    <div>
+    <div class="field row" style="margin-bottom:12px">
+      <input type="checkbox" id="fullwave">
+      <label for="fullwave" style="cursor:pointer;text-transform:none;white-space:nowrap">Toggle Polarity</label>
+    </div>
+    <div class="field">
+      <label>Amplitude <span id="amp-val" style="color:var(--text);font-family:'Consolas','SF Mono',monospace">50%</span></label>
+      <input type="range" id="amplitude" min="0" max="100" value="50">
+    </div>
+    <div class="field-row" style="visibility:hidden;display:none">
       <div class="field">
-        <label>Amplitude <span id="amp-val" style="color:var(--text);font-family:'Consolas','SF Mono',monospace">100%</span></label>
-        <input type="range" id="amplitude" min="0" max="100" value="100">
-      </div>
-      <div class="field-row" style="visibility:hidden;display:none">
-        <div class="field">
-          <label>Dead Time</label>
-          <div class="input-row">
-            <input type="number" id="dead-time" min="0" value="0">
-            <span class="unit">ticks</span>
-          </div>
+        <label>Dead Time</label>
+        <div class="input-row">
+          <input type="number" id="dead-time" min="0" value="0">
+          <span class="unit">ticks</span>
         </div>
-        <div class="field">
-          <label>Phase Advance</label>
-          <div class="input-row">
-            <input type="number" id="phase-advance" min="0" value="0">
-            <span class="unit">ticks</span>
-          </div>
+      </div>
+      <div class="field">
+        <label>Phase Advance</label>
+        <div class="input-row">
+          <input type="number" id="phase-advance" min="0" value="0">
+          <span class="unit">ticks</span>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- HV509 -->
+<!-- DRV2665 Piezo Driver -->
+<div class="card drv">
+  <div class="card-h"><b>DRV2665</b> <span>Piezo Driver</span></div>
+  <div class="card-b">
+    <div class="field">
+      <label>Gain</label>
+      <div class="gain-row">
+        <button class="gain-btn" data-g="25"><span class="db">28.8</span><span class="vpp">25 Vpp</span></button>
+        <button class="gain-btn" data-g="50"><span class="db">34.8</span><span class="vpp">50 Vpp</span></button>
+        <button class="gain-btn" data-g="75"><span class="db">38.4</span><span class="vpp">75 Vpp</span></button>
+        <button class="gain-btn sel" data-g="100"><span class="db">40.7</span><span class="vpp">100 Vpp</span></button>
+        <span class="unit">dB</span>
+      </div>
+    </div>
+    <button class="big-btn go" id="start-stop">START</button>
+  </div>
+</div>
+
+<!-- HV509 Shift Registers -->
 <div class="card hv">
-  <div class="card-h"><b>HV509</b> <span>Shift Register</span></div>
+  <div class="card-h"><b>HV509</b> <span>Shift Registers</span></div>
   <div class="card-b">
     <div class="pin-grid" id="pin-grid"></div>
     <div class="pin-actions">
@@ -211,10 +233,10 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 <div class="toast" id="toast"></div>
 
 <script>
-var ws=null,state={},upd=false,rdelay=1e3,selGain=100;
+var ws=null,state={},upd=false,rdelay=1e3,selGain=100,selWaveform='sine';
 var $=function(id){return document.getElementById(id)};
 var dot=$('dot'),conn=$('conn'),badge=$('badge');
-var freqSlider=$('freq-slider'),freq=$('freq'),waveform=$('waveform'),fullwave=$('fullwave');
+var freqSlider=$('freq-slider'),freq=$('freq'),fullwave=$('fullwave');
 var amplitude=$('amplitude'),ampVal=$('amp-val');
 var deadTime=$('dead-time'),phaseAdv=$('phase-advance');
 var startStop=$('start-stop');
@@ -258,12 +280,19 @@ function send(cmd){if(ws&&ws.readyState===1)ws.send(JSON.stringify(cmd))}
 function sendFreq(){
   if(upd)return;
   var hz=parseInt(freq.value)||0;
-  var wf=waveform.value;
+  var wf=selWaveform;
   var fw=fullwave.checked;
   send({cmd:'set_frequency_analog',hz:hz,
-    amplitude:parseInt(amplitude.value)||100,
+    amplitude:parseInt(amplitude.value)||50,
     fullwave:fw,dead_time:parseInt(deadTime.value)||0,
     phase_advance:parseInt(phaseAdv.value)||0,waveform:wf});
+}
+
+function updateCenterlines(){
+  var lines=document.querySelectorAll('.center-line');
+  for(var i=0;i<lines.length;i++){
+    lines[i].style.display=fullwave.checked?'':'none';
+  }
 }
 
 function updateUI(){
@@ -279,8 +308,12 @@ function updateUI(){
   // Values
   var fv=state.frequency||0;
   freq.value=fv;freqSlider.value=fv;
-  waveform.value=state.waveform||'sine';
+  // Waveform buttons
+  selWaveform=state.waveform||'sine';
+  var wfBtns=document.querySelectorAll('.wf-btn');
+  for(var i=0;i<wfBtns.length;i++)wfBtns[i].classList.toggle('sel',wfBtns[i].dataset.wf===selWaveform);
   fullwave.checked=!!state.fullwave;
+  updateCenterlines();
   if(state.amplitude!=null){amplitude.value=state.amplitude;ampVal.textContent=state.amplitude+'%'}
   if(state.dead_time!=null)deadTime.value=state.dead_time;
   if(state.phase_advance!=null)phaseAdv.value=state.phase_advance;
@@ -299,8 +332,18 @@ freqSlider.oninput=function(){freq.value=this.value;updateSliders()};
 freqSlider.onchange=sendFreq;
 freq.onchange=function(){freqSlider.value=this.value;updateSliders();sendFreq()};
 
-waveform.onchange=sendFreq;
-fullwave.onchange=sendFreq;
+// Waveform buttons
+var wfBtns=document.querySelectorAll('.wf-btn');
+for(var i=0;i<wfBtns.length;i++){
+  wfBtns[i].onclick=(function(btn){return function(){
+    selWaveform=btn.dataset.wf;
+    var all=document.querySelectorAll('.wf-btn');
+    for(var j=0;j<all.length;j++)all[j].classList.toggle('sel',all[j]===btn);
+    sendFreq();
+  }})(wfBtns[i]);
+}
+
+fullwave.onchange=function(){updateCenterlines();sendFreq()};
 amplitude.oninput=function(){ampVal.textContent=this.value+'%';updateSliders()};
 amplitude.onchange=sendFreq;
 deadTime.onchange=sendFreq;
