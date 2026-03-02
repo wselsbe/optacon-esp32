@@ -3,7 +3,7 @@ import _thread
 
 import pz_drive
 import web_server
-from pz_actuator_py import PzActuator
+from pz_drive_py import PzActuator
 
 pz_drive.i2c_write(0x02, 0x40)
 

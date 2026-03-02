@@ -48,15 +48,15 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
 - `modules/board_utils/` — C module: enter_bootloader() utility
 - `python/drv2665.py` — Python DRV2665 I2C register driver (delegates to pz_drive)
 - `python/shift_register.py` — Python HV509 shift register driver (delegates to pz_drive)
-- `python/pz_actuator_py.py` — Python high-level PzActuator orchestrator
+- `python/pz_drive_py.py` — Python high-level PzActuator orchestrator
 - `python/main.py` — Boot script and demo functions
 - `scripts/` — Docker build and flash helpers (`build.sh`, `flash.sh`)
 - `mcp_micropython.py` — MCP server for serial interaction with the board from Claude Code
 
-### Python API (`PzActuator` class in `pz_actuator_py`)
+### Python API (`PzActuator` class in `pz_drive_py`)
 
 ```python
-from pz_actuator_py import PzActuator
+from pz_drive_py import PzActuator
 pa = PzActuator()
 pa.set_frequency_analog(hz, resolution=8, amplitude=100, fullwave=False,
                         dead_time=0, phase_advance=0, waveform='sine')  # 0-400 Hz

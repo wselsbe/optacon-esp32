@@ -6,7 +6,7 @@ import machine
 import network
 from microdot import Microdot, send_file
 from microdot.websocket import with_websocket
-from pz_actuator_py import PzActuator
+from pz_drive_py import PzActuator
 
 app = Microdot()
 pa = PzActuator()
