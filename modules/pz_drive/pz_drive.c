@@ -214,6 +214,30 @@ static mp_obj_t pz_drive_pwm_is_sample_done(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_pwm_is_sample_done_obj, pz_drive_pwm_is_sample_done);
 
+// ── pwm_set_sweep(target_step, increment, logarithmic=False) ─────────
+static mp_obj_t pz_drive_pwm_set_sweep(size_t n_args, const mp_obj_t *pos_args,
+                                       mp_map_t *kw_args) {
+    enum { ARG_target_step, ARG_increment, ARG_logarithmic };
+    static const mp_arg_t allowed_args[] = {
+        {MP_QSTR_target_step, MP_ARG_REQUIRED | MP_ARG_INT},
+        {MP_QSTR_increment, MP_ARG_REQUIRED | MP_ARG_INT},
+        {MP_QSTR_logarithmic, MP_ARG_KW_ONLY | MP_ARG_BOOL, {.u_bool = false}},
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    pzd_pwm_set_sweep(args[ARG_target_step].u_int, args[ARG_increment].u_int,
+                       args[ARG_logarithmic].u_bool);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(pz_drive_pwm_set_sweep_obj, 2, pz_drive_pwm_set_sweep);
+
+// ── pwm_is_sweep_done() ─────────────────────────────────────────────
+static mp_obj_t pz_drive_pwm_is_sweep_done(void) {
+    return mp_obj_new_bool(pzd_pwm_is_sweep_done());
+}
+static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_pwm_is_sweep_done_obj, pz_drive_pwm_is_sweep_done);
+
 // ── Module table ────────────────────────────────────────────────────────
 static const mp_rom_map_elem_t pz_drive_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_pz_drive)},
@@ -236,6 +260,8 @@ static const mp_rom_map_elem_t pz_drive_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_fifo_is_running), MP_ROM_PTR(&pz_drive_fifo_is_running_obj)},
     {MP_ROM_QSTR(MP_QSTR_pwm_play_samples), MP_ROM_PTR(&pz_drive_pwm_play_samples_obj)},
     {MP_ROM_QSTR(MP_QSTR_pwm_is_sample_done), MP_ROM_PTR(&pz_drive_pwm_is_sample_done_obj)},
+    {MP_ROM_QSTR(MP_QSTR_pwm_set_sweep), MP_ROM_PTR(&pz_drive_pwm_set_sweep_obj)},
+    {MP_ROM_QSTR(MP_QSTR_pwm_is_sweep_done), MP_ROM_PTR(&pz_drive_pwm_is_sweep_done_obj)},
 };
 static MP_DEFINE_CONST_DICT(pz_drive_module_globals, pz_drive_module_globals_table);
 
