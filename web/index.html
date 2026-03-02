@@ -175,8 +175,8 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
     <div class="field" id="freq-field">
       <label>Frequency</label>
       <div class="freq-row">
-        <input type="range" id="freq-slider" min="0" max="400" value="250">
-        <input type="number" id="freq" min="0" max="400" value="250" step="1">
+        <input type="range" id="freq-slider" min="0" max="500" value="250">
+        <input type="number" id="freq" min="0" max="500" value="250" step="1">
         <span class="unit">Hz</span>
       </div>
     </div>
@@ -322,7 +322,7 @@ function updateUI(){
     startStop.textContent='START';startStop.className='big-btn go';
   }
   // Freq range
-  freq.min=0;freq.max=400;freqSlider.min=0;freqSlider.max=400;
+  freq.min=0;freq.max=500;freqSlider.min=0;freqSlider.max=500;
   // Values — don't overwrite frequency with 0 when in AC mode (keep user/default value)
   var fv=state.frequency||0;
   if(fv>0||selWaveform==='dc'){freq.value=fv;freqSlider.value=fv;}

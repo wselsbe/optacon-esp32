@@ -59,8 +59,8 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
 from pz_drive_py import PzActuator
 pa = PzActuator()
 pa.set_frequency_analog(hz, resolution=8, amplitude=100, fullwave=False,
-                        dead_time=0, phase_advance=0, waveform='sine')  # 0-400 Hz
-pa.set_frequency_digital(hz, fullwave=False, waveform='sine')  # 1-4000 Hz
+                        dead_time=0, phase_advance=0, waveform='sine')  # 0-500 Hz
+pa.set_frequency_digital(hz, fullwave=False, waveform='sine')  # 1-500 Hz
 pa.start(gain=100)  # gain: 25/50/75/100 Vpp
 pa.stop()
 pa.is_running()

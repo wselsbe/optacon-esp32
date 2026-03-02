@@ -333,9 +333,9 @@ bool pzd_pwm_is_running(void) {
 
 void pzd_pwm_set_frequency(int hz, int resolution, int amplitude, bool fullwave, int dead_time,
                            int phase_advance, int waveform) {
-    // Validate frequency: 0 (DC) or 50-400 Hz
-    if (hz != 0 && (hz < 50 || hz > 400)) {
-        mp_raise_ValueError(MP_ERROR_TEXT("hz must be 0 (DC) or 50-400"));
+    // Validate frequency: 0 (DC) or 1-500 Hz
+    if (hz != 0 && (hz < 1 || hz > 500)) {
+        mp_raise_ValueError(MP_ERROR_TEXT("hz must be 0 (DC) or 1-500"));
     }
 
     // Validate resolution

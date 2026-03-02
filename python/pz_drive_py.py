@@ -101,7 +101,7 @@ class PzActuator:
         """Configure analog PWM+DDS mode at given frequency.
 
         Args:
-            hz: 0-400 (0 = DC output)
+            hz: 0-500 (0 = DC output)
             resolution: 8 or 10 bits
             amplitude: 0-100 (percentage, mapped to internal 0-128)
             fullwave: if True, generate |waveform| and toggle polarity at zero-crossings
@@ -111,8 +111,8 @@ class PzActuator:
                            for DRV2665 output lag (~3 ticks at 250 Hz)
             waveform: 'sine', 'triangle', or 'square'
         """
-        if hz < 0 or hz > 400:
-            raise ValueError("hz must be 0-400")
+        if hz < 0 or hz > 500:
+            raise ValueError("hz must be 0-500")
         if waveform not in self.WAVEFORMS:
             raise ValueError("waveform must be 'sine', 'triangle', or 'square'")
         amp_internal = (amplitude * 128 + 50) // 100
