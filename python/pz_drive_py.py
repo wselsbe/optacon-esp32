@@ -206,6 +206,71 @@ class PzActuator:
         self.drv.init_analog(self.GAINS[self._gain])
         pz_drive.pwm_play_samples(raw, sample_rate, loop=loop)
 
+    _PWM_SAMPLE_RATE = 32000
+
+    def sweep_analog(
+        self,
+        start_hz,
+        end_hz,
+        duration_ms,
+        logarithmic=False,
+        waveform="sine",
+        resolution=8,
+        amplitude=100,
+        gain=100,
+    ):
+        """Sweep frequency from start_hz to end_hz over duration_ms.
+
+        After the sweep completes, output holds at end_hz until stop().
+
+        Args:
+            start_hz: starting frequency (1-500)
+            end_hz: ending frequency (1-500)
+            duration_ms: sweep duration in milliseconds (1-60000)
+            logarithmic: if True, logarithmic sweep; if False, linear
+            waveform: 'sine', 'triangle', or 'square'
+            resolution: 8 or 10 bits
+            amplitude: 0-100 (percentage)
+            gain: 25, 50, 75, or 100 Vpp
+        """
+        if start_hz < 1 or start_hz > 500:
+            raise ValueError("start_hz must be 1-500")
+        if end_hz < 1 or end_hz > 500:
+            raise ValueError("end_hz must be 1-500")
+        if duration_ms < 1 or duration_ms > 60000:
+            raise ValueError("duration_ms must be 1-60000")
+        if start_hz == end_hz:
+            raise ValueError("start_hz and end_hz must differ")
+
+        # Configure waveform at starting frequency
+        self.set_frequency_analog(
+            start_hz,
+            resolution=resolution,
+            amplitude=amplitude,
+            waveform=waveform,
+        )
+
+        # Compute sweep parameters
+        total_ticks = duration_ms * (self._PWM_SAMPLE_RATE // 1000)
+        step_start = (start_hz << 32) // self._PWM_SAMPLE_RATE
+        step_end = (end_hz << 32) // self._PWM_SAMPLE_RATE
+
+        if logarithmic:
+            # ratio = 1 + ln(end/start) / total_ticks, in 1.31 fixed-point
+            # increment = offset from 1.0 = ln(end/start) / total_ticks * 2^31
+            log_ratio = math.log(end_hz / start_hz)
+            increment = int(log_ratio / total_ticks * (1 << 31))
+        else:
+            # delta = (step_end - step_start) / total_ticks
+            increment = (step_end - step_start) // total_ticks
+
+        pz_drive.pwm_set_sweep(
+            step_end, increment, logarithmic=logarithmic
+        )
+
+        # Start output
+        self.start(gain=gain)
+
     def get_status(self):
         """Return current state as a dict (for web UI)."""
         status = {
