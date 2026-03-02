@@ -187,6 +187,51 @@ class PzActuator:
     def is_running(self):
         return pz_drive.fifo_is_running() or pz_drive.pwm_is_running()
 
+    def play_wav(self, path, loop=False):
+        """Play a WAV file through the analog PWM path.
+
+        Args:
+            path: filesystem path to WAV file (8/16-bit PCM, mono/stereo, any rate)
+            loop: if True, loop until stop() is called
+        """
+        with open(path, "rb") as f:
+            header = f.read(44)
+            if len(header) < 44 or header[:4] != b"RIFF" or header[8:12] != b"WAVE":
+                raise ValueError("not a valid WAV file")
+
+            num_channels = int.from_bytes(header[22:24], "little")
+            sample_rate = int.from_bytes(header[24:28], "little")
+            bits_per_sample = int.from_bytes(header[34:36], "little")
+
+            raw = f.read()
+
+        # Convert to 8-bit unsigned mono
+        if bits_per_sample == 16:
+            if num_channels == 2:
+                # Stereo 16-bit: take left channel high byte, signed→unsigned
+                raw = bytearray(
+                    ((raw[i + 1] ^ 0x80) if i + 1 < len(raw) else 128)
+                    for i in range(0, len(raw), 4)
+                )
+            else:
+                # Mono 16-bit: high byte + offset to unsigned
+                raw = bytearray(
+                    ((raw[i + 1] ^ 0x80) if i + 1 < len(raw) else 128)
+                    for i in range(0, len(raw), 2)
+                )
+        elif bits_per_sample == 8:
+            if num_channels == 2:
+                # Stereo 8-bit: take every other byte (left channel)
+                raw = bytearray(raw[i] for i in range(0, len(raw), 2))
+            else:
+                raw = bytearray(raw)
+        else:
+            raise ValueError("unsupported bits_per_sample: " + str(bits_per_sample))
+
+        self._mode = MODE_ANALOG
+        self.drv.init_analog(self.GAINS[self._gain])
+        pz_drive.pwm_play_samples(raw, sample_rate, loop=loop)
+
     # ── Shift register pass-through ─────────────────────────────────────
     def set_pin(self, pin, value, latch=True):
         self.sr.set_pin(pin, value, latch=latch)
