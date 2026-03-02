@@ -35,6 +35,8 @@ void pzd_pwm_set_frequency(int hz, int resolution, int amplitude, bool fullwave,
                            int phase_advance, int waveform);
 void pzd_pwm_start(void);
 void pzd_pwm_stop(void);
+void pzd_pwm_play_samples(const uint8_t *buf, size_t len, uint32_t sample_rate, bool loop);
+bool pzd_pwm_is_sample_done(void);
 
 // ── fifo.c — digital FIFO background task ───────────────────────────────
 bool pzd_fifo_is_running(void);

@@ -69,6 +69,14 @@ static bool s_freq_configured = false;
 #define WAVEFORM_SQUARE   2
 static volatile uint8_t s_waveform = WAVEFORM_SINE;
 
+// ─── Sample playback state ──────────────────────────────────────────────────
+static const uint8_t *s_sample_buf = NULL;
+static volatile uint32_t s_sample_len = 0;     // buffer length in samples
+static volatile uint32_t s_sample_pos = 0;      // fixed-point position (16.16)
+static volatile uint32_t s_sample_step = 0;     // fixed-point step per ISR tick
+static volatile bool s_sample_loop = false;
+static volatile bool s_sample_mode = false;     // true = sample playback, false = DDS
+
 // Fullwave mode state
 static volatile bool s_fullwave = false;
 static volatile uint8_t s_prev_half = 0;   // 0=first half (0..pi), 1=second half (pi..2pi)
@@ -86,6 +94,42 @@ static uint32_t ledc_max_duty(void) {
 
 static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
                                          const gptimer_alarm_event_data_t *edata, void *user_data) {
+    // ── Sample playback mode ────────────────────────────────────────────
+    if (s_sample_mode) {
+        uint32_t pos = s_sample_pos;
+        uint32_t idx = pos >> 16;
+        if (idx >= s_sample_len) {
+            if (s_sample_loop) {
+                pos = 0;
+                idx = 0;
+            } else {
+                // Playback finished — set silence and exit sample mode
+                uint32_t mid = (s_resolution == 10) ? 512 : 128;
+                ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, mid);
+                ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL);
+                s_sample_mode = false;
+                return false;
+            }
+        }
+
+        // Linear interpolation between adjacent samples
+        uint8_t s0 = s_sample_buf[idx];
+        uint8_t s1 = (idx + 1 < s_sample_len) ? s_sample_buf[idx + 1] : s0;
+        uint32_t frac = (pos >> 8) & 0xFF; // 8-bit fractional part
+        uint32_t duty = s0 + (((int32_t)(s1 - s0) * (int32_t)frac) >> 8);
+
+        // Scale to resolution
+        if (s_resolution == 10) {
+            duty = (duty << 2) | (duty >> 6);
+        }
+
+        ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, duty);
+        ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL);
+        s_sample_pos = pos + s_sample_step;
+        return false;
+    }
+
+    // ── DDS waveform mode ───────────────────────────────────────────────
     // Save previous phase for cycle-wrap detection
     uint32_t prev_phase = s_phase_acc;
     s_phase_acc += s_phase_step;
@@ -259,10 +303,15 @@ static esp_err_t pwm_start_internal(void) {
 }
 
 static esp_err_t pwm_stop_internal(void) {
-    if (s_running && s_freq_hz != 0 && s_timer) {
+    if (s_running && (s_freq_hz != 0 || s_sample_mode) && s_timer) {
         gptimer_stop(s_timer);
     }
     s_running = false;
+
+    // Clear sample playback state
+    s_sample_mode = false;
+    s_sample_buf = NULL;
+    s_sample_len = 0;
 
     hv509_pol_init();
 
@@ -380,4 +429,33 @@ void pzd_pwm_start(void) {
 void pzd_pwm_stop(void) {
     pwm_stop_internal();
     mp_printf(&mp_plat_print, "pz_drive: pwm stopped\n");
+}
+
+void pzd_pwm_play_samples(const uint8_t *buf, size_t len, uint32_t sample_rate, bool loop) {
+    // Stop any existing playback
+    if (s_running) {
+        pwm_stop_internal();
+    }
+
+    esp_err_t err = ensure_hw_init();
+    if (err != ESP_OK) {
+        mp_raise_OSError(err);
+    }
+
+    s_sample_buf = buf;
+    s_sample_len = (uint32_t)len;
+    s_sample_pos = 0;
+    s_sample_step = ((uint32_t)sample_rate << 16) / PWM_SAMPLE_RATE_HZ;
+    s_sample_loop = loop;
+    s_sample_mode = true;
+    s_running = true;
+
+    gptimer_start(s_timer);
+
+    mp_printf(&mp_plat_print, "pz_drive: playing %u samples at %u Hz (step=%u, loop=%d)\n",
+              (unsigned)len, (unsigned)sample_rate, (unsigned)s_sample_step, loop);
+}
+
+bool pzd_pwm_is_sample_done(void) {
+    return !s_sample_mode && s_sample_buf != NULL;
 }
