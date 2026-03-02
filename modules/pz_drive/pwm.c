@@ -145,7 +145,9 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
     // ── Sweep: modulate phase_step each tick ─────────────────────────
     if (s_sweep_active) {
         if (s_sweep_linear) {
-            s_phase_step = (uint32_t)((int32_t)s_phase_step + s_sweep_delta);
+            int32_t next = (int32_t)s_phase_step + s_sweep_delta;
+            if (next < 0) next = 0;
+            s_phase_step = (uint32_t)next;
         } else {
             s_phase_step = (uint32_t)(((uint64_t)s_phase_step * s_sweep_ratio) >> 31);
         }
@@ -432,6 +434,12 @@ void pzd_pwm_set_frequency(int hz, int resolution, int amplitude, bool fullwave,
 }
 
 void pzd_pwm_set_sweep(int target_step, int increment, bool logarithmic) {
+    if (!s_freq_configured) {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("call pwm_set_frequency() first"));
+    }
+    if (logarithmic && increment == 0) {
+        mp_raise_ValueError(MP_ERROR_TEXT("log sweep increment must be nonzero"));
+    }
     s_sweep_target = (uint32_t)target_step;
     s_sweep_linear = !logarithmic;
     s_sweep_up = ((uint32_t)target_step > s_phase_step);
@@ -506,5 +514,6 @@ bool pzd_pwm_is_sample_done(void) {
 }
 
 bool pzd_pwm_is_sweep_done(void) {
+    // Returns true if no sweep is in progress (including before any sweep is configured)
     return !s_sweep_active;
 }
