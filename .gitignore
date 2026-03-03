@@ -17,3 +17,7 @@ __pycache__/
 Thumbs.db
 
 wifi_config.json
+
+# Claude Code (machine-specific)
+.claude/settings.local.json
+.playwright-mcp/

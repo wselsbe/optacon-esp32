@@ -1,0 +1,12 @@
+# Optacon development — USB device permissions
+# Install: sudo cp scripts/99-optacon.rules /etc/udev/rules.d/
+# Reload: sudo udevadm control --reload-rules && sudo udevadm trigger
+
+# ESP32-S3 normal mode (USB-CDC)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="4001", MODE="0666", SYMLINK+="esp32s3"
+
+# ESP32-S3 bootloader mode
+SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", ATTRS{idProduct}=="1001", MODE="0666", SYMLINK+="esp32s3-boot"
+
+# Zeroplus LAP-C 16128 logic analyzer
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0c12", ATTRS{idProduct}=="700e", MODE="0666"
