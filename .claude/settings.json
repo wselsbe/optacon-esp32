@@ -4,6 +4,17 @@
     "clangd-lsp@claude-plugins-official": true
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'CMD=$(jq -r .tool_input.command < /dev/stdin); case \"$CMD\" in *\"git commit\"*|*\"git \"*\" commit\"*) ;; *) exit 0;; esac; ERRORS=\"\"; for f in $(git diff --cached --name-only --diff-filter=ACM -- \"*.py\"); do OUT=$(ruff check \"$f\" 2>&1); [ $? -ne 0 ] && ERRORS=\"$ERRORS$OUT\n\"; done; for f in $(git diff --cached --name-only --diff-filter=ACM -- \"*.c\" \"*.h\"); do OUT=$(clang-format --dry-run --Werror \"$f\" 2>&1); [ $? -ne 0 ] && ERRORS=\"$ERRORS$OUT\n\"; done; if [ -n \"$ERRORS\" ]; then echo \"Lint errors in staged files:\"; echo -e \"$ERRORS\"; exit 1; fi; exit 0'"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
