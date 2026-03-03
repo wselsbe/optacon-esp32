@@ -90,14 +90,13 @@ def _run_timeout(cmd, timeout=2):
         return None
 
 
-def _get_clipboard():
-    """Read the Wayland clipboard. Returns (data, mime_type) or (None, None)."""
+def _get_wayland_clipboard():
+    """Read Wayland clipboard. Returns (data, mime_type) or (None, None)."""
     types_raw = _run_timeout(["wl-paste", "--list-types"])
     if not types_raw:
         return None, None
     types = types_raw.decode().strip().splitlines()
 
-    # Prefer image if available
     for t in types:
         if t.startswith("image/"):
             data = _run_timeout(["wl-paste", "--type", t, "--no-newline"])
@@ -105,38 +104,59 @@ def _get_clipboard():
                 return data, t
             break
 
-    # Fall back to text
     data = _run_timeout(["wl-paste", "--no-newline"])
     if data:
         return data, "text/plain;charset=utf-8"
     return None, None
 
 
+def _get_x11_clipboard():
+    """Read X11 clipboard (used by Claude Code /copy). Returns (data, mime) or (None, None)."""
+    data = _run_timeout(["xclip", "-selection", "clipboard", "-o"], timeout=1)
+    if data:
+        return data, "text/plain;charset=utf-8"
+    return None, None
+
+
+def _send_to_windows(data, mime):
+    """POST clipboard data to the Windows clipboard server."""
+    req = urllib.request.Request(
+        SEND_URL,
+        data=data,
+        headers={"Content-Type": mime},
+        method="POST",
+    )
+    urllib.request.urlopen(req, timeout=3)
+
+
 def run_sender():
-    last_hash = None
+    last_wl_hash = None
+    last_x11_hash = None
     print(f"Sender polling clipboard → 127.0.0.1:{SEND_PORT}")
     while True:
         time.sleep(POLL_INTERVAL)
         try:
-            data, mime = _get_clipboard()
-            if data is None:
-                continue
-            h = hashlib.sha256(data).hexdigest()
-            # Skip if unchanged or if this is something we just received from Windows
-            if h == last_hash:
-                continue
-            with _lock:
-                if h == _last_received_hash:
-                    last_hash = h
+            # Check Wayland clipboard
+            data, mime = _get_wayland_clipboard()
+            if data:
+                h = hashlib.sha256(data).hexdigest()
+                with _lock:
+                    is_echo = h == _last_received_hash
+                if h != last_wl_hash and not is_echo:
+                    last_wl_hash = h
+                    _send_to_windows(data, mime)
                     continue
-            last_hash = h
-            req = urllib.request.Request(
-                SEND_URL,
-                data=data,
-                headers={"Content-Type": mime},
-                method="POST",
-            )
-            urllib.request.urlopen(req, timeout=3)
+                last_wl_hash = h
+
+            # Check X11 clipboard (Claude /copy)
+            data, mime = _get_x11_clipboard()
+            if data:
+                h = hashlib.sha256(data).hexdigest()
+                if h != last_x11_hash:
+                    last_x11_hash = h
+                    _send_to_windows(data, mime)
+                    continue
+                last_x11_hash = h
         except Exception:
             pass
 
