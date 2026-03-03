@@ -39,7 +39,7 @@ sudo reboot
 The setup script (`scripts/pi-setup.sh`) is idempotent and installs:
 - ESP-IDF v5.5.1 + xtensa toolchain
 - MicroPython v1.27.0 + mpy-cross
-- Node.js 20 LTS, uv, Claude Code
+- Node.js 20 LTS, uv
 - sigrok-cli, mpremote, esptool, ruff
 - udev rules for ESP32-S3 and logic analyzer
 
@@ -58,7 +58,9 @@ sudo apt update && sudo apt install -y gh
 gh auth login --web --git-protocol https
 gh auth setup-git  # configure git to use gh as credential helper
 
-# Claude Code login
+# Claude Code (native installer, no npm required, auto-updates)
+curl -fsSL https://claude.ai/install.sh | bash
+# Installs to ~/.local/bin/claude
 claude  # then /login interactively
 
 # Install plugins
@@ -174,7 +176,22 @@ set -g default-terminal "tmux-256color"
 set -ag terminal-overrides ",xterm-256color:RGB"
 set -g history-limit 10000
 set -g mouse on
+
+# OSC 52: send tmux copy buffer to Windows clipboard via terminal
+set -g set-clipboard on
+set -g allow-passthrough on
+
+# Vi-style copy mode
+setw -g mode-keys vi
+bind-key -T copy-mode-vi v send-keys -X begin-selection
+bind-key -T copy-mode-vi y send-keys -X copy-pipe-and-cancel
+bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel
 ```
+
+**Copying text from Claude Code**: Claude Code captures mouse events (Ink/React terminal UI), so mouse drag selects within Claude Code rather than entering tmux copy mode. Use these alternatives:
+
+- **`/copy`** — copies Claude's last response to clipboard (syncs to Windows via clipboard bridge)
+- **`Ctrl-b [` → vi keys → `v` → select → `y`** — tmux keyboard copy mode, sends via OSC 52 to Windows
 
 ## Connecting from Windows
 
@@ -197,7 +214,7 @@ Double-click `scripts/pi-claude.cmd` to launch everything in one click:
 
 Bidirectional clipboard sync enables Claude Code's Alt+V image paste over SSH:
 
-**Pi side**: `scripts/clipboard-sync.py` runs as a systemd user service (`clipboard-sync.service`). It receives clipboard data from Windows on port 8224 (→ `wl-copy`) and polls `wl-paste` to send changes to Windows on port 8225.
+**Pi side**: `scripts/clipboard-sync.py` runs as a systemd user service (`clipboard-sync.service`). It receives clipboard data from Windows on port 8224 (→ `wl-copy`) and polls both Wayland (`wl-paste`) and X11 (`xclip`) clipboards to send changes to Windows on port 8225. The X11 clipboard is needed because Claude Code's `/copy` writes to the X11 clipboard, not Wayland.
 
 **Windows side**: `scripts/pi-claude.ps1` spawns two hidden PowerShell processes:
 - **Clipboard watcher** (`-ClipboardWatcher`): monitors Windows clipboard via `WM_CLIPBOARDUPDATE` and POSTs changes to Pi
