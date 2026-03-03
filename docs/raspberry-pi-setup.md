@@ -56,6 +56,7 @@ curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo 
 echo 'deb [arch=arm64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main' | sudo tee /etc/apt/sources.list.d/github-cli.list
 sudo apt update && sudo apt install -y gh
 gh auth login --web --git-protocol https
+gh auth setup-git  # configure git to use gh as credential helper
 
 # Claude Code login
 claude  # then /login interactively
