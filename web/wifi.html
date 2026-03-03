@@ -75,7 +75,7 @@ a.back:hover{text-decoration:underline}
       <label>Password</label>
       <input type="password" id="pass" placeholder="Password" autocomplete="off">
     </div>
-    <button class="big-btn apply" id="apply-btn">APPLY &amp; REBOOT</button>
+    <button class="big-btn apply" id="apply-btn">APPLY</button>
     <div class="msg" id="msg"></div>
   </div>
 </div>
@@ -111,9 +111,13 @@ document.getElementById('apply-btn').onclick=function(){
   };
   ws.onmessage=function(e){
     var d=JSON.parse(e.data);
-    if(d.reboot){
-      showMsg('Config saved. Rebooting...',true);
-      btn.textContent='REBOOTING...';
+    if(d.ip){
+      showMsg('Connected! New IP: '+d.ip,true);
+      btn.disabled=false;
+      btn.textContent='APPLY';
+      document.getElementById('w-ip').textContent=d.ip;
+      document.getElementById('w-ssid').textContent=document.getElementById('ssid').value.trim();
+      document.getElementById('w-mode').textContent='Station';
     }else if(d.error){
       showMsg('Error: '+d.error,false);
       btn.disabled=false;
