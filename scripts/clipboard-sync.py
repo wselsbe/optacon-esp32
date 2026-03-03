@@ -42,11 +42,16 @@ class ClipHandler(BaseHTTPRequestHandler):
         with _lock:
             _last_received_hash = h
         try:
-            proc = subprocess.run(
+            # wl-copy forks into background to serve the selection, so use
+            # --paste-once to make it exit after the first paste, preventing
+            # it from blocking future wl-paste calls.
+            proc = subprocess.Popen(
                 ["wl-copy", "--type", content_type],
-                input=data,
-                timeout=5,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
+            proc.communicate(input=data, timeout=5)
             self.send_response(200 if proc.returncode == 0 else 500)
         except Exception as e:
             print(f"wl-copy error: {e}", file=sys.stderr)
@@ -66,44 +71,44 @@ def run_receiver():
 # --- Sender: Pi → Windows --------------------------------------------------
 
 
+def _run_timeout(cmd, timeout=2):
+    """Run a command with hard timeout. Returns stdout bytes or None."""
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            out, _ = proc.communicate(timeout=timeout)
+            return out if proc.returncode == 0 else None
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            return None
+    except Exception:
+        return None
+
+
 def _get_clipboard():
     """Read the Wayland clipboard. Returns (data, mime_type) or (None, None)."""
-    # Check available types
-    try:
-        types = subprocess.run(
-            ["wl-paste", "--list-types"],
-            capture_output=True,
-            timeout=2,
-        ).stdout.decode().strip().splitlines()
-    except Exception:
+    types_raw = _run_timeout(["wl-paste", "--list-types"])
+    if not types_raw:
         return None, None
+    types = types_raw.decode().strip().splitlines()
 
     # Prefer image if available
     for t in types:
         if t.startswith("image/"):
-            try:
-                data = subprocess.run(
-                    ["wl-paste", "--type", t, "--no-newline"],
-                    capture_output=True,
-                    timeout=2,
-                ).stdout
-                if data:
-                    return data, t
-            except Exception:
-                pass
+            data = _run_timeout(["wl-paste", "--type", t, "--no-newline"])
+            if data:
+                return data, t
             break
 
     # Fall back to text
-    try:
-        data = subprocess.run(
-            ["wl-paste", "--no-newline"],
-            capture_output=True,
-            timeout=2,
-        ).stdout
-        if data:
-            return data, "text/plain;charset=utf-8"
-    except Exception:
-        pass
+    data = _run_timeout(["wl-paste", "--no-newline"])
+    if data:
+        return data, "text/plain;charset=utf-8"
     return None, None
 
 
