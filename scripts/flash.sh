@@ -1,33 +1,39 @@
 #!/bin/bash
 set -e
 
-# Flash firmware from Windows host (or Linux/Mac)
-# Usage: ./scripts/flash.sh [COM_PORT]
-#   Windows: ./scripts/flash.sh COM3
-#   Linux:   ./scripts/flash.sh /dev/ttyUSB0
-#   Mac:     ./scripts/flash.sh /dev/cu.usbserial-0001
-#
-# Requires: pip install esptool
+# Flash firmware to ESP32-S3
+# Usage: ./scripts/flash.sh [PORT]
+#   With port:    ./scripts/flash.sh COM3  or  /dev/ttyACM0
+#   Without port: auto-detects ESP32-S3 in bootloader mode (VID:PID 303a:1001)
 
-PORT="${1:?Usage: flash.sh <PORT> (e.g. COM3, /dev/ttyUSB0)}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="${SCRIPT_DIR}/../build"
 
 if [ ! -f "${BUILD_DIR}/micropython.bin" ]; then
     echo "Error: ${BUILD_DIR}/micropython.bin not found."
-    echo "Run the build first: docker compose run --rm dev bash /workspace/scripts/build.sh"
+    echo "Run the build first: ./scripts/build.sh"
     exit 1
 fi
 
-python -m esptool --chip esp32s3 \
-    -p "${PORT}" \
+PORT_ARGS=()
+if [ -n "$1" ]; then
+    PORT_ARGS=(-p "$1")
+else
+    # Auto-detect ESP32-S3 in bootloader mode
+    PORT_ARGS=(--port-filter vid=0x303a --port-filter pid=0x1001)
+    echo "Auto-detecting ESP32-S3 bootloader port..."
+fi
+
+python3 -m esptool --chip esp32s3 \
+    "${PORT_ARGS[@]}" \
     -b 460800 \
-    --before default-reset \
-    --after watchdog-reset \
-    write-flash \
-    --flash-mode dio \
-    --flash-size 4MB \
-    --flash-freq 80m \
+    --before default_reset \
+    --after watchdog_reset \
+    --connect-attempts 10 \
+    write_flash \
+    --flash_mode dio \
+    --flash_size 4MB \
+    --flash_freq 80m \
     0x0     "${BUILD_DIR}/bootloader.bin" \
     0x8000  "${BUILD_DIR}/partition-table.bin" \
     0x10000 "${BUILD_DIR}/micropython.bin"
