@@ -69,7 +69,7 @@ sudo apt install -y clangd
 sudo npm install -g pyright
 
 # Additional packages (not in setup script)
-sudo apt install -y screen tmux
+sudo apt install -y screen tmux wl-clipboard xclip clang-format
 
 # Locale
 sudo sed -i 's/# en_GB.UTF-8 UTF-8/en_GB.UTF-8 UTF-8/' /etc/locale.gen
@@ -176,16 +176,34 @@ set -g history-limit 10000
 set -g mouse on
 ```
 
-## Connecting
+## Connecting from Windows
 
-### SSH + tmux
+Double-click `scripts/pi-claude.cmd` to launch everything in one click:
 
-```bash
-ssh -t optacon-pi "tmux attach -t claude"
-# Detach: Ctrl+B, D
-```
+- Starts Chrome with remote debugging (port 9222) if not already running
+- Starts bidirectional clipboard sync (Windows ↔ Pi)
+- SSHs into the Pi tmux session with port forwarding
+- Auto-reconnects on disconnect
 
-Or use `scripts/optacon-pi-claude.cmd` on Windows.
+### SSH tunnels
+
+| Tunnel | Direction | Purpose |
+|--------|-----------|---------|
+| `-R 9222` | Windows → Pi | Playwright remote browser (Chrome CDP) |
+| `-L 8224` | Windows → Pi | Clipboard sync (Windows clipboard → Pi wl-copy) |
+| `-R 8225` | Pi → Windows | Clipboard sync (Pi wl-paste → Windows clipboard) |
+
+### Clipboard Sync
+
+Bidirectional clipboard sync enables Claude Code's Alt+V image paste over SSH:
+
+**Pi side**: `scripts/clipboard-sync.py` runs as a systemd user service (`clipboard-sync.service`). It receives clipboard data from Windows on port 8224 (→ `wl-copy`) and polls `wl-paste` to send changes to Windows on port 8225.
+
+**Windows side**: `scripts/pi-claude.ps1` spawns two hidden PowerShell processes:
+- **Clipboard watcher** (`-ClipboardWatcher`): monitors Windows clipboard via `WM_CLIPBOARDUPDATE` and POSTs changes to Pi
+- **Clipboard server** (`-ClipboardServer`): HTTP listener that receives clipboard data from Pi and sets the Windows clipboard
+
+**Keybinding**: Alt+V is configured in `~/.claude/keybindings.json` for image paste (the default Ctrl+V is intercepted by the terminal).
 
 ### Remote Control (phone/browser)
 
@@ -193,23 +211,7 @@ Claude Code has remote control enabled by default. Open `claude.ai/code` to conn
 
 ### Playwright Remote Debugging
 
-To see the browser on your laptop while Claude controls it from the Pi:
-
-1. Start Chrome on your laptop:
-   ```
-   scripts/optacon-pi-chrome-remote-debug.cmd
-   ```
-   Or manually:
-   ```
-   chrome.exe --remote-debugging-port=9222 --user-data-dir="%TEMP%\chrome-debug"
-   ```
-
-2. Windows Firewall (admin terminal, one-time):
-   ```
-   netsh advfirewall firewall add rule name="Chrome Remote Debugging" dir=in action=allow protocol=TCP localport=9222 remoteip=192.168.0.0/16
-   ```
-
-3. The `playwright-remote-thinkpad` MCP server on the Pi connects to `http://Thinkpad:9222`.
+Chrome CDP launches automatically with `pi-claude.cmd`. The `playwright-remote` MCP server on the Pi connects to `http://localhost:9222` (tunneled to Chrome on Windows via `-R 9222`).
 
 ## Directory Layout on Pi
 
@@ -219,8 +221,10 @@ To see the browser on your laptop while Claude controls it from the Pi:
 ~/projects/optacon-firmware/   This repo
 ~/start-claude.sh          Claude launcher script
 ~/.claude.json             MCP servers + Claude state
-~/.claude/settings.json    Claude project settings
+~/.claude/settings.json    Claude project settings (hooks, plugins)
+~/.claude/keybindings.json Alt+V image paste binding
 ~/.config/systemd/user/claude.service
+~/.config/systemd/user/clipboard-sync.service
 ```
 
 ## SSH Config (Windows)
