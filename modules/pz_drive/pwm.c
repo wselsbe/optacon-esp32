@@ -442,7 +442,10 @@ void pzd_pwm_set_sweep(int target_step, int increment, bool logarithmic) {
     }
     s_sweep_target = (uint32_t)target_step;
     s_sweep_linear = !logarithmic;
-    s_sweep_up = ((uint32_t)target_step > s_phase_step);
+    // Compute direction from configured frequency, not stale s_phase_step
+    // (s_phase_step retains value from previous run and may already equal target)
+    uint32_t current_step = (uint32_t)(((uint64_t)s_freq_hz << 32) / PWM_SAMPLE_RATE_HZ);
+    s_sweep_up = ((uint32_t)target_step > current_step);
 
     if (logarithmic) {
         // increment is offset from 1.0 in 1.31 fixed-point
