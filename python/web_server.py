@@ -1,11 +1,10 @@
 import asyncio
 import json
 
+import wifi
 from microdot import Microdot, send_file
 from microdot.websocket import with_websocket
 from pz_drive_py import PzActuator
-
-import wifi
 
 app = Microdot()
 pa = PzActuator()
