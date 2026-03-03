@@ -2,7 +2,7 @@
 # Double-click pi-claude.cmd to launch.
 #
 # Modes (internal):
-#   -ClipboardWatcher   Windows→Pi: polls Windows clipboard, POSTs to Pi:8224
+#   -ClipboardWatcher   Windows→Pi: listens for clipboard changes, POSTs to Pi:8224
 #   -ClipboardServer    Pi→Windows: HTTP listener on :8225, sets Windows clipboard
 
 param(
@@ -16,44 +16,94 @@ if ($ClipboardWatcher) {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
 
-    $lastHash = ""
-    $url = "http://localhost:8224/clipboard"
+    Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @"
+using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Net;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
+using System.Windows.Forms;
 
-    function Get-ClipHash($bytes) {
-        $sha = [System.Security.Cryptography.SHA256]::Create()
-        [System.BitConverter]::ToString($sha.ComputeHash($bytes))
+public class ClipboardWatcherForm : Form {
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool AddClipboardFormatListener(IntPtr hwnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
+
+    const int WM_CLIPBOARDUPDATE = 0x031D;
+    string lastHash = "";
+    string url = "http://localhost:8224/clipboard";
+
+    public ClipboardWatcherForm() {
+        ShowInTaskbar = false;
+        FormBorderStyle = FormBorderStyle.None;
+        Size = new Size(1, 1);
+        Opacity = 0;
+        AddClipboardFormatListener(Handle);
     }
 
-    while ($true) {
-        Start-Sleep -Milliseconds 500
+    protected override void WndProc(ref Message m) {
+        if (m.Msg == WM_CLIPBOARDUPDATE) OnClipboardChanged();
+        base.WndProc(ref m);
+    }
+
+    string ComputeHash(byte[] data) {
+        using (var sha = SHA256.Create())
+            return BitConverter.ToString(sha.ComputeHash(data));
+    }
+
+    void OnClipboardChanged() {
         try {
-            $img = [System.Windows.Forms.Clipboard]::GetImage()
-            if ($img) {
-                $ms = New-Object System.IO.MemoryStream
-                $img.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
-                $bytes = $ms.ToArray()
-                $ms.Dispose()
-                $img.Dispose()
-                $hash = Get-ClipHash $bytes
-                if ($hash -ne $lastHash) {
-                    $lastHash = $hash
-                    Invoke-WebRequest -Uri $url -Method POST -Body $bytes `
-                        -ContentType "image/png" -TimeoutSec 3 | Out-Null
+            if (Clipboard.ContainsImage()) {
+                using (var img = Clipboard.GetImage())
+                using (var ms = new MemoryStream()) {
+                    if (img == null) return;
+                    img.Save(ms, ImageFormat.Png);
+                    var bytes = ms.ToArray();
+                    var hash = ComputeHash(bytes);
+                    if (hash == lastHash) return;
+                    lastHash = hash;
+                    Post(bytes, "image/png");
                 }
-                continue
-            }
-            $text = [System.Windows.Forms.Clipboard]::GetText()
-            if ($text) {
-                $bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
-                $hash = Get-ClipHash $bytes
-                if ($hash -ne $lastHash) {
-                    $lastHash = $hash
-                    Invoke-WebRequest -Uri $url -Method POST -Body $bytes `
-                        -ContentType "text/plain;charset=utf-8" -TimeoutSec 3 | Out-Null
-                }
+            } else if (Clipboard.ContainsText()) {
+                var text = Clipboard.GetText();
+                if (string.IsNullOrEmpty(text)) return;
+                var bytes = Encoding.UTF8.GetBytes(text);
+                var hash = ComputeHash(bytes);
+                if (hash == lastHash) return;
+                lastHash = hash;
+                Post(bytes, "text/plain;charset=utf-8");
             }
         } catch {}
     }
+
+    void Post(byte[] body, string contentType) {
+        try {
+            var req = (HttpWebRequest)WebRequest.Create(url);
+            req.Method = "POST";
+            req.ContentType = contentType;
+            req.Timeout = 3000;
+            req.ContentLength = body.Length;
+            using (var s = req.GetRequestStream()) s.Write(body, 0, body.Length);
+            using (req.GetResponse()) {}
+        } catch {}
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e) {
+        RemoveClipboardFormatListener(Handle);
+        base.OnFormClosed(e);
+    }
+}
+"@
+
+    $form = New-Object ClipboardWatcherForm
+    [System.Windows.Forms.Application]::Run($form)
     return
 }
 
@@ -109,7 +159,8 @@ if (-not $chrome) {
         "--user-data-dir=$env:TEMP\chrome-debug",
         "--no-first-run",
         "--no-default-browser-check",
-        "--window-size=1280,900"
+        "--window-size=1280,900" `
+        -WindowStyle Minimized
     Write-Host "Chrome CDP started (port 9222)" -ForegroundColor DarkGray
 } else {
     Write-Host "Chrome CDP already running" -ForegroundColor DarkGray
@@ -132,10 +183,10 @@ try {
             -R 9222:127.0.0.1:9222 `
             -L 8224:127.0.0.1:8224 `
             -R 8225:127.0.0.1:8225 `
-            optacon-pi "tmux attach -t claude"
+            optacon-pi 'n=0; while ! tmux has-session -t claude 2>/dev/null; do sleep 1; n=$((n+1)); if [ $n -ge 30 ]; then echo "Timeout waiting for claude session"; exit 1; fi; done; exec tmux attach -t claude'
         Write-Host ""
-        Write-Host "Connection lost. Reconnecting in 10 seconds... (Ctrl+C to quit)"
-        Start-Sleep -Seconds 10
+        Write-Host "Disconnected. Reconnecting in 3 seconds... (Ctrl+C to quit)"
+        Start-Sleep -Seconds 3
     }
 } finally {
     foreach ($p in @($watcherProc, $serverProc)) {
