@@ -215,8 +215,7 @@ static mp_obj_t pz_drive_pwm_is_sample_done(void) {
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_pwm_is_sample_done_obj, pz_drive_pwm_is_sample_done);
 
 // ── pwm_set_sweep(target_step, increment, logarithmic=False) ─────────
-static mp_obj_t pz_drive_pwm_set_sweep(size_t n_args, const mp_obj_t *pos_args,
-                                       mp_map_t *kw_args) {
+static mp_obj_t pz_drive_pwm_set_sweep(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_target_step, ARG_increment, ARG_logarithmic };
     static const mp_arg_t allowed_args[] = {
         {MP_QSTR_target_step, MP_ARG_REQUIRED | MP_ARG_INT},
@@ -227,7 +226,7 @@ static mp_obj_t pz_drive_pwm_set_sweep(size_t n_args, const mp_obj_t *pos_args,
     mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
     pzd_pwm_set_sweep(args[ARG_target_step].u_int, args[ARG_increment].u_int,
-                       args[ARG_logarithmic].u_bool);
+                      args[ARG_logarithmic].u_bool);
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pz_drive_pwm_set_sweep_obj, 2, pz_drive_pwm_set_sweep);

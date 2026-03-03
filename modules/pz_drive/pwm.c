@@ -85,12 +85,12 @@ static volatile uint32_t s_pol_advance =
     0; // phase advance for polarity toggle (compensate output lag)
 
 // ─── Sweep state ────────────────────────────────────────────────────────────
-static volatile bool     s_sweep_active = false;   // ISR modulates phase_step
-static volatile uint32_t s_sweep_target = 0;       // end phase_step (clamp here)
-static volatile bool     s_sweep_linear = true;    // true=linear, false=log
-static volatile bool     s_sweep_up = true;        // true=freq increasing
-static volatile int32_t  s_sweep_delta = 0;        // per-tick add (linear)
-static volatile uint32_t s_sweep_ratio = 0;        // 1.31 fixed-point multiplier (log)
+static volatile bool s_sweep_active = false; // ISR modulates phase_step
+static volatile uint32_t s_sweep_target = 0; // end phase_step (clamp here)
+static volatile bool s_sweep_linear = true;  // true=linear, false=log
+static volatile bool s_sweep_up = true;      // true=freq increasing
+static volatile int32_t s_sweep_delta = 0;   // per-tick add (linear)
+static volatile uint32_t s_sweep_ratio = 0;  // 1.31 fixed-point multiplier (log)
 
 // ---- Helpers ---------------------------------------------------------------
 
@@ -152,8 +152,7 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
             s_phase_step = (uint32_t)(((uint64_t)s_phase_step * s_sweep_ratio) >> 31);
         }
         // Clamp at target and stop sweeping
-        if (s_sweep_up ? (s_phase_step >= s_sweep_target)
-                       : (s_phase_step <= s_sweep_target)) {
+        if (s_sweep_up ? (s_phase_step >= s_sweep_target) : (s_phase_step <= s_sweep_target)) {
             s_phase_step = s_sweep_target;
             s_sweep_active = false;
         }
