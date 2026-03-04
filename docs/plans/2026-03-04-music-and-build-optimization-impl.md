@@ -388,7 +388,50 @@ git commit -m "feat(music): add Für Elise, Ode to Joy, Imperial March, Nokia tu
 
 ---
 
-### Task 5: Selective freezing in manifest.py
+### Task 5: Web server live frequency updates
+
+**Files:**
+- Modify: `python/web_server.py:27-39` (optimize `set_frequency_analog` command)
+
+**Step 1: Add live update fast path**
+
+Replace the `set_frequency_analog` handler (lines 27-39) with:
+
+```python
+    if cmd == "set_frequency_analog":
+        hz = data.get("hz", 250)
+        amp = data.get("amplitude", 100)
+        wf = data.get("waveform", "sine")
+        fw = data.get("fullwave", False)
+        dt = data.get("dead_time", 0)
+        pa_ = data.get("phase_advance", 0)
+        # Fast path: live update if only hz/amplitude/waveform changed
+        if (was_running and pa._mode == "analog"
+                and fw == pa._fullwave and dt == pa._dead_time
+                and pa_ == pa._phase_advance):
+            pa.set_frequency_live(hz, amplitude=amp, waveform=wf)
+        else:
+            if was_running:
+                pa.stop()
+            pa.set_frequency_analog(
+                hz, amplitude=amp, fullwave=fw,
+                dead_time=dt, phase_advance=pa_, waveform=wf,
+            )
+            if was_running:
+                pa.start(gain=pa._gain)
+```
+
+**Step 2: Commit**
+
+```bash
+git add python/web_server.py
+git commit -m "feat(web): live frequency updates for smooth slider control"
+```
+
+---
+
+### Task 6: Selective freezing in manifest.py
+
 
 **Files:**
 - Modify: `python/manifest.py`
@@ -422,7 +465,7 @@ git commit -m "build: selective freezing — only core drivers frozen, app modul
 
 ---
 
-### Task 6: Update flash skill for filesystem Python files
+### Task 7: Update flash skill for filesystem Python files
 
 **Files:**
 - Modify: `.claude/skills/flash/SKILL.md`
@@ -457,7 +500,7 @@ git commit -m "docs(flash): update skill for selective freezing and mpremote fas
 
 ---
 
-### Task 7: Flash, test, and verify
+### Task 8: Flash, test, and verify
 
 **Step 1: Build and flash firmware** (C module + frozen Python changed)
 
