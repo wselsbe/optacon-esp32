@@ -355,6 +355,8 @@ static esp_err_t ensure_hw_init(void) {
 static esp_err_t pwm_start_internal(void) {
     if (!s_hw_initialized) return ESP_ERR_INVALID_STATE;
 
+    s_poly_mode = false; // mono start disables poly
+
     // Stop current output first
     if (s_running) {
         gptimer_stop(s_timer);
@@ -388,10 +390,11 @@ static esp_err_t pwm_start_internal(void) {
 }
 
 static esp_err_t pwm_stop_internal(void) {
-    if (s_running && (s_freq_hz != 0 || s_sample_mode) && s_timer) {
+    if (s_running && (s_freq_hz != 0 || s_sample_mode || s_poly_mode) && s_timer) {
         gptimer_stop(s_timer);
     }
     s_running = false;
+    s_poly_mode = false;
 
     // Clear sample playback state
     s_sample_mode = false;
