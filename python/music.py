@@ -11,11 +11,10 @@ Note format (variable-length tuples, backward compatible):
     ("R", beats)                     - rest (silence)
 
 Usage:
-    from music import play, play_song, CLAIR_DE_LUNE
+    from music import play_song
 
-    play(CLAIR_DE_LUNE)                    # play with defaults
-    play(CLAIR_DE_LUNE, bpm=54, gain=50)   # slower, quieter
-    play_song("fur_elise")                 # play by name
+    play_song("super_mario")               # play by name
+    play_song("tetris", gain=50)           # quieter
 
     # Custom song with dynamics
     my_song = [
@@ -107,6 +106,7 @@ def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
     pa.start(gain=gain)
 
     try:
+        prev_freq = 0
         while True:
             for entry in song:
                 note = entry[0]
@@ -123,13 +123,20 @@ def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
                 if is_rest:
                     pa.set_frequency_live(1, amplitude=0, waveform=waveform)
                     time.sleep_ms(dur_ms)
+                    prev_freq = 0
                 else:
                     freq = note_freq(note)
                     if freq < 1:
                         freq = 1
-                    elif freq > 500:
-                        freq = 500
+                    elif freq > 1000:
+                        freq = 1000
                     freq = int(freq)
+
+                    # Re-articulate repeated notes with a brief amplitude dip
+                    if freq == prev_freq:
+                        pa.set_frequency_live(
+                            freq, amplitude=0, waveform=waveform
+                        )
 
                     if sweep_target is not None:
                         pa.set_frequency_live(
@@ -138,8 +145,8 @@ def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
                         target_freq = int(note_freq(sweep_target))
                         if target_freq < 1:
                             target_freq = 1
-                        elif target_freq > 500:
-                            target_freq = 500
+                        elif target_freq > 1000:
+                            target_freq = 1000
                         total_ticks = sound_ms * (_PWM_SAMPLE_RATE // 1000)
                         step_end = (target_freq << 32) // _PWM_SAMPLE_RATE
                         step_start = (freq << 32) // _PWM_SAMPLE_RATE
@@ -152,6 +159,7 @@ def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
                         )
 
                     time.sleep_ms(sound_ms)
+                    prev_freq = freq
 
                     if gap_ms > 0:
                         pa.set_frequency_live(
@@ -168,74 +176,68 @@ def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
 
 
 # ---------------------------------------------------------------------------
-# Clair de Lune — Debussy (opening measures, simplified melody)
-#
-# The piece is in Db major, 9/8 time. Below is a reduction of the
-# right-hand melody from the first ~16 measures at the iconic opening.
-# Beats are in eighth-note units (1 beat = one eighth note).
-# At bpm=200 (eighth = 200 bpm) this gives a gentle tempo of ~66 bpm
-# in dotted-quarter terms, close to the typical performance tempo.
+# Super Mario Bros — Overworld theme (Koji Kondo)
+# Beats in eighth-note units. bpm=400.
 # ---------------------------------------------------------------------------
 
-CLAIR_DE_LUNE = [
-    # Measure 1-2: soft opening motif (Db major)
-    ("R", 3),
-    ("R", 3),
-    ("R", 3),
-    # Measure 3: melody enters
-    ("Bb3", 2), ("Bb3", 1),
-    ("Bb3", 2), ("Ab3", 1),
-    ("Bb3", 2), ("Db4", 1),
-    # Measure 4
-    ("Gb4", 3),
-    ("Gb4", 3),
-    ("F4", 3),
-    # Measure 5
-    ("Eb4", 2), ("Eb4", 1),
-    ("Eb4", 2), ("Db4", 1),
-    ("Eb4", 2), ("Gb4", 1),
-    # Measure 6
-    ("Bb4", 3),
-    ("Bb4", 3),
-    ("Ab4", 3),
-    # Measure 7
-    ("Gb4", 2), ("Gb4", 1),
-    ("Gb4", 2), ("F4", 1),
-    ("Gb4", 2), ("Ab4", 1),
-    # Measure 8
-    ("Bb4", 3),
-    ("Db5", 3),
-    ("Ab4", 3),
-    # Measure 9
-    ("Gb4", 2), ("Gb4", 1),
-    ("Gb4", 2), ("Ab4", 1),
-    ("Gb4", 2), ("F4", 1),
-    # Measure 10
-    ("Eb4", 3),
-    ("Db4", 3),
-    ("Eb4", 3),
-    # Measure 11
-    ("Bb3", 2), ("Bb3", 1),
-    ("Bb3", 2), ("Ab3", 1),
-    ("Bb3", 2), ("Db4", 1),
-    # Measure 12
-    ("Gb4", 3),
-    ("Gb4", 3),
-    ("F4", 3),
-    # Measure 13
-    ("Eb4", 2), ("Eb4", 1),
-    ("Eb4", 2), ("Db4", 1),
-    ("Eb4", 2), ("Gb4", 1),
-    # Measure 14
-    ("Bb4", 4.5),
-    ("Ab4", 4.5),
-    # Measure 15
-    ("Gb4", 3),
-    ("F4", 3),
-    ("Eb4", 3),
-    # Measure 16
-    ("Db4", 9),
+SUPER_MARIO = [
+    ("E5", 1), ("E5", 1), ("R", 1), ("E5", 1),
+    ("R", 1), ("C5", 1), ("E5", 2),
+    ("G5", 2), ("R", 2),
+    ("G4", 2), ("R", 2),
+    # phrase 2
+    ("C5", 1), ("R", 1), ("R", 1), ("G4", 1),
+    ("R", 2), ("E4", 2),
+    ("R", 1), ("A4", 1), ("R", 1), ("B4", 1),
+    ("R", 1), ("Bb4", 1), ("A4", 2),
+    # phrase 3
+    ("G4", 1.5), ("E5", 1.5), ("G5", 1),
+    ("A5", 2), ("F5", 1), ("G5", 1),
+    ("R", 1), ("E5", 1), ("R", 1), ("C5", 1),
+    ("D5", 1), ("B4", 1), ("R", 2),
 ]
+
+# ---------------------------------------------------------------------------
+# Tetris — Korobeiniki (Russian folk melody)
+# Beats in eighth-note units. bpm=300.
+# ---------------------------------------------------------------------------
+
+TETRIS = [
+    ("E5", 2), ("B4", 1), ("C5", 1),
+    ("D5", 2), ("C5", 1), ("B4", 1),
+    ("A4", 2), ("A4", 1), ("C5", 1),
+    ("E5", 2), ("D5", 1), ("C5", 1),
+    ("B4", 3), ("C5", 1),
+    ("D5", 2), ("E5", 2),
+    ("C5", 2), ("A4", 2),
+    ("A4", 2), ("R", 2),
+    # phrase 2
+    ("R", 1), ("D5", 2), ("F5", 1),
+    ("A5", 2), ("G5", 1), ("F5", 1),
+    ("E5", 3), ("C5", 1),
+    ("E5", 2), ("D5", 1), ("C5", 1),
+    ("B4", 2), ("B4", 1), ("C5", 1),
+    ("D5", 2), ("E5", 2),
+    ("C5", 2), ("A4", 2),
+    ("A4", 2), ("R", 2),
+]
+
+# ---------------------------------------------------------------------------
+# Happy Birthday
+# Beats in quarter-note units. bpm=160.
+# ---------------------------------------------------------------------------
+
+HAPPY_BIRTHDAY = [
+    ("C4", 0.75), ("C4", 0.25), ("D4", 1), ("C4", 1),
+    ("F4", 1), ("E4", 2),
+    ("C4", 0.75), ("C4", 0.25), ("D4", 1), ("C4", 1),
+    ("G4", 1), ("F4", 2),
+    ("C4", 0.75), ("C4", 0.25), ("C5", 1), ("A4", 1),
+    ("F4", 1), ("E4", 1), ("D4", 1),
+    ("Bb4", 0.75), ("Bb4", 0.25), ("A4", 1), ("F4", 1),
+    ("G4", 1), ("F4", 2),
+]
+
 
 # ---------------------------------------------------------------------------
 # Für Elise — Beethoven (opening theme, 3/8 time)
@@ -305,13 +307,13 @@ IMPERIAL_MARCH = [
 # ---------------------------------------------------------------------------
 
 NOKIA_TUNE = [
-    ("E5", 2), ("D5", 2),
-    ("F#4", 4), ("G#4", 4),
-    ("C#5", 2), ("B4", 2),
-    ("D4", 4), ("E4", 4),
-    ("B4", 2), ("A4", 2),
-    ("C#4", 4), ("E4", 4),
-    ("A4", 8),
+    ("E5", 1), ("D5", 1),
+    ("F#4", 2), ("G#4", 2),
+    ("C#5", 1), ("B4", 1),
+    ("D4", 2), ("E4", 2),
+    ("B4", 1), ("A4", 1),
+    ("C#4", 2), ("E4", 2),
+    ("A4", 4),
 ]
 
 # ---------------------------------------------------------------------------
@@ -319,11 +321,13 @@ NOKIA_TUNE = [
 # ---------------------------------------------------------------------------
 
 SONGS = {
-    "clair_de_lune": (CLAIR_DE_LUNE, 200, 50),
+    "super_mario": (SUPER_MARIO, 400, 75),
+    "tetris": (TETRIS, 300, 75),
+    "happy_birthday": (HAPPY_BIRTHDAY, 160, 75),
     "fur_elise": (FUR_ELISE, 240, 50),
     "ode_to_joy": (ODE_TO_JOY, 120, 75),
-    "imperial_march": (IMPERIAL_MARCH, 104, 100),
-    "nokia": (NOKIA_TUNE, 280, 75),
+    "imperial_march": (IMPERIAL_MARCH, 128, 100),
+    "nokia": (NOKIA_TUNE, 360, 75),
 }
 
 
