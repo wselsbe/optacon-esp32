@@ -133,6 +133,24 @@ class PzActuator:
         self._phase_advance = phase_advance
         self._mode = MODE_ANALOG
 
+    def set_frequency_live(self, hz, amplitude=100, waveform="sine"):
+        """Update frequency/amplitude while ISR is running (no restart).
+
+        Use during music playback for smooth note transitions.
+        For rests, set amplitude=0 (ISR outputs silence at midpoint).
+        """
+        if waveform not in self.WAVEFORMS:
+            raise ValueError("waveform must be 'sine', 'triangle', or 'square'")
+        amp_internal = (amplitude * 128 + 50) // 100
+        pz_drive.pwm_set_frequency_live(
+            hz,
+            amplitude=amp_internal,
+            waveform=self.WAVEFORMS[waveform],
+        )
+        self._frequency = hz
+        self._amplitude = amplitude
+        self._waveform_name = waveform
+
     def start(self, gain=100):
         """Start output in the configured mode."""
         if self._mode is None:
