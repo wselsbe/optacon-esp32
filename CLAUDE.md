@@ -85,6 +85,11 @@ pz_drive.pwm_set_frequency(hz, resolution=8, amplitude=128,
 pz_drive.pwm_start() / pz_drive.pwm_stop() / pz_drive.pwm_is_running()
 pz_drive.pwm_set_sweep(target_step, increment, logarithmic=False)
 pz_drive.pwm_is_sweep_done()
+# Polyphonic DDS (12 voices, 16kHz ISR)
+pz_drive.pwm_poly_start() / pz_drive.pwm_poly_stop()
+pz_drive.pwm_poly_is_running()
+pz_drive.pwm_poly_set_voice(index, hz, amplitude=100)  # 0-11, 0-1000Hz
+pz_drive.pwm_poly_sweep_voice(index, target_hz, duration_ms)
 # FIFO / Digital
 pz_drive.fifo_start(waveform_buf, gain=3, fullwave=False)
 pz_drive.fifo_stop() / pz_drive.fifo_is_running()
@@ -121,6 +126,7 @@ pz_drive.pol_init() / pz_drive.pol_get()  # pol_toggle is internal only
 - **Shift register latch**: SPI writes are synchronized to waveform events (zero-crossing in fullwave, cycle start in non-fullwave) via stage/latch mechanism. If no ISR/task is running, writes are immediate.
 - **Shift register**: Two HV509 daisy-chained. 32-bit SPI word with pins 0–19 mapped to bits 25–6.
 - **I2C bus sharing**: pz_drive owns the I2C bus persistently. ESP-IDF's I2C master driver is thread-safe (mutex per transaction). FIFO task and Python register access share the same handle safely.
+- **ISR core affinity**: GPTimer ISR is pinned to core 1 via a temporary FreeRTOS task that calls `gptimer_register_event_callbacks()` (which does `esp_intr_alloc` on the calling core). This keeps the DDS ISR off core 0 where TinyUSB/USB-CDC runs. FIFO task is similarly pinned to core 1.
 - **MCP server**: `mcp_micropython.py` uses stateless per-call serial connections via `mpremote` to avoid port locking.
 
 ### Important Notes
