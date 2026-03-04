@@ -7,6 +7,15 @@ from pz_drive_py import PzActuator
 
 pz_drive.i2c_write(0x02, 0x40)
 
+# Start WebREPL if configured (needs webrepl_cfg.py with PASS='...')
+try:
+    import webrepl
+
+    webrepl.start()
+    print("WebREPL started on port 8266")
+except Exception:
+    pass
+
 
 def demo_analog():
     """Demo: analog sine wave via PWM + RC filter."""
