@@ -597,3 +597,106 @@ bool pzd_pwm_is_sweep_done(void) {
     // Returns true if no sweep is in progress (including before any sweep is configured)
     return !s_sweep_active;
 }
+
+// ---- Polyphonic DDS API ----------------------------------------------------
+
+void pzd_pwm_poly_start(void) {
+    // Stop any running mono/fifo mode
+    pwm_stop_internal();
+
+    esp_err_t err = ensure_hw_init();
+    if (err != ESP_OK) {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("hw init failed"));
+    }
+
+    // Clear all voices
+    for (int i = 0; i < POLY_NUM_VOICES; i++) {
+        s_poly_voices[i].phase_acc = 0;
+        s_poly_voices[i].phase_step = 0;
+        s_poly_voices[i].amplitude = 0;
+        s_poly_voices[i].sweep_active = false;
+    }
+
+    // Reconfigure timer to 16kHz
+    gptimer_alarm_config_t alarm_cfg = {
+        .alarm_count = 1000000 / POLY_SAMPLE_RATE_HZ,  // 62 ticks
+        .reload_count = 0,
+        .flags.auto_reload_on_alarm = true,
+    };
+    gptimer_set_alarm_action(s_timer, &alarm_cfg);
+
+    s_poly_mode = true;
+    s_running = true;
+    gptimer_start(s_timer);
+}
+
+void pzd_pwm_poly_stop(void) {
+    if (s_running && s_timer) {
+        gptimer_stop(s_timer);
+    }
+    s_poly_mode = false;
+    s_running = false;
+
+    // Restore 32kHz alarm for mono mode
+    if (s_timer) {
+        gptimer_alarm_config_t alarm_cfg = {
+            .alarm_count = 1000000 / PWM_SAMPLE_RATE_HZ,  // 31 ticks
+            .reload_count = 0,
+            .flags.auto_reload_on_alarm = true,
+        };
+        gptimer_set_alarm_action(s_timer, &alarm_cfg);
+    }
+
+    // Silence output
+    if (s_hw_initialized) {
+        ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, 0);
+        ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL);
+    }
+}
+
+bool pzd_pwm_poly_is_running(void) {
+    return s_poly_mode && s_running;
+}
+
+void pzd_pwm_poly_set_voice(int index, int hz, int amplitude) {
+    if (index < 0 || index >= POLY_NUM_VOICES) {
+        mp_raise_ValueError(MP_ERROR_TEXT("voice index out of range"));
+    }
+    if (hz < 0 || hz > 1000) {
+        mp_raise_ValueError(MP_ERROR_TEXT("hz must be 0-1000"));
+    }
+    if (amplitude < 0) amplitude = 0;
+    if (amplitude > 128) amplitude = 128;
+
+    volatile poly_voice_t *v = &s_poly_voices[index];
+    v->phase_step = (hz == 0) ? 0 : (uint32_t)(((uint64_t)hz << 32) / POLY_SAMPLE_RATE_HZ);
+    v->amplitude = (uint8_t)amplitude;
+    v->sweep_active = false;
+}
+
+void pzd_pwm_poly_sweep_voice(int index, int target_hz, int duration_ms) {
+    if (index < 0 || index >= POLY_NUM_VOICES) {
+        mp_raise_ValueError(MP_ERROR_TEXT("voice index out of range"));
+    }
+    if (target_hz < 1 || target_hz > 1000) {
+        mp_raise_ValueError(MP_ERROR_TEXT("target_hz must be 1-1000"));
+    }
+    if (duration_ms < 1 || duration_ms > 60000) {
+        mp_raise_ValueError(MP_ERROR_TEXT("duration_ms must be 1-60000"));
+    }
+
+    volatile poly_voice_t *v = &s_poly_voices[index];
+    uint32_t target_step = (uint32_t)(((uint64_t)target_hz << 32) / POLY_SAMPLE_RATE_HZ);
+    uint32_t total_ticks = duration_ms * (POLY_SAMPLE_RATE_HZ / 1000);
+
+    v->sweep_target = target_step;
+    v->sweep_up = (target_step > v->phase_step);
+    v->sweep_delta = (int32_t)(target_step - v->phase_step) / (int32_t)total_ticks;
+
+    // Ensure non-zero delta if there's a difference
+    if (v->sweep_delta == 0 && target_step != v->phase_step) {
+        v->sweep_delta = v->sweep_up ? 1 : -1;
+    }
+
+    v->sweep_active = true;
+}
