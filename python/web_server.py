@@ -25,18 +25,26 @@ def _handle_command(msg):
     was_running = pa.is_running()
 
     if cmd == "set_frequency_analog":
-        if was_running:
-            pa.stop()
-        pa.set_frequency_analog(
-            data.get("hz", 250),
-            amplitude=data.get("amplitude", 100),
-            fullwave=data.get("fullwave", False),
-            dead_time=data.get("dead_time", 0),
-            phase_advance=data.get("phase_advance", 0),
-            waveform=data.get("waveform", "sine"),
-        )
-        if was_running:
-            pa.start(gain=pa._gain)
+        hz = data.get("hz", 250)
+        amp = data.get("amplitude", 100)
+        wf = data.get("waveform", "sine")
+        fw = data.get("fullwave", False)
+        dt = data.get("dead_time", 0)
+        adv = data.get("phase_advance", 0)
+        # Fast path: live update if only hz/amplitude/waveform changed
+        if (was_running and pa._mode == "analog"
+                and fw == pa._fullwave and dt == pa._dead_time
+                and adv == pa._phase_advance):
+            pa.set_frequency_live(hz, amplitude=amp, waveform=wf)
+        else:
+            if was_running:
+                pa.stop()
+            pa.set_frequency_analog(
+                hz, amplitude=amp, fullwave=fw,
+                dead_time=dt, phase_advance=adv, waveform=wf,
+            )
+            if was_running:
+                pa.start(gain=pa._gain)
     elif cmd == "set_frequency_digital":
         if was_running:
             pa.stop()
