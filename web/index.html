@@ -266,7 +266,13 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 <div class="term" id="term">
   <div class="term-toggle" id="term-toggle" onclick="toggleTerm()">
     <b>Terminal</b>
-    <span class="chev">&#9660;</span>
+    <span style="display:flex;align-items:center;gap:8px">
+      <a href="/web/docs.html" target="_blank" id="docs-link"
+         onclick="event.stopPropagation()"
+         style="font-size:11px;color:var(--esp);text-decoration:none;font-weight:600;
+                padding:2px 6px;border:1px solid var(--esp);border-radius:4px">API Docs</a>
+      <span class="chev">&#9660;</span>
+    </span>
   </div>
   <div class="term-body">
     <pre class="term-out" id="term-out"></pre>
