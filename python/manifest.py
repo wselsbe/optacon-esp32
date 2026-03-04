@@ -1,8 +1,6 @@
 # Standard MicroPython frozen modules
 include("$(PORT_DIR)/boards/manifest.py")
 
-# Core drivers (frozen into firmware — rarely change)
-freeze(".", ("pz_drive_py.py", "drv2665.py", "shift_register.py", "main.py"))
-
-# Third-party (frozen — never changes)
-package("microdot", base_path=".")
+# Application modules — freeze Python files from this directory
+# (makemanifest.py chdir's to the manifest's directory before executing it)
+freeze(".")

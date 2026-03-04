@@ -71,8 +71,8 @@ class PzActuator:
             fullwave: if True, play waveform at 2x rate with polarity toggle
             waveform: 'sine', 'triangle', or 'square'
         """
-        if hz < 1 or hz > 1000:
-            raise ValueError("hz must be 1-1000")
+        if hz < 1 or hz > 500:
+            raise ValueError("hz must be 1-500")
         if waveform not in self.WAVEFORMS:
             raise ValueError("waveform must be 'sine', 'triangle', or 'square'")
 
@@ -111,8 +111,8 @@ class PzActuator:
                            for DRV2665 output lag (~3 ticks at 250 Hz)
             waveform: 'sine', 'triangle', or 'square'
         """
-        if hz < 0 or hz > 1000:
-            raise ValueError("hz must be 0-1000")
+        if hz < 0 or hz > 500:
+            raise ValueError("hz must be 0-500")
         if waveform not in self.WAVEFORMS:
             raise ValueError("waveform must be 'sine', 'triangle', or 'square'")
         amp_internal = (amplitude * 128 + 50) // 100
@@ -132,24 +132,6 @@ class PzActuator:
         self._dead_time = dead_time
         self._phase_advance = phase_advance
         self._mode = MODE_ANALOG
-
-    def set_frequency_live(self, hz, amplitude=100, waveform="sine"):
-        """Update frequency/amplitude while ISR is running (no restart).
-
-        Use during music playback for smooth note transitions.
-        For rests, set amplitude=0 (ISR outputs silence at midpoint).
-        """
-        if waveform not in self.WAVEFORMS:
-            raise ValueError("waveform must be 'sine', 'triangle', or 'square'")
-        amp_internal = (amplitude * 128 + 50) // 100
-        pz_drive.pwm_set_frequency_live(
-            hz,
-            amplitude=amp_internal,
-            waveform=self.WAVEFORMS[waveform],
-        )
-        self._frequency = hz
-        self._amplitude = amplitude
-        self._waveform_name = waveform
 
     def start(self, gain=100):
         """Start output in the configured mode."""
@@ -251,10 +233,10 @@ class PzActuator:
             amplitude: 0-100 (percentage)
             gain: 25, 50, 75, or 100 Vpp
         """
-        if start_hz < 1 or start_hz > 1000:
-            raise ValueError("start_hz must be 1-1000")
-        if end_hz < 1 or end_hz > 1000:
-            raise ValueError("end_hz must be 1-1000")
+        if start_hz < 1 or start_hz > 500:
+            raise ValueError("start_hz must be 1-500")
+        if end_hz < 1 or end_hz > 500:
+            raise ValueError("end_hz must be 1-500")
         if duration_ms < 1 or duration_ms > 60000:
             raise ValueError("duration_ms must be 1-60000")
         if start_hz == end_hz:
