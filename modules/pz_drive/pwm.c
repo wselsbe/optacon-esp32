@@ -155,6 +155,48 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
         return false;
     }
 
+    // ── Polyphonic DDS mode ──────────────────────────────────────────────
+    if (s_poly_mode) {
+        int32_t sum = 0;
+        int active = 0;
+        for (int i = 0; i < POLY_NUM_VOICES; i++) {
+            volatile poly_voice_t *v = &s_poly_voices[i];
+            if (v->amplitude == 0) continue;
+            active++;
+            v->phase_acc += v->phase_step;
+
+            // Per-voice sweep
+            if (v->sweep_active) {
+                int32_t next = (int32_t)v->phase_step + v->sweep_delta;
+                if (next < 0) next = 0;
+                v->phase_step = (uint32_t)next;
+                if (v->sweep_up ? (v->phase_step >= v->sweep_target)
+                                : (v->phase_step <= v->sweep_target)) {
+                    v->phase_step = v->sweep_target;
+                    v->sweep_active = false;
+                }
+            }
+
+            uint8_t index = (uint8_t)(v->phase_acc >> 24);
+            int32_t raw = (int32_t)sine_lut[index] - 128;
+            sum += (raw * (int32_t)v->amplitude) >> 7;
+        }
+
+        // Average and clamp
+        if (active > 0) sum /= active;
+        int32_t duty_s = 128 + sum;
+        if (duty_s < 0) duty_s = 0;
+        if (duty_s > 255) duty_s = 255;
+        uint32_t duty = (uint32_t)duty_s;
+
+        if (s_resolution == 10) {
+            duty = (duty << 2) | (duty >> 6);
+        }
+        ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, duty);
+        ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL);
+        return false;
+    }
+
     // ── DDS waveform mode ───────────────────────────────────────────────
     // Save previous phase for cycle-wrap detection
     uint32_t prev_phase = s_phase_acc;
