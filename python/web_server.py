@@ -75,6 +75,31 @@ def _handle_command(msg):
         wifi.save_config(data["ssid"], data.get("password", ""))
         wifi.reconnect()
         return {"msg": "WiFi reconnected", "ip": wifi.ip}
+    elif cmd == "exec":
+        code = data.get("code", "")
+        import io
+        import sys
+
+        buf = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = buf
+        try:
+            try:
+                result = eval(code)
+                if result is not None:
+                    print(repr(result))
+            except SyntaxError:
+                exec(code)
+        except Exception as e:
+            sys.stdout = old_stdout
+            import sys as _sys
+
+            _sys.print_exception(e, buf)
+            sys.stdout = old_stdout
+            return {"output": buf.getvalue()}
+        finally:
+            sys.stdout = old_stdout
+        return {"output": buf.getvalue()}
     else:
         return {"error": f"unknown command: {cmd}"}
 
