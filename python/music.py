@@ -99,6 +99,9 @@ def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
     from pz_drive_py import PzActuator
 
     pa = PzActuator()
+    from shift_register import ShiftRegister
+    sr = ShiftRegister()
+    sr.set_all(True)
     beat_ms = int(60_000 / bpm)
 
     # Configure initial frequency and start once
@@ -331,7 +334,7 @@ SONGS = {
 }
 
 
-def thx(gain=100, duration_ms=10000):
+def thx(gain=100, sweep_ms=10000):
     """THX Deep Note: 12 voices converge from a random cluster to a D chord."""
     import random
     import pz_drive
@@ -353,8 +356,8 @@ def thx(gain=100, duration_ms=10000):
 
         # Phase 2: sweep all voices to targets
         for i in range(12):
-            pz_drive.pwm_poly_sweep_voice(i, targets[i], duration_ms)
-        time.sleep_ms(duration_ms)
+            pz_drive.pwm_poly_sweep_voice(i, targets[i], sweep_ms)
+        time.sleep_ms(sweep_ms)
 
         # Phase 3: sustain the chord
         time.sleep_ms(3000)
