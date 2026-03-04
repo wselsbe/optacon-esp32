@@ -36,6 +36,7 @@ When only filesystem Python files changed, skip the build entirely:
 1. Copy changed files to the board:
    ```bash
    mpremote cp python/music.py python/web_server.py python/wifi.py :
+   mpremote cp web/index.html web/wifi.html web/docs.html :web/
    ```
 2. Soft reset:
    ```
@@ -81,6 +82,7 @@ After flashing (or as the only step in fast path), upload non-frozen Python file
 
 ```bash
 mpremote cp python/music.py python/web_server.py python/wifi.py :
+mpremote cp web/index.html web/wifi.html web/docs.html :web/
 ```
 
 These files are NOT frozen into firmware and must live on the board's filesystem.
