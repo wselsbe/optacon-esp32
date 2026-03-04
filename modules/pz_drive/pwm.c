@@ -14,6 +14,8 @@
 #include "py/obj.h"
 #include "driver/ledc.h"
 #include "driver/gptimer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 // ---- Configuration ---------------------------------------------------------
 
@@ -311,6 +313,18 @@ static esp_err_t configure_ledc(void) {
     return ledc_channel_config(&ch_cfg);
 }
 
+// Pin ISR to core 1 so it doesn't starve USB-CDC (TinyUSB on core 0).
+// esp_intr_alloc runs on the calling core, and gptimer_register_event_callbacks
+// lazily calls esp_intr_alloc, so we register from a temporary core-1 task.
+static void register_isr_on_core1(void *arg) {
+    gptimer_event_callbacks_t cbs = {
+        .on_alarm = timer_isr_callback,
+    };
+    gptimer_register_event_callbacks(s_timer, &cbs, NULL);
+    xTaskNotifyGive((TaskHandle_t)arg);
+    vTaskDelete(NULL);
+}
+
 static esp_err_t configure_gptimer(void) {
     gptimer_config_t cfg = {
         .clk_src = GPTIMER_CLK_SRC_DEFAULT,
@@ -328,10 +342,12 @@ static esp_err_t configure_gptimer(void) {
     err = gptimer_set_alarm_action(s_timer, &alarm_cfg);
     if (err != ESP_OK) return err;
 
-    gptimer_event_callbacks_t cbs = {
-        .on_alarm = timer_isr_callback,
-    };
-    return gptimer_register_event_callbacks(s_timer, &cbs, NULL);
+    // Register ISR callback from core 1 via temporary pinned task
+    TaskHandle_t caller = xTaskGetCurrentTaskHandle();
+    xTaskCreatePinnedToCore(register_isr_on_core1, "isr_pin", 2048,
+                            (void *)caller, tskIDLE_PRIORITY + 1, NULL, 1);
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
+    return ESP_OK;
 }
 
 static esp_err_t ensure_hw_init(void) {
