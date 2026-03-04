@@ -122,6 +122,32 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
   opacity:0;transition:all .3s ease;pointer-events:none;z-index:10;max-width:90%;text-align:center;
   box-shadow:0 4px 12px #0003}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Terminal */
+.term{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  overflow:hidden;box-shadow:0 1px 3px #0001}
+.term-toggle{display:flex;align-items:center;justify-content:space-between;padding:9px 16px;
+  cursor:pointer;-webkit-user-select:none;user-select:none;background:#faf9f7;
+  border-bottom:1px solid var(--border)}
+.term-toggle b{font-family:"Consolas","SF Mono","Menlo",monospace;font-size:13px;
+  letter-spacing:.5px;color:var(--text2)}
+.term-toggle .chev{font-size:11px;color:var(--text3);transition:transform .2s}
+.term.open .chev{transform:rotate(180deg)}
+.term-body{display:none;padding:0}
+.term.open .term-body{display:block}
+.term-out{min-height:100px;height:200px;max-height:80vh;resize:vertical;overflow-y:auto;
+  background:#1a1a2e;color:#e0e0e0;font-family:"Consolas","SF Mono","Menlo",monospace;
+  font-size:13px;padding:8px 10px;margin:0;white-space:pre-wrap;word-break:break-all;
+  line-height:1.45;border:none;border-bottom:1px solid #2a2a3e}
+.term-out .err{color:#f06060}
+.term-in-row{display:flex;align-items:center;background:#1a1a2e;padding:0 10px 8px}
+.term-prompt{color:#7a7;font-family:"Consolas","SF Mono","Menlo",monospace;font-size:13px;
+  margin-right:6px;flex-shrink:0}
+.term-in{flex:1;background:transparent;border:none;outline:none;color:#e0e0e0;
+  font-family:"Consolas","SF Mono","Menlo",monospace;font-size:13px;padding:4px 0}
+.term-clear{font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;
+  padding:2px 6px;margin-left:4px;font-family:inherit}
+.term-clear:hover{color:#e0e0e0}
 </style>
 </head>
 <body>
@@ -236,6 +262,23 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
   </div>
 </div>
 
+<!-- Terminal -->
+<div class="term" id="term">
+  <div class="term-toggle" onclick="toggleTerm()">
+    <b>Terminal</b>
+    <span class="chev">&#9660;</span>
+  </div>
+  <div class="term-body">
+    <pre class="term-out" id="term-out"></pre>
+    <div class="term-in-row">
+      <span class="term-prompt">&gt;&gt;&gt;</span>
+      <input class="term-in" id="term-in" type="text" spellcheck="false" autocomplete="off"
+             placeholder="Python expression or statement">
+      <button class="term-clear" onclick="clearTerm()" title="Clear output">Clear</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -276,6 +319,7 @@ function connect(){
   ws.onerror=function(){};
   ws.onmessage=function(e){
     var d;try{d=JSON.parse(e.data)}catch(x){return}
+    if(d.output!=null){termAppend(d.output||'');return}
     if(d.error){showErr(d.error);return}
     state=d;upd=true;updateUI();upd=false;
   };
@@ -408,6 +452,34 @@ function showErr(msg){
 
 updateSliders();
 updateDcState();
+
+// Terminal
+var termOut=$('term-out'),termIn=$('term-in'),termEl=$('term');
+var termHist=[],termIdx=-1;
+function toggleTerm(){termEl.classList.toggle('open');if(termEl.classList.contains('open'))termIn.focus()}
+function clearTerm(){termOut.textContent=''}
+function termAppend(text,cls){
+  if(cls){var s=document.createElement('span');s.className=cls;s.textContent=text;termOut.appendChild(s)}
+  else termOut.appendChild(document.createTextNode(text));
+  termOut.scrollTop=termOut.scrollHeight;
+}
+termIn.onkeydown=function(e){
+  if(e.key==='Enter'){
+    var code=termIn.value;if(!code)return;
+    termHist.push(code);termIdx=termHist.length;
+    termAppend('>>> '+code+'\n');
+    send({cmd:'exec',code:code});
+    termIn.value='';
+  }else if(e.key==='ArrowUp'){
+    e.preventDefault();
+    if(termIdx>0){termIdx--;termIn.value=termHist[termIdx]}
+  }else if(e.key==='ArrowDown'){
+    e.preventDefault();
+    if(termIdx<termHist.length-1){termIdx++;termIn.value=termHist[termIdx]}
+    else{termIdx=termHist.length;termIn.value=''}
+  }
+};
+
 connect();
 </script>
 </body>
