@@ -89,6 +89,8 @@ def thx(gain=100, duration_ms=10000):
 
 ## Core Pinning
 
-The GPTimer ISR is pinned to **core 1** to avoid starving USB-CDC (TinyUSB runs on core 0). In ESP-IDF v5.5.1, `gptimer_register_event_callbacks()` lazily calls `esp_intr_alloc_intrstatus()`, which allocates the interrupt on the calling core. Since MicroPython runs on core 0, we spawn a temporary FreeRTOS task pinned to core 1 that registers the ISR callback, then self-deletes.
+The GPTimer ISR is pinned to **core 1** to avoid starving USB-CDC (TinyUSB runs on core 0). In ESP-IDF v5.5.1, `gptimer_register_event_callbacks()` lazily calls `esp_intr_alloc_intrstatus()`, which allocates the interrupt on the calling core. Since MicroPython runs on core 0, we spawn a temporary FreeRTOS task pinned to core 1 that both registers the ISR callback **and** calls `gptimer_enable()`, then self-deletes.
+
+**Critical:** `gptimer_enable()` must also run on core 1. While `esp_intr_enable()` for peripheral interrupts uses `esp_rom_route_intr_matrix()` which can target any CPU, the full `gptimer_enable()` path requires the interrupt enable to happen on the allocating core. Moving only the callback registration to core 1 (but leaving `gptimer_enable()` on core 0) results in the ISR never firing.
 
 This applies to **all** PWM modes (mono DDS, sample playback, and poly), since they share the same GPTimer and ISR. The FIFO background task (fifo.c) is similarly pinned to core 1 via `xTaskCreatePinnedToCore`.

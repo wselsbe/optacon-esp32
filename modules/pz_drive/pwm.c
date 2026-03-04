@@ -22,9 +22,6 @@
 #define PWM_SAMPLE_RATE_HZ     32000
 #define PWM_DEFAULT_RESOLUTION 8
 
-#define POLY_SAMPLE_RATE_HZ    16000
-#define POLY_NUM_VOICES        12
-
 #define LEDC_CHANNEL    LEDC_CHANNEL_0
 #define LEDC_SPEED_MODE LEDC_LOW_SPEED_MODE
 
@@ -96,21 +93,6 @@ static volatile bool s_sweep_up = true;      // true=freq increasing
 static volatile int32_t s_sweep_delta = 0;   // per-tick add (linear)
 static volatile uint32_t s_sweep_ratio = 0;  // 1.31 fixed-point multiplier (log)
 
-// ---- Polyphonic DDS state --------------------------------------------------
-
-typedef struct {
-    uint32_t phase_acc;
-    uint32_t phase_step;
-    uint8_t  amplitude;      // 0-128
-    bool     sweep_active;
-    uint32_t sweep_target;   // target phase_step
-    int32_t  sweep_delta;    // per-tick linear change
-    bool     sweep_up;
-} poly_voice_t;
-
-static volatile poly_voice_t s_poly_voices[POLY_NUM_VOICES];
-static volatile bool s_poly_mode = false;
-
 // ---- Helpers ---------------------------------------------------------------
 
 static uint32_t ledc_max_duty(void) {
@@ -153,48 +135,6 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
         ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, duty);
         ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL);
         s_sample_pos = pos + s_sample_step;
-        return false;
-    }
-
-    // ── Polyphonic DDS mode ──────────────────────────────────────────────
-    if (s_poly_mode) {
-        int32_t sum = 0;
-        int active = 0;
-        for (int i = 0; i < POLY_NUM_VOICES; i++) {
-            volatile poly_voice_t *v = &s_poly_voices[i];
-            if (v->amplitude == 0) continue;
-            active++;
-            v->phase_acc += v->phase_step;
-
-            // Per-voice sweep
-            if (v->sweep_active) {
-                int32_t next = (int32_t)v->phase_step + v->sweep_delta;
-                if (next < 0) next = 0;
-                v->phase_step = (uint32_t)next;
-                if (v->sweep_up ? (v->phase_step >= v->sweep_target)
-                                : (v->phase_step <= v->sweep_target)) {
-                    v->phase_step = v->sweep_target;
-                    v->sweep_active = false;
-                }
-            }
-
-            uint8_t index = (uint8_t)(v->phase_acc >> 24);
-            int32_t raw = (int32_t)sine_lut[index] - 128;
-            sum += (raw * (int32_t)v->amplitude) >> 7;
-        }
-
-        // Average and clamp
-        if (active > 0) sum /= active;
-        int32_t duty_s = 128 + sum;
-        if (duty_s < 0) duty_s = 0;
-        if (duty_s > 255) duty_s = 255;
-        uint32_t duty = (uint32_t)duty_s;
-
-        if (s_resolution == 10) {
-            duty = (duty << 2) | (duty >> 6);
-        }
-        ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, duty);
-        ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL);
         return false;
     }
 
@@ -315,11 +255,19 @@ static esp_err_t configure_ledc(void) {
 // Pin ISR to core 1 so it doesn't starve USB-CDC (TinyUSB on core 0).
 // esp_intr_alloc runs on the calling core, and gptimer_register_event_callbacks
 // lazily calls esp_intr_alloc, so we register from a temporary core-1 task.
+// We also call gptimer_enable() here to ensure interrupt enable happens on the
+// same core that allocated the interrupt.
+static volatile esp_err_t s_core1_err = ESP_OK;
+
 static void register_isr_on_core1(void *arg) {
     gptimer_event_callbacks_t cbs = {
         .on_alarm = timer_isr_callback,
     };
-    gptimer_register_event_callbacks(s_timer, &cbs, NULL);
+    esp_err_t err = gptimer_register_event_callbacks(s_timer, &cbs, NULL);
+    if (err == ESP_OK) {
+        err = gptimer_enable(s_timer);
+    }
+    s_core1_err = err;
     xTaskNotifyGive((TaskHandle_t)arg);
     vTaskDelete(NULL);
 }
@@ -341,12 +289,14 @@ static esp_err_t configure_gptimer(void) {
     err = gptimer_set_alarm_action(s_timer, &alarm_cfg);
     if (err != ESP_OK) return err;
 
-    // Register ISR callback from core 1 via temporary pinned task
+    // Register ISR callback + enable on core 1 to keep ISR off core 0 (USB-CDC)
     TaskHandle_t caller = xTaskGetCurrentTaskHandle();
-    xTaskCreatePinnedToCore(register_isr_on_core1, "isr_pin", 2048,
-                            (void *)caller, tskIDLE_PRIORITY + 1, NULL, 1);
+    s_core1_err = ESP_OK;
+    BaseType_t ok = xTaskCreatePinnedToCore(register_isr_on_core1, "isr_pin", 2048, (void *)caller,
+                                            tskIDLE_PRIORITY + 1, NULL, 1);
+    if (ok != pdPASS) return ESP_ERR_NO_MEM;
     ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1000));
-    return ESP_OK;
+    return s_core1_err;
 }
 
 static esp_err_t ensure_hw_init(void) {
@@ -358,8 +308,7 @@ static esp_err_t ensure_hw_init(void) {
     err = configure_gptimer();
     if (err != ESP_OK) return err;
 
-    err = gptimer_enable(s_timer);
-    if (err != ESP_OK) return err;
+    // gptimer_enable() is called inside configure_gptimer() on core 1
 
     s_hw_initialized = true;
     return ESP_OK;
@@ -369,8 +318,6 @@ static esp_err_t ensure_hw_init(void) {
 
 static esp_err_t pwm_start_internal(void) {
     if (!s_hw_initialized) return ESP_ERR_INVALID_STATE;
-
-    s_poly_mode = false; // mono start disables poly
 
     // Stop current output first
     if (s_running) {
@@ -405,11 +352,10 @@ static esp_err_t pwm_start_internal(void) {
 }
 
 static esp_err_t pwm_stop_internal(void) {
-    if (s_running && (s_freq_hz != 0 || s_sample_mode || s_poly_mode) && s_timer) {
+    if (s_running && (s_freq_hz != 0 || s_sample_mode) && s_timer) {
         gptimer_stop(s_timer);
     }
     s_running = false;
-    s_poly_mode = false;
 
     // Clear sample playback state
     s_sample_mode = false;
@@ -614,107 +560,4 @@ bool pzd_pwm_is_sample_done(void) {
 bool pzd_pwm_is_sweep_done(void) {
     // Returns true if no sweep is in progress (including before any sweep is configured)
     return !s_sweep_active;
-}
-
-// ---- Polyphonic DDS API ----------------------------------------------------
-
-void pzd_pwm_poly_start(void) {
-    // Stop any running mono/fifo mode
-    pwm_stop_internal();
-
-    esp_err_t err = ensure_hw_init();
-    if (err != ESP_OK) {
-        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("hw init failed"));
-    }
-
-    // Clear all voices
-    for (int i = 0; i < POLY_NUM_VOICES; i++) {
-        s_poly_voices[i].phase_acc = 0;
-        s_poly_voices[i].phase_step = 0;
-        s_poly_voices[i].amplitude = 0;
-        s_poly_voices[i].sweep_active = false;
-    }
-
-    // Reconfigure timer to 16kHz
-    gptimer_alarm_config_t alarm_cfg = {
-        .alarm_count = 1000000 / POLY_SAMPLE_RATE_HZ,  // 62 ticks
-        .reload_count = 0,
-        .flags.auto_reload_on_alarm = true,
-    };
-    gptimer_set_alarm_action(s_timer, &alarm_cfg);
-
-    s_poly_mode = true;
-    s_running = true;
-    gptimer_start(s_timer);
-}
-
-void pzd_pwm_poly_stop(void) {
-    if (s_running && s_timer) {
-        gptimer_stop(s_timer);
-    }
-    s_poly_mode = false;
-    s_running = false;
-
-    // Restore 32kHz alarm for mono mode
-    if (s_timer) {
-        gptimer_alarm_config_t alarm_cfg = {
-            .alarm_count = 1000000 / PWM_SAMPLE_RATE_HZ,  // 31 ticks
-            .reload_count = 0,
-            .flags.auto_reload_on_alarm = true,
-        };
-        gptimer_set_alarm_action(s_timer, &alarm_cfg);
-    }
-
-    // Silence output
-    if (s_hw_initialized) {
-        ledc_set_duty(LEDC_SPEED_MODE, LEDC_CHANNEL, 0);
-        ledc_update_duty(LEDC_SPEED_MODE, LEDC_CHANNEL);
-    }
-}
-
-bool pzd_pwm_poly_is_running(void) {
-    return s_poly_mode && s_running;
-}
-
-void pzd_pwm_poly_set_voice(int index, int hz, int amplitude) {
-    if (index < 0 || index >= POLY_NUM_VOICES) {
-        mp_raise_ValueError(MP_ERROR_TEXT("voice index out of range"));
-    }
-    if (hz < 0 || hz > 1000) {
-        mp_raise_ValueError(MP_ERROR_TEXT("hz must be 0-1000"));
-    }
-    if (amplitude < 0) amplitude = 0;
-    if (amplitude > 128) amplitude = 128;
-
-    volatile poly_voice_t *v = &s_poly_voices[index];
-    v->phase_step = (hz == 0) ? 0 : (uint32_t)(((uint64_t)hz << 32) / POLY_SAMPLE_RATE_HZ);
-    v->amplitude = (uint8_t)amplitude;
-    v->sweep_active = false;
-}
-
-void pzd_pwm_poly_sweep_voice(int index, int target_hz, int duration_ms) {
-    if (index < 0 || index >= POLY_NUM_VOICES) {
-        mp_raise_ValueError(MP_ERROR_TEXT("voice index out of range"));
-    }
-    if (target_hz < 1 || target_hz > 1000) {
-        mp_raise_ValueError(MP_ERROR_TEXT("target_hz must be 1-1000"));
-    }
-    if (duration_ms < 1 || duration_ms > 60000) {
-        mp_raise_ValueError(MP_ERROR_TEXT("duration_ms must be 1-60000"));
-    }
-
-    volatile poly_voice_t *v = &s_poly_voices[index];
-    uint32_t target_step = (uint32_t)(((uint64_t)target_hz << 32) / POLY_SAMPLE_RATE_HZ);
-    uint32_t total_ticks = duration_ms * (POLY_SAMPLE_RATE_HZ / 1000);
-
-    v->sweep_target = target_step;
-    v->sweep_up = (target_step > v->phase_step);
-    v->sweep_delta = (int32_t)(target_step - v->phase_step) / (int32_t)total_ticks;
-
-    // Ensure non-zero delta if there's a difference
-    if (v->sweep_delta == 0 && target_step != v->phase_step) {
-        v->sweep_delta = v->sweep_up ? 1 : -1;
-    }
-
-    v->sweep_active = true;
 }

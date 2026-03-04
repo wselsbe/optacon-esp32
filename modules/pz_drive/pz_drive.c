@@ -256,62 +256,6 @@ static mp_obj_t pz_drive_pwm_is_sweep_done(void) {
 }
 static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_pwm_is_sweep_done_obj, pz_drive_pwm_is_sweep_done);
 
-// ── pwm_poly_start() ───────────────────────────────────────────────────
-static mp_obj_t pz_drive_pwm_poly_start(void) {
-    pzd_pwm_poly_start();
-    return mp_const_none;
-}
-static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_pwm_poly_start_obj, pz_drive_pwm_poly_start);
-
-// ── pwm_poly_stop() ────────────────────────────────────────────────────
-static mp_obj_t pz_drive_pwm_poly_stop(void) {
-    pzd_pwm_poly_stop();
-    return mp_const_none;
-}
-static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_pwm_poly_stop_obj, pz_drive_pwm_poly_stop);
-
-// ── pwm_poly_is_running() ──────────────────────────────────────────────
-static mp_obj_t pz_drive_pwm_poly_is_running(void) {
-    return mp_obj_new_bool(pzd_pwm_poly_is_running());
-}
-static MP_DEFINE_CONST_FUN_OBJ_0(pz_drive_pwm_poly_is_running_obj, pz_drive_pwm_poly_is_running);
-
-// ── pwm_poly_set_voice(index, hz, amplitude) ───────────────────────────
-static mp_obj_t pz_drive_pwm_poly_set_voice(size_t n_args, const mp_obj_t *pos_args,
-                                             mp_map_t *kw_args) {
-    enum { ARG_index, ARG_hz, ARG_amplitude };
-    static const mp_arg_t allowed_args[] = {
-        {MP_QSTR_index, MP_ARG_REQUIRED | MP_ARG_INT, {0}},
-        {MP_QSTR_hz, MP_ARG_REQUIRED | MP_ARG_INT, {0}},
-        {MP_QSTR_amplitude, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 100}},
-    };
-    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
-    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
-    pzd_pwm_poly_set_voice(args[ARG_index].u_int, args[ARG_hz].u_int,
-                            args[ARG_amplitude].u_int);
-    return mp_const_none;
-}
-static MP_DEFINE_CONST_FUN_OBJ_KW(pz_drive_pwm_poly_set_voice_obj, 2,
-                                   pz_drive_pwm_poly_set_voice);
-
-// ── pwm_poly_sweep_voice(index, target_hz, duration_ms) ────────────────
-static mp_obj_t pz_drive_pwm_poly_sweep_voice(size_t n_args, const mp_obj_t *pos_args,
-                                               mp_map_t *kw_args) {
-    enum { ARG_index, ARG_target_hz, ARG_duration_ms };
-    static const mp_arg_t allowed_args[] = {
-        {MP_QSTR_index, MP_ARG_REQUIRED | MP_ARG_INT, {0}},
-        {MP_QSTR_target_hz, MP_ARG_REQUIRED | MP_ARG_INT, {0}},
-        {MP_QSTR_duration_ms, MP_ARG_REQUIRED | MP_ARG_INT, {0}},
-    };
-    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
-    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
-    pzd_pwm_poly_sweep_voice(args[ARG_index].u_int, args[ARG_target_hz].u_int,
-                              args[ARG_duration_ms].u_int);
-    return mp_const_none;
-}
-static MP_DEFINE_CONST_FUN_OBJ_KW(pz_drive_pwm_poly_sweep_voice_obj, 3,
-                                   pz_drive_pwm_poly_sweep_voice);
-
 // ── Module table ────────────────────────────────────────────────────────
 static const mp_rom_map_elem_t pz_drive_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_pz_drive)},
@@ -337,11 +281,6 @@ static const mp_rom_map_elem_t pz_drive_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_pwm_is_sample_done), MP_ROM_PTR(&pz_drive_pwm_is_sample_done_obj)},
     {MP_ROM_QSTR(MP_QSTR_pwm_set_sweep), MP_ROM_PTR(&pz_drive_pwm_set_sweep_obj)},
     {MP_ROM_QSTR(MP_QSTR_pwm_is_sweep_done), MP_ROM_PTR(&pz_drive_pwm_is_sweep_done_obj)},
-    {MP_ROM_QSTR(MP_QSTR_pwm_poly_start), MP_ROM_PTR(&pz_drive_pwm_poly_start_obj)},
-    {MP_ROM_QSTR(MP_QSTR_pwm_poly_stop), MP_ROM_PTR(&pz_drive_pwm_poly_stop_obj)},
-    {MP_ROM_QSTR(MP_QSTR_pwm_poly_is_running), MP_ROM_PTR(&pz_drive_pwm_poly_is_running_obj)},
-    {MP_ROM_QSTR(MP_QSTR_pwm_poly_set_voice), MP_ROM_PTR(&pz_drive_pwm_poly_set_voice_obj)},
-    {MP_ROM_QSTR(MP_QSTR_pwm_poly_sweep_voice), MP_ROM_PTR(&pz_drive_pwm_poly_sweep_voice_obj)},
 };
 static MP_DEFINE_CONST_DICT(pz_drive_module_globals, pz_drive_module_globals_table);
 

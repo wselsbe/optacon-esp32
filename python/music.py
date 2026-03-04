@@ -334,40 +334,6 @@ SONGS = {
 }
 
 
-def thx(gain=100, sweep_ms=10000):
-    """THX Deep Note: 12 voices converge from a random cluster to a D chord."""
-    import random
-    import pz_drive
-    from drv2665 import DRV2665
-    from pz_drive_py import PzActuator
-
-    # D chord across octaves + A5 for the fifth
-    targets = [73, 73, 146, 146, 293, 293, 293, 587, 587, 587, 440, 440]
-
-    drv = DRV2665()
-    drv.init_analog(PzActuator.GAINS[gain])
-    pz_drive.pwm_poly_start()
-
-    try:
-        # Phase 1: random cluster (200-400 Hz), hold 2s
-        for i in range(12):
-            pz_drive.pwm_poly_set_voice(i, random.randint(200, 400), amplitude=80)
-        time.sleep_ms(2000)
-
-        # Phase 2: sweep all voices to targets
-        for i in range(12):
-            pz_drive.pwm_poly_sweep_voice(i, targets[i], sweep_ms)
-        time.sleep_ms(sweep_ms)
-
-        # Phase 3: sustain the chord
-        time.sleep_ms(3000)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        pz_drive.pwm_poly_stop()
-        drv.standby()
-
-
 def play_song(name, **kwargs):
     """Play a named song. Extra kwargs override defaults."""
     if name not in SONGS:
