@@ -16,6 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/ruff-action@v3
+      - name: Check docs exist
+        run: test -f web/docs.html
 
   lint-c:
     name: Lint C
