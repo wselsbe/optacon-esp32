@@ -5,4 +5,4 @@ include("$(PORT_DIR)/boards/manifest.py")
 freeze(".", ("pz_drive_py.py", "drv2665.py", "shift_register.py", "main.py"))
 
 # Third-party (frozen — never changes)
-module("microdot", base_path=".")
+package("microdot", base_path=".")
