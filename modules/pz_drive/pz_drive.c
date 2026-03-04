@@ -121,6 +121,25 @@ static mp_obj_t pz_drive_pwm_set_frequency(size_t n_args, const mp_obj_t *pos_ar
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(pz_drive_pwm_set_frequency_obj, 1, pz_drive_pwm_set_frequency);
 
+// ── pwm_set_frequency_live(hz, amplitude=128, waveform=0) ────────────
+static mp_obj_t pz_drive_pwm_set_frequency_live(size_t n_args, const mp_obj_t *pos_args,
+                                                mp_map_t *kw_args) {
+    enum { ARG_hz, ARG_amplitude, ARG_waveform };
+    static const mp_arg_t allowed_args[] = {
+        {MP_QSTR_hz, MP_ARG_REQUIRED | MP_ARG_INT, {0}},
+        {MP_QSTR_amplitude, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 128}},
+        {MP_QSTR_waveform, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 0}},
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    pzd_pwm_set_frequency_live(args[ARG_hz].u_int, args[ARG_amplitude].u_int,
+                               args[ARG_waveform].u_int);
+    return mp_const_none;
+}
+static MP_DEFINE_CONST_FUN_OBJ_KW(pz_drive_pwm_set_frequency_live_obj, 1,
+                                  pz_drive_pwm_set_frequency_live);
+
 // ── pwm_start() ────────────────────────────────────────────────────────
 static mp_obj_t pz_drive_pwm_start(void) {
     pzd_pwm_start();
@@ -251,6 +270,7 @@ static const mp_rom_map_elem_t pz_drive_module_globals_table[] = {
     {MP_ROM_QSTR(MP_QSTR_i2c_write_bytes), MP_ROM_PTR(&pz_drive_i2c_write_bytes_obj)},
     {MP_ROM_QSTR(MP_QSTR_i2c_read_bytes), MP_ROM_PTR(&pz_drive_i2c_read_bytes_obj)},
     {MP_ROM_QSTR(MP_QSTR_pwm_set_frequency), MP_ROM_PTR(&pz_drive_pwm_set_frequency_obj)},
+    {MP_ROM_QSTR(MP_QSTR_pwm_set_frequency_live), MP_ROM_PTR(&pz_drive_pwm_set_frequency_live_obj)},
     {MP_ROM_QSTR(MP_QSTR_pwm_start), MP_ROM_PTR(&pz_drive_pwm_start_obj)},
     {MP_ROM_QSTR(MP_QSTR_pwm_stop), MP_ROM_PTR(&pz_drive_pwm_stop_obj)},
     {MP_ROM_QSTR(MP_QSTR_pwm_is_running), MP_ROM_PTR(&pz_drive_pwm_is_running_obj)},

@@ -461,6 +461,24 @@ void pzd_pwm_set_sweep(int target_step, int increment, bool logarithmic) {
               logarithmic ? "log" : "linear", (unsigned)target_step, increment);
 }
 
+void pzd_pwm_set_frequency_live(int hz, int amplitude, int waveform) {
+    if (!s_running) {
+        mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("pwm not running"));
+    }
+    if (hz < 0 || hz > 500) {
+        mp_raise_ValueError(MP_ERROR_TEXT("hz must be 0-500"));
+    }
+    if (amplitude < 0) amplitude = 0;
+    if (amplitude > 128) amplitude = 128;
+    if (waveform < 0 || waveform > 2) waveform = WAVEFORM_SINE;
+
+    // Update DDS state — ISR reads these each tick, no lock needed
+    s_phase_step = (hz == 0) ? 0 : (uint32_t)(((uint64_t)hz << 32) / PWM_SAMPLE_RATE_HZ);
+    s_amplitude = (uint8_t)amplitude;
+    s_waveform = (uint8_t)waveform;
+    // Do NOT reset s_phase_acc — preserves phase continuity
+}
+
 void pzd_pwm_start(void) {
     if (!s_freq_configured) {
         mp_raise_msg(&mp_type_RuntimeError, MP_ERROR_TEXT("call pwm_set_frequency() first"));
