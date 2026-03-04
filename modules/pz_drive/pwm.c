@@ -21,6 +21,9 @@
 #define PWM_SAMPLE_RATE_HZ     32000
 #define PWM_DEFAULT_RESOLUTION 8
 
+#define POLY_SAMPLE_RATE_HZ    16000
+#define POLY_NUM_VOICES        12
+
 #define LEDC_CHANNEL    LEDC_CHANNEL_0
 #define LEDC_SPEED_MODE LEDC_LOW_SPEED_MODE
 
@@ -91,6 +94,21 @@ static volatile bool s_sweep_linear = true;  // true=linear, false=log
 static volatile bool s_sweep_up = true;      // true=freq increasing
 static volatile int32_t s_sweep_delta = 0;   // per-tick add (linear)
 static volatile uint32_t s_sweep_ratio = 0;  // 1.31 fixed-point multiplier (log)
+
+// ---- Polyphonic DDS state --------------------------------------------------
+
+typedef struct {
+    uint32_t phase_acc;
+    uint32_t phase_step;
+    uint8_t  amplitude;      // 0-128
+    bool     sweep_active;
+    uint32_t sweep_target;   // target phase_step
+    int32_t  sweep_delta;    // per-tick linear change
+    bool     sweep_up;
+} poly_voice_t;
+
+static volatile poly_voice_t s_poly_voices[POLY_NUM_VOICES];
+static volatile bool s_poly_mode = false;
 
 // ---- Helpers ---------------------------------------------------------------
 
