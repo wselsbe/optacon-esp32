@@ -152,44 +152,44 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 </head>
 <body>
 
-<header>
+<header id="header">
   <div class="brand">OPTACON</div>
   <div class="status">
     <span><span class="dot" id="dot"></span><span id="conn">--</span></span>
     <span id="badge" class="badge stop">STOPPED</span>
-    <a href="/wifi" class="wifi-link" title="WiFi Settings">WiFi</a>
+    <a href="/wifi" class="wifi-link" id="wifi-link" title="WiFi Settings">WiFi</a>
   </div>
 </header>
 
 <!-- ESP32 Signal Generator -->
-<div class="card esp">
+<div class="card esp" id="card-esp">
   <div class="card-h"><b>ESP32</b> <span>Signal Generator</span></div>
   <div class="card-b">
     <div class="field">
       <label>Waveform</label>
       <div class="wf-row">
-        <button class="wf-btn" data-wf="dc">
+        <button class="wf-btn" id="wf-dc" data-wf="dc">
           <svg viewBox="0 0 60 28" width="56" height="26">
             <line x1="0" y1="6" x2="60" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
             <line class="center-line" x1="0" y1="14" x2="60" y2="14" stroke="var(--drv)" stroke-width="0.8" stroke-dasharray="2,2" style="display:none"/>
           </svg>
           <span class="wf-label">DC</span>
         </button>
-        <button class="wf-btn sel" data-wf="sine">
+        <button class="wf-btn sel" id="wf-sine" data-wf="sine">
           <svg viewBox="0 0 60 28" width="56" height="26">
             <path d="M0,14 C2.5,8.2 5,3 7.5,3 C10,3 12.5,8.2 15,14 C17.5,19.8 20,25 22.5,25 C25,25 27.5,19.8 30,14 C32.5,8.2 35,3 37.5,3 C40,3 42.5,8.2 45,14 C47.5,19.8 50,25 52.5,25 C55,25 57.5,19.8 60,14" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round"/>
             <line class="center-line" x1="0" y1="14" x2="60" y2="14" stroke="var(--drv)" stroke-width="0.8" stroke-dasharray="2,2" style="display:none"/>
           </svg>
           <span class="wf-label">Sine</span>
         </button>
-        <button class="wf-btn" data-wf="triangle">
+        <button class="wf-btn" id="wf-triangle" data-wf="triangle">
           <svg viewBox="0 0 60 28" width="56" height="26">
             <polyline points="0,14 7.5,3 22.5,25 37.5,3 52.5,25 60,14" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
             <line class="center-line" x1="0" y1="14" x2="60" y2="14" stroke="var(--drv)" stroke-width="0.8" stroke-dasharray="2,2" style="display:none"/>
           </svg>
           <span class="wf-label">Triangle</span>
         </button>
-        <button class="wf-btn" data-wf="square">
+        <button class="wf-btn" id="wf-square" data-wf="square">
           <svg viewBox="0 0 60 28" width="56" height="26">
             <polyline points="0,3 15,3 15,25 30,25 30,3 45,3 45,25 60,25" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
             <line class="center-line" x1="0" y1="14" x2="60" y2="14" stroke="var(--drv)" stroke-width="0.8" stroke-dasharray="2,2" style="display:none"/>
@@ -234,16 +234,16 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 </div>
 
 <!-- DRV2665 Piezo Driver -->
-<div class="card drv">
+<div class="card drv" id="card-drv">
   <div class="card-h"><b>DRV2665</b> <span>Piezo Driver</span></div>
   <div class="card-b">
     <div class="field">
       <label>Gain</label>
       <div class="gain-row">
-        <button class="gain-btn" data-g="25"><span class="db">28.8 dB</span><span class="vpp">25 Vpp</span></button>
-        <button class="gain-btn" data-g="50"><span class="db">34.8 dB</span><span class="vpp">50 Vpp</span></button>
-        <button class="gain-btn" data-g="75"><span class="db">38.4 dB</span><span class="vpp">75 Vpp</span></button>
-        <button class="gain-btn sel" data-g="100"><span class="db">40.7 dB</span><span class="vpp">100 Vpp</span></button>
+        <button class="gain-btn" id="gain-25" data-g="25"><span class="db">28.8 dB</span><span class="vpp">25 Vpp</span></button>
+        <button class="gain-btn" id="gain-50" data-g="50"><span class="db">34.8 dB</span><span class="vpp">50 Vpp</span></button>
+        <button class="gain-btn" id="gain-75" data-g="75"><span class="db">38.4 dB</span><span class="vpp">75 Vpp</span></button>
+        <button class="gain-btn sel" id="gain-100" data-g="100"><span class="db">40.7 dB</span><span class="vpp">100 Vpp</span></button>
       </div>
     </div>
     <button class="big-btn go" id="start-stop">START</button>
@@ -251,7 +251,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 </div>
 
 <!-- HV509 Shift Registers -->
-<div class="card hv">
+<div class="card hv" id="card-hv">
   <div class="card-h"><b>HV509</b> <span>Shift Registers</span></div>
   <div class="card-b">
     <div class="pin-grid" id="pin-grid"></div>
@@ -264,7 +264,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 
 <!-- Terminal -->
 <div class="term" id="term">
-  <div class="term-toggle" onclick="toggleTerm()">
+  <div class="term-toggle" id="term-toggle" onclick="toggleTerm()">
     <b>Terminal</b>
     <span class="chev">&#9660;</span>
   </div>
@@ -274,7 +274,7 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
       <span class="term-prompt">&gt;&gt;&gt;</span>
       <input class="term-in" id="term-in" type="text" spellcheck="false" autocomplete="off"
              placeholder="Python expression or statement">
-      <button class="term-clear" onclick="clearTerm()" title="Clear output">Clear</button>
+      <button class="term-clear" id="term-clear" onclick="clearTerm()" title="Clear output">Clear</button>
     </div>
   </div>
 </div>
