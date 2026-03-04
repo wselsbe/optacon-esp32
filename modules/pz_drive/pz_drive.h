@@ -37,8 +37,16 @@ void pzd_pwm_start(void);
 void pzd_pwm_stop(void);
 void pzd_pwm_play_samples(const uint8_t *buf, size_t len, uint32_t sample_rate, bool loop);
 bool pzd_pwm_is_sample_done(void);
+void pzd_pwm_set_frequency_live(int hz, int amplitude, int waveform);
 void pzd_pwm_set_sweep(int target_step, int increment, bool logarithmic);
 bool pzd_pwm_is_sweep_done(void);
+
+// ── pwm.c — polyphonic DDS ──────────────────────────────────────────────
+void pzd_pwm_poly_start(void);
+void pzd_pwm_poly_stop(void);
+bool pzd_pwm_poly_is_running(void);
+void pzd_pwm_poly_set_voice(int index, int hz, int amplitude);
+void pzd_pwm_poly_sweep_voice(int index, int target_hz, int duration_ms);
 
 // ── fifo.c — digital FIFO background task ───────────────────────────────
 bool pzd_fifo_is_running(void);
