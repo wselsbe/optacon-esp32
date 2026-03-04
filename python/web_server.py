@@ -77,29 +77,29 @@ def _handle_command(msg):
         return {"msg": "WiFi reconnected", "ip": wifi.ip}
     elif cmd == "exec":
         code = data.get("code", "")
-        import io
-        import sys
+        output = []
 
-        buf = io.StringIO()
-        old_stdout = sys.stdout
-        sys.stdout = buf
+        def _print(*args, **kw):
+            sep = kw.get("sep", " ")
+            end = kw.get("end", "\n")
+            output.append(sep.join(str(a) for a in args) + end)
+
+        g = {"print": _print}
         try:
             try:
-                result = eval(code)
+                result = eval(code, g)
                 if result is not None:
-                    print(repr(result))
+                    output.append(repr(result) + "\n")
             except SyntaxError:
-                exec(code)
+                exec(code, g)
         except Exception as e:
-            sys.stdout = old_stdout
-            import sys as _sys
+            import io
+            import sys
 
-            _sys.print_exception(e, buf)
-            sys.stdout = old_stdout
-            return {"output": buf.getvalue()}
-        finally:
-            sys.stdout = old_stdout
-        return {"output": buf.getvalue()}
+            buf = io.StringIO()
+            sys.print_exception(e, buf)
+            output.append(buf.getvalue())
+        return {"output": "".join(output)}
     else:
         return {"error": f"unknown command: {cmd}"}
 
