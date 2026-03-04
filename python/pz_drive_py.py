@@ -101,7 +101,7 @@ class PzActuator:
         """Configure analog PWM+DDS mode at given frequency.
 
         Args:
-            hz: 0-500 (0 = DC output)
+            hz: 0-1000 (0 = DC output)
             resolution: 8 or 10 bits
             amplitude: 0-100 (percentage, mapped to internal 0-128)
             fullwave: if True, generate |waveform| and toggle polarity at zero-crossings

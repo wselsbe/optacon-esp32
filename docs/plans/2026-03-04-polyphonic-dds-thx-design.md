@@ -1,5 +1,7 @@
 # Polyphonic DDS Mode — THX Deep Note
 
+> **Status: ABANDONED** — Implemented and tested but sound quality through the piezo signal chain was too poor. All poly code was removed. The core pinning section below remains relevant to the mono DDS ISR.
+
 **Goal:** Add multi-voice DDS synthesis to the pz_drive C module, enabling THX Deep Note recreation where 12 voices converge from a random cluster to a D chord.
 
 **Architecture:** New polyphonic ISR mode alongside existing mono DDS. Runs at 16kHz sample rate (vs 32kHz mono) to fit 12 voices in the timing budget. Each voice has independent phase accumulator, amplitude, and linear sweep. Python orchestrates the sequence; C handles the real-time math.

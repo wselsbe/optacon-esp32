@@ -1,6 +1,6 @@
 # Polyphonic DDS — THX Deep Note Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Status: ABANDONED** — Implemented and tested but sound quality through the piezo signal chain was too poor (barely audible/recognizable). All poly code was removed. The core-1 ISR pinning fix discovered during this work was retained.
 
 **Goal:** Add 12-voice polyphonic DDS synthesis to the pz_drive C module and use it to play the THX Deep Note.
 

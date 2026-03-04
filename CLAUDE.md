@@ -59,8 +59,9 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
 from pz_drive_py import PzActuator
 pa = PzActuator()
 pa.set_frequency_analog(hz, resolution=8, amplitude=100, fullwave=False,
-                        dead_time=0, phase_advance=0, waveform='sine')  # 0-500 Hz
-pa.set_frequency_digital(hz, fullwave=False, waveform='sine')  # 1-500 Hz
+                        dead_time=0, phase_advance=0, waveform='sine')  # 0-1000 Hz
+pa.set_frequency_digital(hz, fullwave=False, waveform='sine')  # 1-500 Hz (FIFO rate limited)
+pa.set_frequency_live(hz, amplitude=100, waveform='sine')  # update while running (no restart)
 pa.start(gain=100)  # gain: 25/50/75/100 Vpp
 pa.stop()
 pa.is_running()
@@ -81,15 +82,13 @@ import pz_drive
 # PWM / Analog DDS
 pz_drive.pwm_set_frequency(hz, resolution=8, amplitude=128,
                            fullwave=False, dead_time=0, phase_advance=0,
-                           waveform=0)  # 0=sine, 1=triangle, 2=square
+                           waveform=0)  # 0=sine, 1=triangle, 2=square; hz 0-1000
 pz_drive.pwm_start() / pz_drive.pwm_stop() / pz_drive.pwm_is_running()
+pz_drive.pwm_set_frequency_live(hz, amplitude=128, waveform=0)  # update while running
 pz_drive.pwm_set_sweep(target_step, increment, logarithmic=False)
 pz_drive.pwm_is_sweep_done()
-# Polyphonic DDS (12 voices, 16kHz ISR)
-pz_drive.pwm_poly_start() / pz_drive.pwm_poly_stop()
-pz_drive.pwm_poly_is_running()
-pz_drive.pwm_poly_set_voice(index, hz, amplitude=100)  # 0-11, 0-1000Hz
-pz_drive.pwm_poly_sweep_voice(index, target_hz, duration_ms)
+pz_drive.pwm_play_samples(buf, sample_rate, loop=False)  # raw sample playback
+pz_drive.pwm_is_sample_done()
 # FIFO / Digital
 pz_drive.fifo_start(waveform_buf, gain=3, fullwave=False)
 pz_drive.fifo_stop() / pz_drive.fifo_is_running()
@@ -126,7 +125,7 @@ pz_drive.pol_init() / pz_drive.pol_get()  # pol_toggle is internal only
 - **Shift register latch**: SPI writes are synchronized to waveform events (zero-crossing in fullwave, cycle start in non-fullwave) via stage/latch mechanism. If no ISR/task is running, writes are immediate.
 - **Shift register**: Two HV509 daisy-chained. 32-bit SPI word with pins 0–19 mapped to bits 25–6.
 - **I2C bus sharing**: pz_drive owns the I2C bus persistently. ESP-IDF's I2C master driver is thread-safe (mutex per transaction). FIFO task and Python register access share the same handle safely.
-- **ISR core affinity**: GPTimer ISR is pinned to core 1 via a temporary FreeRTOS task that calls `gptimer_register_event_callbacks()` (which does `esp_intr_alloc` on the calling core). This keeps the DDS ISR off core 0 where TinyUSB/USB-CDC runs. FIFO task is similarly pinned to core 1.
+- **ISR core affinity**: GPTimer ISR is pinned to core 1 via a temporary FreeRTOS task that calls both `gptimer_register_event_callbacks()` and `gptimer_enable()` on core 1 (interrupt is allocated on the calling core). This keeps the DDS ISR off core 0 where TinyUSB/USB-CDC runs. FIFO task is similarly pinned to core 1.
 - **MCP server**: `mcp_micropython.py` uses stateless per-call serial connections via `mpremote` to avoid port locking.
 
 ### Important Notes
