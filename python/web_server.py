@@ -261,4 +261,27 @@ def start():
     """Connect WiFi and start the web server (runs forever)."""
     wifi.connect()
     print("Starting web server on http://" + wifi.ip + ":80")
+
+    # OTA auto-check after WiFi connects (station mode only)
+    if wifi.mode == "sta":
+        try:
+            cfg = ota.load_config()
+            if cfg.get("auto_check", True):
+                result = ota.check_for_updates()
+                if result and (result["firmware_available"] or result["files_available"]):
+                    parts = []
+                    if result["firmware_available"]:
+                        parts.append("firmware " + result["latest_firmware"])
+                    if result["files_available"]:
+                        parts.append("files " + result["latest_files"])
+                    msg = "OTA auto-check: update available (" + ", ".join(parts) + ")"
+                    print("[BOOT]", msg)
+                    try:
+                        with open("/boot.log", "a") as f:
+                            f.write(msg + "\n")
+                    except Exception:
+                        pass
+        except Exception as e:
+            print("[BOOT] OTA auto-check failed:", e)
+
     asyncio.run(app.start_server(host="0.0.0.0", port=80))

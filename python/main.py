@@ -99,6 +99,16 @@ def demo():
         pa.stop()
 
 
+# Clear OTA file-update watchdog (boot succeeded)
+try:
+    import ota
+
+    ota.clear_update_flag()
+    ota.mark_firmware_valid()
+    _boot_log("OTA: firmware valid, update flag cleared")
+except Exception as e:
+    _boot_log("OTA init: " + str(e))
+
 # Start web server in background thread (keeps REPL available)
 _thread.stack_size(32768)
 _thread.start_new_thread(web_server.start, ())
