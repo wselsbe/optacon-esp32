@@ -83,6 +83,50 @@ def _handle_command(msg):
         wifi.save_config(data["ssid"], data.get("password", ""))
         wifi.reconnect()
         return {"msg": "WiFi reconnected", "ip": wifi.ip}
+    elif cmd == "say":
+        import sam
+
+        text = data.get("text", "")
+        if not text:
+            return {"error": "no text provided"}
+        sam.say(
+            text,
+            speed=data.get("speed", 72),
+            pitch=data.get("pitch", 64),
+            mouth=data.get("mouth", 128),
+            throat=data.get("throat", 128),
+        )
+        return {"msg": "speech complete"}
+    elif cmd == "play_music":
+        import music
+
+        notes_str = data.get("notes", "")
+        if not notes_str:
+            return {"error": "no notes provided"}
+        song = []
+        for token in notes_str.split():
+            parts = token.split(":")
+            note = parts[0]
+            beats = float(parts[1]) if len(parts) > 1 else 1
+            song.append((note if note != "R" else "R", beats))
+        music.play(
+            song,
+            bpm=data.get("bpm", 120),
+            waveform=data.get("waveform", "sine"),
+            gain=data.get("gain", 75),
+        )
+        return {"msg": "music complete"}
+    elif cmd == "play_song":
+        import music
+
+        name = data.get("name", "")
+        if name not in music.SONGS:
+            return {"error": "unknown song: " + name}
+        music.play_song(
+            name,
+            waveform=data.get("waveform", "sine"),
+        )
+        return {"msg": "music complete"}
     elif cmd == "exec":
         code = data.get("code", "")
         output = []
@@ -242,6 +286,24 @@ async def ota_diagnostics(request):
     return json.dumps({"error": "Failed to send diagnostics"}), 500, {
         "Content-Type": "application/json"
     }
+
+
+@app.route("/speech")
+async def speech_page(request):
+    return send_file("/web/speech.html")
+
+
+@app.route("/music")
+async def music_page(request):
+    return send_file("/web/music.html")
+
+
+@app.route("/api/music/songs")
+async def music_songs(request):
+    import music
+
+    songs = list(music.SONGS.keys())
+    return json.dumps({"songs": songs}), 200, {"Content-Type": "application/json"}
 
 
 @app.route("/update")
