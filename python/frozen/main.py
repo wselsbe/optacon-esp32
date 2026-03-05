@@ -10,10 +10,9 @@ pz_drive.i2c_write(0x02, 0x40)
 
 from boot_cfg import _log as _boot_log
 
-
 try:
     chip_id = pz_drive.i2c_read(0x02)
-    _boot_log("DRV2665: init OK, reg2=0x{:02x}".format(chip_id))
+    _boot_log(f"DRV2665: init OK, reg2=0x{chip_id:02x}")
 except Exception as e:
     _boot_log("DRV2665: init FAILED " + str(e))
 

@@ -14,8 +14,8 @@ OTA updates don't touch the filesystem, so it won't recur.
 
 import gc
 import os
-import vfs
 
+import vfs
 from flashbdev import bdev
 
 try:

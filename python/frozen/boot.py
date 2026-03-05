@@ -1,7 +1,7 @@
 """Frozen boot safety net: OTA rollback, boot logging."""
 import os
 
-from boot_cfg import FIRMWARE_VERSION, _LOG, _LOG_PREV, _log
+from boot_cfg import _LOG, _LOG_PREV, FIRMWARE_VERSION, _log
 
 
 def _rotate_log():

@@ -1,8 +1,7 @@
 """OTA update manager — check, download, verify, apply updates."""
+import hashlib
 import json
 import os
-
-import hashlib
 
 _CHECK_LOG = "/ota_check.log"
 _UPDATE_LOG = "/ota_update.log"
@@ -112,12 +111,12 @@ def _http_request(method, url, body=None, headers=None):
             s = ssl.wrap_socket(s, server_hostname=host)
 
         # Send request
-        req = "{} {} HTTP/1.0\r\nHost: {}\r\n".format(method, path, host)
+        req = f"{method} {path} HTTP/1.0\r\nHost: {host}\r\n"
         if headers:
             for k, v in headers.items():
-                req += "{}: {}\r\n".format(k, v)
+                req += f"{k}: {v}\r\n"
         if body is not None:
-            req += "Content-Length: {}\r\n".format(len(body))
+            req += f"Content-Length: {len(body)}\r\n"
         req += "\r\n"
         s.write(req.encode())
         if body is not None:
