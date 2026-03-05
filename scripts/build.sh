@@ -20,6 +20,18 @@ fi
 
 # Build MicroPython with our C module and frozen Python
 cd "${MPY_DIR}/ports/esp32"
+
+# Apply OTA partition table config (idempotent)
+OTA_SRC="${WORKSPACE}/config/sdkconfig.ota"
+OTA_DST="boards/${BOARD}/sdkconfig.ota"
+if [ -f "${OTA_SRC}" ]; then
+    cp "${OTA_SRC}" "${OTA_DST}"
+    CMAKE_FILE="boards/${BOARD}/mpconfigboard.cmake"
+    if ! grep -q "sdkconfig.ota" "${CMAKE_FILE}"; then
+        sed -i "/sdkconfig\.board/a\\    boards/${BOARD}/sdkconfig.ota" "${CMAKE_FILE}"
+    fi
+fi
+
 make submodules BOARD="${BOARD}"
 make BOARD="${BOARD}" \
     USER_C_MODULES="${WORKSPACE}/modules/micropython.cmake" \
