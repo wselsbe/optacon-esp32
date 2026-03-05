@@ -39,6 +39,10 @@ if [ -f "${OTA_SRC}" ]; then
     fi
 fi
 
+# Overlay our _boot.py onto vendor modules (removes stock filesystem boot.py
+# on first format so frozen boot.py always runs for OTA rollback safety)
+cp "${WORKSPACE}/python/_boot.py" "${MPY_DIR}/ports/esp32/modules/_boot.py"
+
 make submodules BOARD="${BOARD}"
 make BOARD="${BOARD}" \
     USER_C_MODULES="${WORKSPACE}/modules/micropython.cmake" \

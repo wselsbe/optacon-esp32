@@ -11,6 +11,13 @@ app = Microdot()
 pa = PzActuator()
 
 
+def _schedule_reset():
+    """Schedule reboot via timer so HTTP response can flush first."""
+    from machine import Timer, reset
+
+    Timer(0).init(period=1000, mode=Timer.ONE_SHOT, callback=lambda t: reset())
+
+
 def _get_status():
     """Build full status dict."""
     status = pa.get_status()
@@ -170,6 +177,8 @@ async def ota_update_firmware(request):
         }
     ok = ota.update_firmware(manifest, version)
     if ok:
+        # Schedule reboot after response is sent
+        _schedule_reset()
         return (
             json.dumps({"status": "ok", "message": "Firmware updated. Rebooting..."}),
             200,
@@ -209,6 +218,7 @@ async def ota_upload(request):
     else:
         ok = ota.upload_firmware(request.body, len(request.body))
         if ok:
+            _schedule_reset()
             return (
                 json.dumps({"status": "ok", "message": "Firmware uploaded. Rebooting..."}),
                 200,

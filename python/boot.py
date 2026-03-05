@@ -92,6 +92,7 @@ def _read_ota_config():
 
 
 # --- Boot sequence ---
+
 _rotate_log()
 
 cfg = _read_ota_config()
