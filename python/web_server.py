@@ -1,6 +1,7 @@
 import asyncio
 import json
 
+import ota
 import wifi
 from microdot import Microdot, send_file
 from microdot.websocket import with_websocket
@@ -126,6 +127,114 @@ async def wifi_page(request):
 @app.route("/wifi/status")
 async def wifi_status(request):
     return json.dumps(wifi.get_status()), 200, {"Content-Type": "application/json"}
+
+
+# --- OTA API ---
+
+
+@app.route("/api/ota/status")
+async def ota_status(request):
+    return json.dumps(ota.get_status()), 200, {"Content-Type": "application/json"}
+
+
+@app.route("/api/ota/config", methods=["GET", "PUT"])
+async def ota_config(request):
+    if request.method == "GET":
+        return json.dumps(ota.load_config()), 200, {"Content-Type": "application/json"}
+    # PUT: update config
+    data = json.loads(request.body.decode())
+    cfg = ota.load_config()
+    for key in ("update_url", "diagnostics_url", "auto_check"):
+        if key in data:
+            cfg[key] = data[key]
+    ota.save_config(cfg)
+    return json.dumps(cfg), 200, {"Content-Type": "application/json"}
+
+
+@app.route("/api/ota/check", methods=["POST"])
+async def ota_check(request):
+    result = ota.check_for_updates()
+    if result is None:
+        return json.dumps({"error": "Check failed"}), 500, {"Content-Type": "application/json"}
+    return json.dumps(result), 200, {"Content-Type": "application/json"}
+
+
+@app.route("/api/ota/update/firmware", methods=["POST"])
+async def ota_update_firmware(request):
+    data = json.loads(request.body.decode())
+    version = data.get("version")
+    manifest = data.get("manifest")
+    if not version or not manifest:
+        return json.dumps({"error": "version and manifest required"}), 400, {
+            "Content-Type": "application/json"
+        }
+    ok = ota.update_firmware(manifest, version)
+    if ok:
+        return (
+            json.dumps({"status": "ok", "message": "Firmware updated. Rebooting..."}),
+            200,
+            {"Content-Type": "application/json"},
+        )
+    return json.dumps({"error": "Firmware update failed"}), 500, {"Content-Type": "application/json"}
+
+
+@app.route("/api/ota/update/files", methods=["POST"])
+async def ota_update_files(request):
+    data = json.loads(request.body.decode())
+    version = data.get("version")
+    manifest = data.get("manifest")
+    if not version or not manifest:
+        return json.dumps({"error": "version and manifest required"}), 400, {
+            "Content-Type": "application/json"
+        }
+    ok = ota.update_files(manifest, version)
+    if ok:
+        return (
+            json.dumps({"status": "ok", "message": "Files updated. Rebooting..."}),
+            200,
+            {"Content-Type": "application/json"},
+        )
+    return json.dumps({"error": "File update failed"}), 500, {"Content-Type": "application/json"}
+
+
+@app.route("/api/ota/upload", methods=["POST"])
+async def ota_upload(request):
+    filename = request.args.get("filename", "")
+    if filename:
+        path = "/" + filename.lstrip("/")
+        ota.upload_file(path, request.body)
+        return json.dumps({"status": "ok", "path": path}), 200, {"Content-Type": "application/json"}
+    else:
+        ok = ota.upload_firmware(request.body, len(request.body))
+        if ok:
+            return (
+                json.dumps({"status": "ok", "message": "Firmware uploaded. Rebooting..."}),
+                200,
+                {"Content-Type": "application/json"},
+            )
+        return json.dumps({"error": "Upload failed"}), 500, {"Content-Type": "application/json"}
+
+
+@app.route("/api/ota/log")
+async def ota_log(request):
+    name = request.args.get("file", "boot")
+    content = ota.get_log(name)
+    return json.dumps({"log": content}), 200, {"Content-Type": "application/json"}
+
+
+@app.route("/api/ota/diagnostics", methods=["POST"])
+async def ota_diagnostics(request):
+    ok = ota.send_diagnostics()
+    if ok:
+        return json.dumps({"status": "ok"}), 200, {"Content-Type": "application/json"}
+    return json.dumps({"error": "Failed to send diagnostics"}), 500, {
+        "Content-Type": "application/json"
+    }
+
+
+@app.route("/update")
+async def update_page(request):
+    return send_file("/web/update.html")
 
 
 @app.route("/ws")
