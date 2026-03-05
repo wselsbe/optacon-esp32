@@ -13,4 +13,5 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "python/manifest.py" = ["F821"]  # undefined name 'include', 'freeze' — MicroPython manifest builtins
+"python/**/*.py" = ["SIM105", "E402"]  # no contextlib in MicroPython; boot ordering requires late imports
 "mcp_micropython.py" = ["SIM105"]  # try/except/pass is clearer for serial cleanup

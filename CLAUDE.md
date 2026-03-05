@@ -46,10 +46,15 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
   - `hv509.c` — SPI bus + CS/LE, polarity GPIOs (12/13), 32-bit write, stage/latch
   - `drv2665.c` — I2C bus init, register read/write, FIFO helpers
 - `modules/board_utils/` — C module: enter_bootloader() utility
-- `python/drv2665.py` — Python DRV2665 I2C register driver (delegates to pz_drive)
-- `python/shift_register.py` — Python HV509 shift register driver (delegates to pz_drive)
-- `python/pz_drive_py.py` — Python high-level PzActuator orchestrator
-- `python/main.py` — Boot script and demo functions
+- `python/frozen/` — Frozen Python modules (compiled into firmware image)
+  - `boot_cfg.py` — OTA/boot configuration constants
+  - `boot.py` — Boot sequence: OTA rollback safety, watchdog, HW init
+  - `pz_drive_py.py` — High-level PzActuator orchestrator
+  - `drv2665.py` — DRV2665 I2C register driver (delegates to pz_drive)
+  - `shift_register.py` — HV509 shift register driver (delegates to pz_drive)
+  - `main.py` — Application entry point and demo functions
+- `python/_boot.py` — Custom VFS mount (overlaid onto vendor _boot.py by build.sh)
+- `python/` — Filesystem Python modules (uploaded to board, not frozen)
 - `scripts/` — Docker build and flash helpers (`build.sh`, `flash.sh`)
 - `mcp_micropython.py` — MCP server for serial interaction with the board from Claude Code
 

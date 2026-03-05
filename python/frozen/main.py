@@ -7,6 +7,15 @@ from pz_drive_py import PzActuator
 
 pz_drive.i2c_write(0x02, 0x40)
 
+
+from boot_cfg import _log as _boot_log
+
+try:
+    chip_id = pz_drive.i2c_read(0x02)
+    _boot_log(f"DRV2665: init OK, reg2=0x{chip_id:02x}")
+except Exception as e:
+    _boot_log("DRV2665: init FAILED " + str(e))
+
 # Start WebREPL if configured (needs webrepl_cfg.py with PASS='...')
 try:
     import webrepl
@@ -81,6 +90,16 @@ def demo():
     finally:
         pa.stop()
 
+
+# Clear OTA file-update watchdog (boot succeeded)
+try:
+    import ota
+
+    ota.clear_update_flag()
+    ota.mark_firmware_valid()
+    _boot_log("OTA: firmware valid, update flag cleared")
+except Exception as e:
+    _boot_log("OTA init: " + str(e))
 
 # Start web server in background thread (keeps REPL available)
 _thread.stack_size(32768)
