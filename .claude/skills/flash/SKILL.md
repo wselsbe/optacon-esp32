@@ -25,7 +25,7 @@ git ls-files --others --exclude-standard
 | `modules/**/*.c`, `modules/**/*.h` | **Full build + flash + upload filesystem Python** |
 | Frozen Python: `pz_drive_py.py`, `drv2665.py`, `shift_register.py`, `main.py` | **Full build + flash + upload filesystem Python** |
 | `manifest.py`, `microdot/`, `micropython.cmake`, `CMakeLists.txt`, `Makefile` | **Full build + flash + upload filesystem Python** |
-| Filesystem Python only: `music.py`, `web_server.py`, `wifi.py` | **Fast path: mpremote copy + soft reset (no build/flash)** |
+| Filesystem Python only: `music.py`, `web_server.py`, `wifi.py`, `ota.py` | **Fast path: mpremote copy + soft reset (no build/flash)** |
 | `web/`, config files | **Fast path: mpremote copy + soft reset** |
 | No changes (user explicitly asked) | Build anyway |
 
@@ -35,8 +35,8 @@ When only filesystem Python files changed, skip the build entirely:
 
 1. Copy changed files to the board:
    ```bash
-   mpremote cp python/music.py python/web_server.py python/wifi.py :
-   mpremote cp web/index.html web/wifi.html web/docs.html :web/
+   mpremote cp python/music.py python/web_server.py python/wifi.py python/ota.py :
+   mpremote cp web/index.html web/wifi.html web/docs.html web/update.html :web/
    ```
 2. Soft reset:
    ```
@@ -81,8 +81,8 @@ If the MCP call fails with a connection error (board not found), try power cycli
 After flashing (or as the only step in fast path), upload non-frozen Python files:
 
 ```bash
-mpremote cp python/music.py python/web_server.py python/wifi.py :
-mpremote cp web/index.html web/wifi.html web/docs.html :web/
+mpremote cp python/music.py python/web_server.py python/wifi.py python/ota.py :
+mpremote cp web/index.html web/wifi.html web/docs.html web/update.html :web/
 ```
 
 These files are NOT frozen into firmware and must live on the board's filesystem.
@@ -111,5 +111,6 @@ These files are NOT frozen into firmware and must live on the board's filesystem
 - The build takes ~5 minutes for a clean build, ~30 seconds for incremental.
 - After flashing, the board resets via watchdog and reconnects as a new USB-CDC device.
 - The port number often changes between normal mode and bootloader mode (e.g., ttyACM0 → ttyACM2). The auto-detect flags handle this.
-- Frozen modules: `pz_drive_py.py`, `drv2665.py`, `shift_register.py`, `main.py`, `microdot/`
-- Filesystem modules: `music.py`, `web_server.py`, `wifi.py`
+- Frozen modules: `boot.py`, `pz_drive_py.py`, `drv2665.py`, `shift_register.py`, `main.py`, `microdot/`
+- Filesystem modules: `music.py`, `web_server.py`, `wifi.py`, `ota.py`
+- Filesystem web: `web/index.html`, `web/wifi.html`, `web/docs.html`, `web/update.html`

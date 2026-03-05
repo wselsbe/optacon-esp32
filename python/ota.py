@@ -540,10 +540,10 @@ def upload_file(path, data):
 def get_status():
     """Return OTA status dict for the web API."""
     cfg = load_config()
-    import boot
+    import boot_cfg
 
     return {
-        "firmware_version": boot.FIRMWARE_VERSION,
+        "firmware_version": boot_cfg.FIRMWARE_VERSION,
         "files_version": cfg.get("files_version", "unknown"),
         "update_url": cfg.get("update_url", ""),
         "auto_check": cfg.get("auto_check", True),
@@ -573,7 +573,7 @@ def send_diagnostics():
     """POST all logs + device info to diagnostics URL."""
     import gc
 
-    import boot
+    import boot_cfg
 
     cfg = load_config()
     url = cfg.get("diagnostics_url", "")
@@ -581,7 +581,7 @@ def send_diagnostics():
         return False
 
     diag = {
-        "firmware_version": boot.FIRMWARE_VERSION,
+        "firmware_version": boot_cfg.FIRMWARE_VERSION,
         "files_version": cfg.get("files_version", "unknown"),
         "free_mem": gc.mem_free(),
         "boot_log": get_log("boot"),

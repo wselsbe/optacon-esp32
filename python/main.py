@@ -8,7 +8,7 @@ from pz_drive_py import PzActuator
 pz_drive.i2c_write(0x02, 0x40)
 
 
-from boot import _log as _boot_log
+from boot_cfg import _log as _boot_log
 
 
 try:
