@@ -7,6 +7,23 @@ from pz_drive_py import PzActuator
 
 pz_drive.i2c_write(0x02, 0x40)
 
+
+# Log hardware init to boot.log
+def _boot_log(msg):
+    print("[BOOT]", msg)
+    try:
+        with open("/boot.log", "a") as f:
+            f.write(msg + "\n")
+    except Exception:
+        pass
+
+
+try:
+    chip_id = pz_drive.i2c_read(0x02)
+    _boot_log("DRV2665: init OK, reg2=0x{:02x}".format(chip_id))
+except Exception as e:
+    _boot_log("DRV2665: init FAILED " + str(e))
+
 # Start WebREPL if configured (needs webrepl_cfg.py with PASS='...')
 try:
     import webrepl
