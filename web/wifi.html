@@ -131,5 +131,16 @@ document.getElementById('apply-btn').onclick=function(){
   };
 };
 </script>
+<div id="footer" style="text-align:center;padding:16px 0 4px;font-size:11px;color:var(--text3)">
+  <a href="/update" style="color:var(--esp);text-decoration:none">Updates</a>
+  &middot; <span id="ver-info"></span>
+</div>
+<script>
+fetch('/api/ota/status').then(function(r){return r.json()}).then(function(d){
+  var v='FW '+d.firmware_version;
+  if(d.files_version)v+=' · Files '+d.files_version;
+  document.getElementById('ver-info').textContent=v;
+}).catch(function(){});
+</script>
 </body>
 </html>
