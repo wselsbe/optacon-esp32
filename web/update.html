@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Optacon — Updates</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#edebe7;--card:#fff;--border:#ccc9c2;--text:#1a1a20;--text2:#68686e;--text3:#98989e;
+  --input:#f5f4f0;--esp:#2856a0;--green:#1a8848;--red:#c82e20;--radius:6px;
+}
+html{font-family:system-ui,-apple-system,sans-serif;font-size:14px;background:var(--bg);color:var(--text)}
+body{max-width:520px;margin:0 auto;padding:10px 12px 28px}
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;
+  box-shadow:0 1px 3px #0001}
+.brand{font-family:"Consolas","SF Mono","Menlo",monospace;font-weight:700;font-size:15px;letter-spacing:3px;color:var(--text2)}
+a.back{font-size:13px;color:var(--esp);text-decoration:none;font-weight:600}
+a.back:hover{text-decoration:underline}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:10px;box-shadow:0 1px 3px #0001;overflow:hidden}
+.card-h{padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2);
+  display:flex;align-items:center;gap:6px}
+.card-h b{color:var(--esp);font-size:14px}
+.card-b{padding:14px}
+.info-row{display:flex;justify-content:space-between;padding:6px 0;font-size:13px;
+  border-bottom:1px solid #eee}
+.info-row:last-child{border-bottom:none}
+.info-label{color:var(--text3);font-weight:600}
+.info-val{color:var(--text);font-family:"Consolas","SF Mono",monospace;font-size:13px;
+  word-break:break-all;text-align:right;max-width:60%}
+.field{margin-bottom:12px}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-size:11px;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.field input[type=text],.field input[type=url]{
+  width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:5px;
+  font-family:inherit;font-size:14px;background:var(--input);color:var(--text)}
+.field.row{display:flex;align-items:center;gap:8px}
+.field.row>label{margin-bottom:0;text-transform:none;font-size:13px;font-weight:600;color:var(--text2)}
+input[type=checkbox]{width:16px;height:16px;accent-color:var(--esp);cursor:pointer}
+.big-btn{width:100%;padding:12px;border:none;border-radius:5px;font-family:inherit;
+  font-size:14px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .15s;
+  margin-top:8px}
+.big-btn.apply{background:var(--esp);color:#fff}
+.big-btn.apply:hover{filter:brightness(1.1)}
+.big-btn:disabled{opacity:.5;cursor:not-allowed}
+.sm-btn{padding:8px 14px;background:var(--input);border:1.5px solid var(--border);border-radius:5px;
+  font-family:inherit;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;transition:all .12s}
+.sm-btn:hover{border-color:var(--text3);background:#eeedea}
+.sm-btn:disabled{opacity:.5;cursor:not-allowed}
+.msg{margin-top:10px;padding:10px;border-radius:5px;font-size:13px;text-align:center;display:none}
+.msg.ok{background:#1a884815;color:var(--green);display:block}
+.msg.err{background:#c82e2015;color:var(--red);display:block}
+
+/* Available updates */
+.update-item{padding:10px 0;border-bottom:1px solid #eee}
+.update-item:last-child{border-bottom:none}
+.update-item-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.update-type{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px}
+.update-ver{font-family:"Consolas","SF Mono",monospace;font-size:14px;font-weight:700;color:var(--text)}
+.install-btn{padding:6px 16px;background:var(--green);color:#fff;border:none;border-radius:5px;
+  font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.5px;cursor:pointer;transition:all .15s}
+.install-btn:hover{filter:brightness(1.1)}
+.install-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Upload */
+.upload-row{display:flex;gap:8px;align-items:center}
+.upload-row input[type=file]{flex:1;font-size:13px;color:var(--text2)}
+.upload-label{font-size:12px;color:var(--text3);margin-top:6px}
+
+/* Log viewer */
+.log-card .card-h{cursor:pointer;-webkit-user-select:none;user-select:none}
+.log-card .card-h .chev{font-size:11px;color:var(--text3);transition:transform .2s;margin-left:auto}
+.log-card.open .chev{transform:rotate(180deg)}
+.log-body{display:none}
+.log-card.open .log-body{display:block}
+.log-tabs{display:flex;border-bottom:1px solid var(--border);background:#faf9f7}
+.log-tab{flex:1;padding:8px 4px;text-align:center;font-size:11px;font-weight:700;color:var(--text3);
+  letter-spacing:.5px;cursor:pointer;border-bottom:2px solid transparent;transition:all .12s;
+  text-transform:uppercase;background:none;border-top:none;border-left:none;border-right:none;
+  font-family:inherit}
+.log-tab:hover{color:var(--text2)}
+.log-tab.sel{color:var(--esp);border-bottom-color:var(--esp)}
+.log-out{min-height:80px;max-height:300px;overflow-y:auto;background:#1a1a2e;color:#e0e0e0;
+  font-family:"Consolas","SF Mono","Menlo",monospace;font-size:12px;padding:10px 12px;
+  margin:0;white-space:pre-wrap;word-break:break-all;line-height:1.5}
+
+/* Progress overlay */
+.overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);
+  z-index:100;align-items:center;justify-content:center}
+.overlay.show{display:flex}
+.overlay-card{background:var(--card);border-radius:var(--radius);padding:24px 28px;
+  max-width:360px;width:90%;text-align:center;box-shadow:0 8px 30px #0003}
+.overlay-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px}
+.overlay-status{font-size:13px;color:var(--text2);margin-bottom:14px}
+.progress-bar{width:100%;height:8px;background:#e0dfdb;border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;background:var(--esp);border-radius:4px;transition:width .3s;width:0}
+
+/* Footer */
+.footer{text-align:center;padding:16px 0 4px;font-size:11px;color:var(--text3)}
+.footer a{color:var(--esp);text-decoration:none}
+.footer a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">OPTACON</div>
+  <a href="/" class="back">Control Panel</a>
+</header>
+
+<!-- Status -->
+<div class="card">
+  <div class="card-h"><b>OTA</b> <span>Current Status</span></div>
+  <div class="card-b" id="status-body">
+    <div class="info-row"><span class="info-label">Firmware</span><span class="info-val" id="s-fw">--</span></div>
+    <div class="info-row"><span class="info-label">Files</span><span class="info-val" id="s-files">--</span></div>
+    <div class="info-row" id="s-url-row"><span class="info-label">Update URL</span><span class="info-val" id="s-url">--</span></div>
+  </div>
+</div>
+
+<!-- Available Updates (hidden by default) -->
+<div class="card" id="updates-card" style="display:none">
+  <div class="card-h"><b>OTA</b> <span>Available Updates</span></div>
+  <div class="card-b" id="updates-body"></div>
+</div>
+
+<!-- Check Button -->
+<button class="big-btn apply" id="check-btn">CHECK FOR UPDATES</button>
+<div class="msg" id="check-msg"></div>
+
+<!-- Manual Upload -->
+<div class="card" style="margin-top:10px">
+  <div class="card-h"><b>OTA</b> <span>Manual Upload</span></div>
+  <div class="card-b">
+    <div class="upload-row">
+      <input type="file" id="upload-file" accept=".bin,.py,.html,.js,.css,.json">
+      <button class="sm-btn" id="upload-btn" disabled>Upload</button>
+    </div>
+    <div class="upload-label" id="upload-label">Select a .bin firmware or .py/.html file</div>
+    <div class="msg" id="upload-msg"></div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="card">
+  <div class="card-h"><b>OTA</b> <span>Settings</span></div>
+  <div class="card-b">
+    <div class="field">
+      <label>Update URL</label>
+      <input type="url" id="cfg-url" placeholder="https://example.com/updates" autocomplete="off">
+    </div>
+    <div class="field row">
+      <input type="checkbox" id="cfg-auto">
+      <label for="cfg-auto" style="cursor:pointer">Auto-check on boot</label>
+    </div>
+    <div class="field">
+      <label>Diagnostics URL</label>
+      <input type="url" id="cfg-diag" placeholder="https://example.com/diagnostics" autocomplete="off">
+    </div>
+    <button class="big-btn apply" id="save-btn">SAVE</button>
+    <div class="msg" id="save-msg"></div>
+  </div>
+</div>
+
+<!-- Log Viewer -->
+<div class="card log-card" id="log-card">
+  <div class="card-h" onclick="toggleLog()">
+    <b>OTA</b> <span>Logs</span>
+    <span class="chev">&#9660;</span>
+  </div>
+  <div class="log-body">
+    <div class="log-tabs">
+      <button class="log-tab sel" data-log="boot">Boot</button>
+      <button class="log-tab" data-log="boot.prev">Boot (prev)</button>
+      <button class="log-tab" data-log="check">Check</button>
+      <button class="log-tab" data-log="update">Update</button>
+    </div>
+    <pre class="log-out" id="log-out">Loading...</pre>
+  </div>
+</div>
+
+<!-- Send Diagnostics -->
+<button class="sm-btn" id="diag-btn" style="display:none;margin-top:6px;width:100%">SEND DIAGNOSTICS</button>
+<div class="msg" id="diag-msg"></div>
+
+<!-- Progress Overlay -->
+<div class="overlay" id="overlay">
+  <div class="overlay-card">
+    <div class="overlay-title" id="ov-title">Updating...</div>
+    <div class="overlay-status" id="ov-status">Please wait</div>
+    <div class="progress-bar"><div class="progress-fill" id="ov-fill"></div></div>
+  </div>
+</div>
+
+<div class="footer">
+  <a href="/">Control Panel</a> &middot; <a href="/wifi">WiFi Settings</a>
+  <div id="ver-info" style="margin-top:4px"></div>
+</div>
+
+<script>
+var $=function(id){return document.getElementById(id)};
+var manifest=null;
+
+function showMsg(el,text,ok){
+  el.textContent=text;
+  el.className='msg '+(ok?'ok':'err');
+}
+function hideMsg(el){el.className='msg';el.textContent=''}
+
+function showOverlay(title,status){
+  $('ov-title').textContent=title;
+  $('ov-status').textContent=status;
+  $('ov-fill').style.width='0';
+  $('overlay').classList.add('show');
+}
+function updateOverlay(status,pct){
+  $('ov-status').textContent=status;
+  if(pct!=null)$('ov-fill').style.width=pct+'%';
+}
+function hideOverlay(){$('overlay').classList.remove('show')}
+
+// --- Load status ---
+function loadStatus(){
+  fetch('/api/ota/status').then(function(r){return r.json()}).then(function(d){
+    $('s-fw').textContent=d.firmware_version||'--';
+    $('s-files').textContent=d.files_version||'--';
+    $('s-url').textContent=d.update_url||'(not configured)';
+    // Footer version
+    var vi=$('ver-info');
+    if(vi)vi.textContent='Firmware '+d.firmware_version+' / Files '+d.files_version;
+    // Show/hide diagnostics button
+    if(d.diagnostics_url)$('diag-btn').style.display='';
+    else $('diag-btn').style.display='none';
+  }).catch(function(){});
+}
+
+// --- Load config ---
+function loadConfig(){
+  fetch('/api/ota/config').then(function(r){return r.json()}).then(function(d){
+    $('cfg-url').value=d.update_url||'';
+    $('cfg-auto').checked=!!d.auto_check;
+    $('cfg-diag').value=d.diagnostics_url||'';
+  }).catch(function(){});
+}
+
+// --- Check for updates ---
+$('check-btn').onclick=function(){
+  var btn=this;
+  btn.disabled=true;btn.textContent='CHECKING...';
+  hideMsg($('check-msg'));
+  $('updates-card').style.display='none';
+
+  fetch('/api/ota/check',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
+    btn.disabled=false;btn.textContent='CHECK FOR UPDATES';
+    if(d.error){showMsg($('check-msg'),d.error,false);return}
+
+    manifest=d.manifest;
+    var body=$('updates-body');
+    body.innerHTML='';
+    var hasUpdate=false;
+
+    if(d.firmware_available){
+      hasUpdate=true;
+      var div=document.createElement('div');div.className='update-item';
+      div.innerHTML='<div class="update-item-row"><div><div class="update-type">Firmware</div>'+
+        '<div class="update-ver">'+esc(d.latest_firmware)+'</div></div>'+
+        '<button class="install-btn" id="install-fw">INSTALL</button></div>';
+      body.appendChild(div);
+    }
+    if(d.files_available){
+      hasUpdate=true;
+      var div=document.createElement('div');div.className='update-item';
+      div.innerHTML='<div class="update-item-row"><div><div class="update-type">Files</div>'+
+        '<div class="update-ver">'+esc(d.latest_files)+'</div></div>'+
+        '<button class="install-btn" id="install-files">INSTALL</button></div>';
+      body.appendChild(div);
+    }
+
+    if(hasUpdate){
+      $('updates-card').style.display='';
+      // Bind install buttons
+      var fwBtn=document.getElementById('install-fw');
+      if(fwBtn)fwBtn.onclick=function(){installFirmware(d.latest_firmware)};
+      var filesBtn=document.getElementById('install-files');
+      if(filesBtn)filesBtn.onclick=function(){installFiles(d.latest_files)};
+    }else{
+      showMsg($('check-msg'),'Up to date (firmware '+d.current_firmware+', files '+d.current_files+')',true);
+    }
+  }).catch(function(e){
+    btn.disabled=false;btn.textContent='CHECK FOR UPDATES';
+    showMsg($('check-msg'),'Check failed: '+e,false);
+  });
+};
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+// --- Install firmware ---
+function installFirmware(version){
+  if(!manifest)return;
+  showOverlay('Firmware Update','Downloading firmware '+version+'...');
+  updateOverlay('Downloading firmware '+version+'...',10);
+
+  fetch('/api/ota/update/firmware',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({version:version,manifest:manifest})
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.error){updateOverlay('Error: '+d.error,100);setTimeout(hideOverlay,3000);return}
+    updateOverlay('Firmware installed. Rebooting...',100);
+    setTimeout(function(){hideOverlay();location.reload()},10000);
+  }).catch(function(e){
+    updateOverlay('Error: '+e,100);
+    setTimeout(hideOverlay,3000);
+  });
+}
+
+// --- Install files ---
+function installFiles(version){
+  if(!manifest)return;
+  showOverlay('File Update','Downloading files '+version+'...');
+  updateOverlay('Downloading files '+version+'...',10);
+
+  fetch('/api/ota/update/files',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({version:version,manifest:manifest})
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.error){updateOverlay('Error: '+d.error,100);setTimeout(hideOverlay,3000);return}
+    updateOverlay('Files installed. Rebooting...',100);
+    setTimeout(function(){hideOverlay();location.reload()},5000);
+  }).catch(function(e){
+    updateOverlay('Error: '+e,100);
+    setTimeout(hideOverlay,3000);
+  });
+}
+
+// --- Upload ---
+var uploadFile=$('upload-file');
+var uploadBtn=$('upload-btn');
+var uploadLabel=$('upload-label');
+
+uploadFile.onchange=function(){
+  var file=this.files[0];
+  if(!file){uploadBtn.disabled=true;uploadLabel.textContent='Select a .bin firmware or .py/.html file';return}
+  uploadBtn.disabled=false;
+  var ext=file.name.split('.').pop().toLowerCase();
+  if(ext==='bin'){
+    uploadLabel.textContent='Upload Firmware: '+file.name+' ('+formatSize(file.size)+')';
+  }else{
+    uploadLabel.textContent='Upload File: '+file.name+' ('+formatSize(file.size)+')';
+  }
+};
+
+uploadBtn.onclick=function(){
+  var file=uploadFile.files[0];
+  if(!file)return;
+  var btn=this;btn.disabled=true;btn.textContent='Uploading...';
+  hideMsg($('upload-msg'));
+
+  var ext=file.name.split('.').pop().toLowerCase();
+  var isFirmware=ext==='bin';
+
+  file.arrayBuffer().then(function(buf){
+    var url='/api/ota/upload';
+    if(!isFirmware)url+='?filename='+encodeURIComponent(file.name);
+    return fetch(url,{method:'POST',body:new Uint8Array(buf)});
+  }).then(function(r){return r.json()}).then(function(d){
+    btn.disabled=false;btn.textContent='Upload';
+    if(d.error){showMsg($('upload-msg'),d.error,false);return}
+    if(isFirmware){
+      showMsg($('upload-msg'),'Firmware uploaded. Rebooting...',true);
+      setTimeout(function(){location.reload()},10000);
+    }else{
+      showMsg($('upload-msg'),'File uploaded: '+d.path,true);
+    }
+  }).catch(function(e){
+    btn.disabled=false;btn.textContent='Upload';
+    showMsg($('upload-msg'),'Upload failed: '+e,false);
+  });
+};
+
+function formatSize(b){
+  if(b<1024)return b+' B';
+  if(b<1048576)return (b/1024).toFixed(1)+' KB';
+  return (b/1048576).toFixed(1)+' MB';
+}
+
+// --- Save settings ---
+$('save-btn').onclick=function(){
+  var btn=this;btn.disabled=true;btn.textContent='SAVING...';
+  hideMsg($('save-msg'));
+
+  fetch('/api/ota/config',{
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      update_url:$('cfg-url').value.trim(),
+      auto_check:$('cfg-auto').checked,
+      diagnostics_url:$('cfg-diag').value.trim()
+    })
+  }).then(function(r){return r.json()}).then(function(d){
+    btn.disabled=false;btn.textContent='SAVE';
+    if(d.error){showMsg($('save-msg'),d.error,false);return}
+    showMsg($('save-msg'),'Settings saved',true);
+    loadStatus();
+  }).catch(function(e){
+    btn.disabled=false;btn.textContent='SAVE';
+    showMsg($('save-msg'),'Save failed: '+e,false);
+  });
+};
+
+// --- Log viewer ---
+function toggleLog(){$('log-card').classList.toggle('open');if($('log-card').classList.contains('open'))loadLog('boot')}
+
+var logTabs=document.querySelectorAll('.log-tab');
+for(var i=0;i<logTabs.length;i++){
+  logTabs[i].onclick=(function(tab){return function(){
+    for(var j=0;j<logTabs.length;j++)logTabs[j].classList.remove('sel');
+    tab.classList.add('sel');
+    loadLog(tab.dataset.log);
+  }})(logTabs[i]);
+}
+
+function loadLog(name){
+  $('log-out').textContent='Loading...';
+  fetch('/api/ota/log?file='+encodeURIComponent(name)).then(function(r){return r.json()}).then(function(d){
+    $('log-out').textContent=d.log||'(empty)';
+    $('log-out').scrollTop=$('log-out').scrollHeight;
+  }).catch(function(e){
+    $('log-out').textContent='Error loading log: '+e;
+  });
+}
+
+// --- Send diagnostics ---
+$('diag-btn').onclick=function(){
+  var btn=this;btn.disabled=true;btn.textContent='SENDING...';
+  hideMsg($('diag-msg'));
+
+  fetch('/api/ota/diagnostics',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
+    btn.disabled=false;btn.textContent='SEND DIAGNOSTICS';
+    if(d.error){showMsg($('diag-msg'),d.error,false);return}
+    showMsg($('diag-msg'),'Diagnostics sent successfully',true);
+  }).catch(function(e){
+    btn.disabled=false;btn.textContent='SEND DIAGNOSTICS';
+    showMsg($('diag-msg'),'Failed: '+e,false);
+  });
+};
+
+// --- Init ---
+loadStatus();
+loadConfig();
+</script>
+</body>
+</html>
