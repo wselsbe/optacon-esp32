@@ -25,10 +25,17 @@ cd "${MPY_DIR}/ports/esp32"
 OTA_SRC="${WORKSPACE}/config/sdkconfig.ota"
 OTA_DST="boards/${BOARD}/sdkconfig.ota"
 if [ -f "${OTA_SRC}" ]; then
+    # Copy fragment to board directory
     cp "${OTA_SRC}" "${OTA_DST}"
     CMAKE_FILE="boards/${BOARD}/mpconfigboard.cmake"
     if ! grep -q "sdkconfig.ota" "${CMAKE_FILE}"; then
         sed -i "/sdkconfig\.board/a\\    boards/${BOARD}/sdkconfig.ota" "${CMAKE_FILE}"
+    fi
+    # Delete resolved sdkconfig if our fragment is newer, forcing Kconfig re-resolution
+    BUILD_SDKCONFIG="build-${BOARD}/sdkconfig"
+    if [ -f "${BUILD_SDKCONFIG}" ] && [ "${OTA_DST}" -nt "${BUILD_SDKCONFIG}" ]; then
+        echo "sdkconfig.ota changed — forcing Kconfig re-resolution"
+        rm -f "${BUILD_SDKCONFIG}"
     fi
 fi
 
@@ -45,8 +52,16 @@ cp "${BUILD_DIR}/micropython.bin" "${OUT_DIR}/"
 cp "${BUILD_DIR}/bootloader/bootloader.bin" "${OUT_DIR}/"
 cp "${BUILD_DIR}/partition_table/partition-table.bin" "${OUT_DIR}/"
 
+# Copy OTA data initial image if present (OTA partition table only)
+if [ -f "${BUILD_DIR}/ota_data_initial.bin" ]; then
+    cp "${BUILD_DIR}/ota_data_initial.bin" "${OUT_DIR}/"
+fi
+
 echo ""
 echo "Build complete. Firmware copied to ${OUT_DIR}/"
-echo "  bootloader.bin    @ 0x0"
+echo "  bootloader.bin      @ 0x0"
 echo "  partition-table.bin @ 0x8000"
-echo "  micropython.bin   @ 0x10000"
+if [ -f "${OUT_DIR}/ota_data_initial.bin" ]; then
+echo "  ota_data_initial.bin @ 0xd000"
+fi
+echo "  micropython.bin     @ 0x10000"

@@ -111,6 +111,7 @@ These files are NOT frozen into firmware and must live on the board's filesystem
 - The build takes ~5 minutes for a clean build, ~30 seconds for incremental.
 - After flashing, the board resets via watchdog and reconnects as a new USB-CDC device.
 - The port number often changes between normal mode and bootloader mode (e.g., ttyACM0 → ttyACM2). The auto-detect flags handle this.
-- Frozen modules: `boot.py`, `pz_drive_py.py`, `drv2665.py`, `shift_register.py`, `main.py`, `microdot/`
+- Frozen modules: `boot_cfg.py`, `boot.py`, `pz_drive_py.py`, `drv2665.py`, `shift_register.py`, `main.py`, `microdot/`
 - Filesystem modules: `music.py`, `web_server.py`, `wifi.py`, `ota.py`
 - Filesystem web: `web/index.html`, `web/wifi.html`, `web/docs.html`, `web/update.html`
+- **IMPORTANT**: A stock `boot.py` on the filesystem shadows the frozen one, breaking boot safety and OTA rollback. After a fresh flash, verify there's no `/boot.py` on the filesystem (`mpremote rm :boot.py` if needed).
