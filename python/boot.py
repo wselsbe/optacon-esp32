@@ -45,15 +45,34 @@ def _check_rollback():
 
     _log("File update pending flag SET — rolling back")
     rolled = 0
-    for name in os.listdir("/"):
-        if name.endswith(".bak"):
-            original = "/" + name[:-4]
-            try:
-                os.rename("/" + name, original)
-                _log("Rollback: " + name + " -> " + name[:-4])
-                rolled += 1
-            except OSError as e:
-                _log("Rollback FAILED: " + name + " " + str(e))
+
+    # Read list of updated files
+    paths = []
+    try:
+        import json
+
+        with open("/ota_pending.json") as f:
+            paths = json.load(f)
+    except Exception:
+        # Fallback: scan root for .bak files (won't find subdirs)
+        for name in os.listdir("/"):
+            if name.endswith(".bak"):
+                paths.append("/" + name[:-4])
+
+    for path in paths:
+        bak_path = path + ".bak"
+        try:
+            os.rename(bak_path, path)
+            _log("Rollback: " + bak_path + " -> " + path)
+            rolled += 1
+        except OSError as e:
+            _log("Rollback FAILED: " + bak_path + " " + str(e))
+
+    # Clean up pending file
+    try:
+        os.remove("/ota_pending.json")
+    except OSError:
+        pass
 
     # Try to revert files_version in ota_config.json
     try:
@@ -91,5 +110,6 @@ _rotate_log()
 
 cfg = _read_ota_config()
 _log("Firmware: " + FIRMWARE_VERSION + ", Files: " + cfg.get("files_version", "unknown"))
+del cfg
 
 _check_rollback()

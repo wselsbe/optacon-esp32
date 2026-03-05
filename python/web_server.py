@@ -201,6 +201,8 @@ async def ota_update_files(request):
 async def ota_upload(request):
     filename = request.args.get("filename", "")
     if filename:
+        if ".." in filename:
+            return json.dumps({"error": "Invalid filename"}), 400, {"Content-Type": "application/json"}
         path = "/" + filename.lstrip("/")
         ota.upload_file(path, request.body)
         return json.dumps({"status": "ok", "path": path}), 200, {"Content-Type": "application/json"}

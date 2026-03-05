@@ -8,14 +8,7 @@ from pz_drive_py import PzActuator
 pz_drive.i2c_write(0x02, 0x40)
 
 
-# Log hardware init to boot.log
-def _boot_log(msg):
-    print("[BOOT]", msg)
-    try:
-        with open("/boot.log", "a") as f:
-            f.write(msg + "\n")
-    except Exception:
-        pass
+from boot import _log as _boot_log
 
 
 try:

@@ -42,6 +42,16 @@ def _append_log(path, msg):
         pass
 
 
+def _ver_gt(a, b):
+    """Return True if version string a > b (semver-style comparison)."""
+    try:
+        at = tuple(int(x) for x in a.split("."))
+        bt = tuple(int(x) for x in b.split("."))
+        return at > bt
+    except Exception:
+        return a != b
+
+
 def load_config():
     """Load OTA config from filesystem."""
     try:
@@ -63,19 +73,8 @@ def save_config(cfg):
         json.dump(cfg, f)
 
 
-def _http_get(url, headers=None):
-    """Minimal HTTP GET returning (status, headers_dict, socket).
-
-    Returns the raw socket for streaming. Caller must close it.
-    """
-    import socket
-
-    try:
-        import ssl
-    except ImportError:
-        ssl = None
-
-    # Parse URL
+def _parse_url(url):
+    """Parse URL into (host, port, path, use_ssl)."""
     proto, _, host_path = url.split("/", 2)
     use_ssl = proto == "https:"
     host_port, path = host_path.split("/", 1) if "/" in host_path else (host_path, "")
@@ -86,38 +85,70 @@ def _http_get(url, headers=None):
     else:
         host = host_port
         port = 443 if use_ssl else 80
+    return host, port, path, use_ssl
 
-    # Connect
+
+def _http_request(method, url, body=None, headers=None):
+    """Minimal HTTP request returning (status, headers_dict, socket).
+
+    Returns the raw socket for streaming. Caller must close it.
+    """
+    import socket
+
+    try:
+        import ssl
+    except ImportError:
+        ssl = None
+
+    host, port, path, use_ssl = _parse_url(url)
+
+    # Connect - wrap in try/except for socket safety
     addr = socket.getaddrinfo(host, port)[0][-1]
     s = socket.socket()
-    s.settimeout(30)
-    s.connect(addr)
-    if use_ssl and ssl:
-        s = ssl.wrap_socket(s, server_hostname=host)
+    try:
+        s.settimeout(30)
+        s.connect(addr)
+        if use_ssl and ssl:
+            s = ssl.wrap_socket(s, server_hostname=host)
 
-    # Send request
-    req = "GET {} HTTP/1.0\r\nHost: {}\r\n".format(path, host)
-    if headers:
-        for k, v in headers.items():
-            req += "{}: {}\r\n".format(k, v)
-    req += "\r\n"
-    s.write(req.encode())
+        # Send request
+        req = "{} {} HTTP/1.0\r\nHost: {}\r\n".format(method, path, host)
+        if headers:
+            for k, v in headers.items():
+                req += "{}: {}\r\n".format(k, v)
+        if body is not None:
+            req += "Content-Length: {}\r\n".format(len(body))
+        req += "\r\n"
+        s.write(req.encode())
+        if body is not None:
+            s.write(body.encode() if isinstance(body, str) else body)
 
-    # Read status line
-    line = s.readline().decode()
-    status = int(line.split()[1])
+        # Read status line
+        line = s.readline().decode()
+        status = int(line.split()[1])
 
-    # Read headers
-    resp_headers = {}
-    while True:
-        line = s.readline().decode().strip()
-        if not line:
-            break
-        if ":" in line:
-            k, v = line.split(":", 1)
-            resp_headers[k.strip().lower()] = v.strip()
+        # Read headers
+        resp_headers = {}
+        while True:
+            line = s.readline().decode().strip()
+            if not line:
+                break
+            if ":" in line:
+                k, v = line.split(":", 1)
+                resp_headers[k.strip().lower()] = v.strip()
 
-    return status, resp_headers, s
+        return status, resp_headers, s
+    except Exception:
+        s.close()
+        raise
+
+
+def _http_get(url, headers=None):
+    """Minimal HTTP GET returning (status, headers_dict, socket).
+
+    Returns the raw socket for streaming. Caller must close it.
+    """
+    return _http_request("GET", url, headers=headers)
 
 
 def check_for_updates(notify_cb=None):
@@ -135,6 +166,7 @@ def check_for_updates(notify_cb=None):
         return None
 
     url = base_url.rstrip("/") + "/versions.json"
+    sock = None
     try:
         status, headers, sock = _http_get(url)
         if status != 200:
@@ -149,11 +181,17 @@ def check_for_updates(notify_cb=None):
                 break
             data += chunk
         sock.close()
+        sock = None  # mark as closed
 
         # Extract server date from headers
         date_str = headers.get("date", "")
         manifest = json.loads(data)
     except Exception as e:
+        if sock:
+            try:
+                sock.close()
+            except Exception:
+                pass
         _log_check("Check FAILED — " + str(e))
         return None
 
@@ -162,8 +200,8 @@ def check_for_updates(notify_cb=None):
     current_fw = cfg.get("firmware_version", "0.0.0")
     current_files = cfg.get("files_version", "0.0.0")
 
-    fw_available = latest_fw and latest_fw != current_fw
-    files_available = latest_files and latest_files != current_files
+    fw_available = bool(latest_fw) and _ver_gt(latest_fw, current_fw)
+    files_available = bool(latest_files) and _ver_gt(latest_files, current_files)
 
     # Log result
     prefix = "[" + date_str + "] " if date_str else ""
@@ -211,7 +249,6 @@ def update_firmware(manifest, version, progress_cb=None):
     Returns True on success (caller should reboot).
     """
     import esp32
-    import machine
 
     fw_info = manifest.get("firmware", {}).get(version)
     if not fw_info:
@@ -237,7 +274,8 @@ def update_firmware(manifest, version, progress_cb=None):
         # Get next OTA partition
         cur = esp32.Partition(esp32.Partition.RUNNING)
         nxt = cur.get_next_update()
-        _log_update("Writing to partition: " + nxt.info()[4])
+        part_size = nxt.info()[3]  # (type, subtype, addr, size, label, encrypted)
+        _log_update("Writing to partition: " + nxt.info()[4] + " (size=" + str(part_size) + ")")
 
         # Stream to partition
         sha = hashlib.sha256()
@@ -247,6 +285,11 @@ def update_firmware(manifest, version, progress_cb=None):
             chunk = sock.read(4096)
             if not chunk:
                 break
+            total += len(chunk)
+            if total > part_size:
+                _log_update("Firmware too large: " + str(total) + " > " + str(part_size))
+                sock.close()
+                return False
             # Pad last block to 4096 if needed
             if len(chunk) < 4096:
                 padded = chunk + b"\xff" * (4096 - len(chunk))
@@ -255,7 +298,6 @@ def update_firmware(manifest, version, progress_cb=None):
                 nxt.writeblocks(block, chunk)
             sha.update(chunk)
             block += 1
-            total += len(chunk)
             if progress_cb:
                 progress_cb(total, expected_size)
 
@@ -383,6 +425,10 @@ def update_files(manifest, version, progress_cb=None):
         os.rename(new_path, path)
         _log_update("Installed: " + path)
 
+    # Record updated paths for rollback/cleanup
+    with open("/ota_pending.json", "w") as f:
+        json.dump(downloaded, f)
+
     # Phase 4: Update config
     cfg["files_version"] = version
     save_config(cfg)
@@ -403,13 +449,18 @@ def clear_update_flag():
     if pending:
         nvs.set_i32("file_upd", 0)
         nvs.commit()
-        # Clean up .bak files
-        for name in os.listdir("/"):
-            if name.endswith(".bak"):
+        # Clean up .bak files using the recorded paths
+        try:
+            with open("/ota_pending.json") as f:
+                paths = json.load(f)
+            for path in paths:
                 try:
-                    os.remove("/" + name)
+                    os.remove(path + ".bak")
                 except OSError:
                     pass
+            os.remove("/ota_pending.json")
+        except OSError:
+            pass
 
 
 def mark_firmware_valid():
@@ -521,7 +572,6 @@ def get_log(name):
 def send_diagnostics():
     """POST all logs + device info to diagnostics URL."""
     import gc
-    import time
 
     import boot
 
@@ -541,42 +591,10 @@ def send_diagnostics():
     }
 
     try:
-        import socket
-
-        try:
-            import ssl
-        except ImportError:
-            ssl = None
-
-        # Parse URL
-        proto, _, host_path = url.split("/", 2)
-        use_ssl = proto == "https:"
-        host_port, path = host_path.split("/", 1) if "/" in host_path else (host_path, "")
-        path = "/" + path
-        if ":" in host_port:
-            host, port = host_port.rsplit(":", 1)
-            port = int(port)
-        else:
-            host = host_port
-            port = 443 if use_ssl else 80
-
         body = json.dumps(diag)
-        addr = socket.getaddrinfo(host, port)[0][-1]
-        s = socket.socket()
-        s.settimeout(30)
-        s.connect(addr)
-        if use_ssl and ssl:
-            s = ssl.wrap_socket(s, server_hostname=host)
-
-        req = "POST {} HTTP/1.0\r\nHost: {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n".format(
-            path, host, len(body)
-        )
-        s.write(req.encode())
-        s.write(body.encode())
-
-        line = s.readline().decode()
-        status = int(line.split()[1])
-        s.close()
+        hdrs = {"Content-Type": "application/json"}
+        status, _resp_hdrs, sock = _http_request("POST", url, body=body, headers=hdrs)
+        sock.close()
 
         _log_update("Diagnostics sent — HTTP " + str(status))
         return status == 200
