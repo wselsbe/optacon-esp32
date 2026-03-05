@@ -5,10 +5,29 @@
 #include "py/runtime.h"
 
 #include "pz_drive.h"
+#include "reciter.h"
 #include "sam.h"
 
-// Helper: run SAM synthesis with given parameters, returns PCM buffer info.
-// Caller must free(buf) after use. Returns buf_len via out param.
+// Audio accumulator for callback-based output
+typedef struct {
+    char *buffer;
+    int pos;
+    int size;
+} AudioAccum;
+
+static void audio_accumulate(void *userdata, char *data, unsigned int length) {
+    AudioAccum *acc = (AudioAccum *)userdata;
+    int to_copy = (int)length;
+    if (acc->pos + to_copy > acc->size)
+        to_copy = acc->size - acc->pos;
+    if (to_copy > 0) {
+        memcpy(acc->buffer + acc->pos, data, to_copy);
+        acc->pos += to_copy;
+    }
+}
+
+// Helper: run SAM synthesis, returns accumulated PCM buffer info.
+// Caller must free the returned buffer.
 static char *sam_synthesize(const char *text, unsigned char speed,
                             unsigned char pitch, unsigned char mouth,
                             unsigned char throat, int *out_len) {
@@ -16,29 +35,39 @@ static char *sam_synthesize(const char *text, unsigned char speed,
     if (len > 254) {
         mp_raise_ValueError(MP_ERROR_TEXT("text too long (max 254 chars)"));
     }
-    char input[256];
-    memcpy(input, text, len + 1);
 
-    SetInput(input);
-    SetSpeed(speed);
-    SetPitch(pitch);
-    SetMouth(mouth);
-    SetThroat(throat);
-
-    if (!SAMMain()) {
-        mp_raise_ValueError(MP_ERROR_TEXT("SAM synthesis failed"));
+    // Allocate output buffer: 10 seconds at 22050 Hz
+    int buf_size = 22050 * 10;
+    char *buffer = m_malloc(buf_size);
+    if (!buffer) {
+        mp_raise_msg(&mp_type_MemoryError, MP_ERROR_TEXT("SAM buffer alloc failed"));
     }
+    // Fill with silence
+    memset(buffer, 128, buf_size);
 
-    char *buf = GetBuffer();
-    int buf_len = GetBufferLength();
+    AudioAccum acc = {.buffer = buffer, .pos = 0, .size = buf_size};
 
-    if (buf == NULL || buf_len <= 0) {
-        free(buf);
+    SAMUtterance utterance = {
+        .input = (char *)text,
+        .output_callback = audio_accumulate,
+        .finished_callback = NULL,
+        .speed = speed,
+        .pitch = pitch,
+        .mouth = mouth,
+        .throat = throat,
+        .singmode = 0,
+        .userdata = &acc,
+    };
+
+    SAMSpeak(&utterance);
+
+    if (acc.pos <= 0) {
+        m_free(buffer);
         mp_raise_ValueError(MP_ERROR_TEXT("SAM produced no output"));
     }
 
-    *out_len = buf_len;
-    return buf;
+    *out_len = acc.pos;
+    return buffer;
 }
 
 // sam.render(text, speed=72, pitch=64, mouth=128, throat=128)
@@ -65,8 +94,9 @@ static mp_obj_t mod_sam_render(size_t n_args, const mp_obj_t *pos_args,
         (unsigned char)args[ARG_mouth].u_int,
         (unsigned char)args[ARG_throat].u_int, &buf_len);
 
+    // Create bytearray (copies data), then free our buffer
     mp_obj_t result = mp_obj_new_bytearray(buf_len, (const byte *)buf);
-    free(buf);
+    m_free(buf);
     return result;
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(mod_sam_render_obj, 1, mod_sam_render);
@@ -99,13 +129,13 @@ static mp_obj_t mod_sam_say(size_t n_args, const mp_obj_t *pos_args,
     // Play via pz_drive
     pzd_pwm_play_samples((const uint8_t *)buf, buf_len, 22050, false);
 
-    // Poll until done, allowing Ctrl-C
+    // Poll until done, allowing Ctrl-C.
     while (!pzd_pwm_is_sample_done()) {
         mp_handle_pending(true);
         mp_hal_delay_ms(10);
     }
 
-    free(buf);
+    m_free(buf);
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_KW(mod_sam_say_obj, 1, mod_sam_say);

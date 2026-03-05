@@ -1,38 +1,69 @@
-#ifndef SAM_H
-#define SAM_H
+#ifndef __SAM_H__
+#define __SAM_H__
 
-void SetInput(char *_input);
-void SetSpeed(unsigned char _speed);
-void SetPitch(unsigned char _pitch);
-void SetMouth(unsigned char _mouth);
-void SetThroat(unsigned char _throat);
-void EnableSingmode();
-void EnableDebug();
+// A struct with the input to speak and a callback to be called when speaking completes
+// includes an output callback
+// also includes parameters for voice
 
-int SAMMain();
+typedef struct SAMUtterance
+{
+    char *input;
+    // callback called to output audio
+    void (*output_callback)(void *userdata, char *buffer, unsigned int length);
 
-char* GetBuffer();
-int GetBufferLength();
+    // callback called when speaking is complete
+    void (*finished_callback)(void *userdata);
+    unsigned char speed;
+    unsigned char pitch;
+    unsigned char mouth;
+    unsigned char throat;
+    int singmode;
+    // callback userdata
+    void *userdata;
+} SAMUtterance;
 
+// a struct containing shared context for SAM
+typedef struct SAMContext
+{
 
-//char input[]={"/HAALAOAO MAYN NAAMAEAE IHSTT SAEBAASTTIHAAN \x9b\x9b\0"};
-//unsigned char input[]={"/HAALAOAO \x9b\0"};
-//unsigned char input[]={"AA \x9b\0"};
-//unsigned char input[] = {"GUH5DEHN TAEG\x9b\0"};
+    SAMUtterance toSpeak;
+    unsigned char stress[256];        // numbers from 0 to 8
+    unsigned char phonemeLength[256]; // tab40160
+    unsigned char phonemeIndex[256];
 
-//unsigned char input[]={"AY5 AEM EY TAO4LXKIHNX KAX4MPYUX4TAH. GOW4 AH/HEH3D PAHNK.MEYK MAY8 DEY.\x9b\0"};
-//unsigned char input[]={"/HEH3LOW2, /HAW AH YUX2 TUXDEY. AY /HOH3P YUX AH FIYLIHNX OW4 KEY.\x9b\0"};
-//unsigned char input[]={"/HEY2, DHIHS IH3Z GREY2T. /HAH /HAH /HAH.AYL BIY5 BAEK.\x9b\0"};
-//unsigned char input[]={"/HAH /HAH /HAH \x9b\0"};
-//unsigned char input[]={"/HAH /HAH /HAH.\x9b\0"};
-//unsigned char input[]={".TUW BIY5Y3,, OHR NAA3T - TUW BIY5IYIY., DHAE4T IHZ DHAH KWEH4SCHAHN.\x9b\0"};
-//unsigned char input[]={"/HEY2, DHIHS \x9b\0"};
+    unsigned char phonemeIndexOutput[60];  // tab47296
+    unsigned char stressOutput[60];        // tab47365
+    unsigned char phonemeLengthOutput[60]; // tab47416
 
-//unsigned char input[]={" IYIHEHAEAAAHAOOHUHUXERAXIX  \x9b\0"};
-//unsigned char input[]={" RLWWYMNNXBDGJZZHVDH \x9b\0"};
-//unsigned char input[]={" SSHFTHPTKCH/H \x9b\0"};
+    unsigned char pitches[256];
+    unsigned char sampledConsonantFlag[256]; // tab44800
+    unsigned char amplitude1[256];
+    unsigned char amplitude2[256];
+    unsigned char amplitude3[256];
+    unsigned char frequency1[256];
+    unsigned char frequency2[256];
+    unsigned char frequency3[256];
 
-//unsigned char input[]={" EYAYOYAWOWUW ULUMUNQ YXWXRXLX/XDX\x9b\0"};
+    unsigned char freq1data[80];
+    unsigned char freq2data[80];
 
+    unsigned oldTimeTableIndex;
+} SAMContext;
 
-#endif
+typedef enum
+{
+    pR = 23,
+    pD = 57,
+    pT = 69,
+    BREAK = 254,
+    END = 255
+} Phonemes;
+
+void PrintPhonemes(SAMContext *ctx);
+void SAMInit(SAMContext *ctx);
+
+void PrepareOutput(SAMContext *ctx);
+void SAMSpeak(SAMUtterance *toSpeak);
+void SAMFree(SAMContext *ctx);
+
+#endif // __SAM_H__
