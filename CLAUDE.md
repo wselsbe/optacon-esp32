@@ -45,6 +45,7 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
   - `fifo.c` — FreeRTOS FIFO fill task (8 kHz), digital fullwave
   - `hv509.c` — SPI bus + CS/LE, polarity GPIOs (12/13), 32-bit write, stage/latch
   - `drv2665.c` — I2C bus init, register read/write, FIFO helpers
+- `modules/sam/` — SAM speech synthesizer C module (text-to-speech, 22 kHz 8-bit PCM)
 - `modules/board_utils/` — C module: enter_bootloader() utility
 - `python/frozen/` — Frozen Python modules (compiled into firmware image)
   - `boot_cfg.py` — OTA/boot configuration constants
@@ -104,6 +105,15 @@ pz_drive.sr_write(word32)  # immediate SPI write (debug)
 pz_drive.i2c_read(reg) / pz_drive.i2c_write(reg, val)
 # Polarity
 pz_drive.pol_init() / pz_drive.pol_get()  # pol_toggle is internal only
+```
+
+**sam** (text-to-speech via SAM formant synthesizer):
+```python
+import sam
+sam.say("hello world")                          # blocking TTS playback via pz_drive ISR
+sam.say("test", speed=72, pitch=64, gain=100)   # with voice parameters
+buf = sam.render("hello")                       # returns 8-bit PCM bytearray at 22050 Hz
+buf = sam.render("test", speed=72, pitch=64, mouth=128, throat=128)
 ```
 
 **board_utils**:
