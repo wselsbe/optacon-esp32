@@ -99,15 +99,13 @@ def test_waveform_per_tab_memory(page: Page, page_url: str):
 
 
 def test_dc_disabled_on_music_tab(page: Page, page_url: str):
-    """DC button is visually present on Music tab but sine is pre-selected.
-
-    Note: There is a known bug in updateWaveformVis() where the wf-btn loop
-    resets DC's inline pointer-events/opacity after they are set. This test
-    verifies the actual current behavior (DC not visually disabled) and that
-    the Music tab defaults to sine waveform, not DC.
-    """
+    """DC button is disabled on Music tab, sine is pre-selected."""
     _goto_no_ws(page, page_url)
     page.locator("#tab-btn-music").click()
+    # DC is visually disabled and not interactive
+    expect(page.locator("#wf-dc")).to_have_attribute(
+        "style", re.compile(r"pointer-events:\s*none")
+    )
     # DC is not the selected waveform on music tab
     expect(page.locator("#wf-dc")).not_to_have_class(re.compile(r"sel"))
     # Sine is selected by default on music tab
