@@ -1,6 +1,5 @@
 """Integration tests for the wifi module."""
 
-import importlib
 import json
 import sys
 

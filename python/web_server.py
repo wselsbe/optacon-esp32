@@ -13,9 +13,9 @@ class _Deps:
     """Default dependency container with real hardware."""
 
     def __init__(self):
-        from pz_drive_py import PzActuator
         import ota as _ota
         import wifi as _wifi
+        from pz_drive_py import PzActuator
 
         self.pa = PzActuator()
         self.ota = _ota

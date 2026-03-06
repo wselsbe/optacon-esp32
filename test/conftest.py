@@ -23,10 +23,9 @@ import pytest  # noqa: E402
 @pytest.fixture(autouse=True)
 def _reset_mocks():
     """Reset all mocks before each test."""
+    import board_utils
     import pz_drive
     import sam
-    import board_utils
-    import micropython_builtins
 
     pz_drive._reset()
     sam._reset()

@@ -1,7 +1,6 @@
 """Integration tests for DRV2665 class."""
 
 import pytest
-
 import pz_drive
 from drv2665 import DRV2665
 

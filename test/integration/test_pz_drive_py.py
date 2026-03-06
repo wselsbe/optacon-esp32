@@ -1,7 +1,6 @@
 """Integration tests for PzActuator class."""
 
 import pytest
-
 import pz_drive
 from pz_drive_py import PzActuator
 

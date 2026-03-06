@@ -1,7 +1,5 @@
 """Tests for OTA device header injection."""
 import importlib
-import json
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -63,8 +61,10 @@ def test_headers_included_in_http_request(ota_module):
     mock_socket_mod.getaddrinfo.return_value = [(None, None, None, None, ("127.0.0.1", 80))]
     mock_socket_mod.socket.return_value = mock_sock
 
-    with patch.object(hw_info, "get_headers", return_value=device_headers):
-        with patch.dict("sys.modules", {"socket": mock_socket_mod}):
+    with (
+        patch.object(hw_info, "get_headers", return_value=device_headers),
+        patch.dict("sys.modules", {"socket": mock_socket_mod}),
+    ):
             importlib.reload(ota_module)
             # Re-import after reload to get fresh module reference
             import ota

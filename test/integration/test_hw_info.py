@@ -1,6 +1,5 @@
 """Tests for hw_info frozen module."""
 
-import importlib
 import sys
 
 import esp32

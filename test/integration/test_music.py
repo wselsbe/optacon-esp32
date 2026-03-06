@@ -3,7 +3,6 @@
 import time
 
 import pytest
-
 from music import NOTES, SONGS, note_freq, play_song
 
 

@@ -1,16 +1,16 @@
 """E2E test fixtures -- real web server with mock deps."""
 
 import asyncio
+import contextlib
 import os
 import socket
 from unittest.mock import MagicMock
 
-import pytest
-import pytest_asyncio
-
 # Patch microdot send_file to resolve /web/ paths to repo root BEFORE importing web_server
 import microdot
 import microdot.microdot as _microdot_mod
+import pytest
+import pytest_asyncio
 
 _repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _original_send_file = microdot.send_file
@@ -26,7 +26,8 @@ microdot.send_file = _patched_send_file
 _microdot_mod.send_file = _patched_send_file
 
 import web_server  # noqa: E402
-from test.e2e.ota_server import OTAMockServer, start_server  # noqa: E402
+
+from test.e2e.ota_server import start_server  # noqa: E402
 
 
 class MockDeps:
@@ -123,10 +124,8 @@ async def test_app(mock_deps):
 
     app.shutdown()
     server_task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await server_task
-    except asyncio.CancelledError:
-        pass
 
 
 @pytest_asyncio.fixture

@@ -1,6 +1,5 @@
 """Integration tests for the ota module."""
 
-import importlib
 import json
 import sys
 
