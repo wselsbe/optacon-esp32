@@ -28,9 +28,9 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
 Connect to the board's MicroPython REPL (`mpremote connect COM7`), then:
 
 ```python
-from pz_actuator_py import PzActuator
+from pz_drive_py import PzDrive
 
-pa = PzActuator()
+pa = PzDrive()
 
 # Output a 250 Hz sine wave (analog mode, via PWM + RC filter)
 pa.set_frequency_analog(250)
@@ -53,13 +53,13 @@ pa.start()
 
 ## Python API
 
-### `PzActuator` Class
+### `PzDrive` Class
 
-The high-level controller. Import from `pz_actuator_py`:
+The high-level controller. Import from `pz_drive_py`:
 
 ```python
-from pz_actuator_py import PzActuator
-pa = PzActuator()
+from pz_drive_py import PzDrive
+pa = PzDrive()
 ```
 
 #### Mode Configuration
@@ -145,7 +145,7 @@ from shift_register import ShiftRegister
 sr = ShiftRegister()
 ```
 
-Same pin control methods as `PzActuator` (`set_pin`, `get_pin`, `set_all`, `get_all`, `set_pins`, `latch`). The 32-bit SPI word maps pin N to bit `25 - N`, with bits [31:26] and [5:0] unused.
+Same pin control methods as `PzDrive` (`set_pin`, `get_pin`, `set_all`, `get_all`, `set_pins`, `latch`). The 32-bit SPI word maps pin N to bit `25 - N`, with bits [31:26] and [5:0] unused.
 
 ## C Module: `pz_drive`
 
@@ -240,7 +240,7 @@ modules/pz_drive/         C module: all real-time hardware control
 modules/sam/              C module: SAM text-to-speech (22 kHz 8-bit PCM)
 modules/board_utils/      C module: enter_bootloader()
 python/frozen/            frozen modules (compiled into firmware)
-  pz_drive_py.py          high-level PzActuator orchestrator
+  pz_drive_py.py          high-level PzDrive orchestrator
   drv2665.py              DRV2665 register driver
   shift_register.py       HV509 shift register driver
   main.py                 application entry point

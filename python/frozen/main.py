@@ -3,7 +3,7 @@ import _thread
 
 import pz_drive
 import web_server
-from pz_drive_py import PzActuator
+from pz_drive_py import PzDrive
 
 pz_drive.i2c_write(0x02, 0x40)
 
@@ -30,7 +30,7 @@ def demo_analog():
     """Demo: analog sine wave via PWM + RC filter."""
     import time
 
-    pa = PzActuator()
+    pa = PzDrive()
 
     try:
         for freq in [50, 100, 200, 250, 300, 400]:
@@ -55,7 +55,7 @@ def demo_digital():
     """Demo: digital sine wave via I2C FIFO."""
     import time
 
-    pa = PzActuator()
+    pa = PzDrive()
 
     try:
         for freq in [50, 100, 200, 250, 300]:
@@ -75,7 +75,7 @@ def demo():
     """Demo: cycle through pins with analog output."""
     import time
 
-    pa = PzActuator()
+    pa = PzDrive()
     pa.set_frequency_analog(250)
     pa.start()
 

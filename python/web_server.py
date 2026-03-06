@@ -15,9 +15,9 @@ class _Deps:
     def __init__(self):
         import ota as _ota
         import wifi as _wifi
-        from pz_drive_py import PzActuator
+        from pz_drive_py import PzDrive
 
-        self.pa = PzActuator()
+        self.pa = PzDrive()
         self.ota = _ota
         self.wifi = _wifi
 
@@ -45,7 +45,7 @@ def create_app(deps=None):
         return status
 
     def _handle_command(msg):
-        """Dispatch a JSON command to PzActuator. Returns status dict."""
+        """Dispatch a JSON command to PzDrive. Returns status dict."""
         data = json.loads(msg)
         cmd = data.get("cmd")
 
