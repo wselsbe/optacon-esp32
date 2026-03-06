@@ -18,8 +18,7 @@ typedef struct {
 static void audio_accumulate(void *userdata, char *data, unsigned int length) {
     AudioAccum *acc = (AudioAccum *)userdata;
     int to_copy = (int)length;
-    if (acc->pos + to_copy > acc->size)
-        to_copy = acc->size - acc->pos;
+    if (acc->pos + to_copy > acc->size) to_copy = acc->size - acc->pos;
     if (to_copy > 0) {
         memcpy(acc->buffer + acc->pos, data, to_copy);
         acc->pos += to_copy;
@@ -28,15 +27,15 @@ static void audio_accumulate(void *userdata, char *data, unsigned int length) {
 
 // Helper: run SAM synthesis, returns accumulated PCM buffer info.
 // Caller must free the returned buffer.
-static char *sam_synthesize(const char *text, unsigned char speed,
-                            unsigned char pitch, unsigned char mouth,
-                            unsigned char throat, int *out_len) {
+static char *sam_synthesize(const char *text, unsigned char speed, unsigned char pitch,
+                            unsigned char mouth, unsigned char throat, int *out_len) {
     size_t len = strlen(text);
     if (len > 254) {
         mp_raise_ValueError(MP_ERROR_TEXT("text too long (max 254 chars)"));
     }
 
-    // Allocate output buffer: 10 seconds at 22050 Hz
+    // Allocate output buffer: 10 seconds at 22050 Hz (~220 KB).
+    // Longer utterances are silently truncated.
     int buf_size = 22050 * 10;
     char *buffer = m_malloc(buf_size);
     if (!buffer) {
@@ -72,8 +71,7 @@ static char *sam_synthesize(const char *text, unsigned char speed,
 
 // sam.render(text, speed=72, pitch=64, mouth=128, throat=128)
 // Returns bytearray of 8-bit unsigned PCM at 22050 Hz
-static mp_obj_t mod_sam_render(size_t n_args, const mp_obj_t *pos_args,
-                               mp_map_t *kw_args) {
+static mp_obj_t mod_sam_render(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_text, ARG_speed, ARG_pitch, ARG_mouth, ARG_throat };
     static const mp_arg_t allowed_args[] = {
         {MP_QSTR_text, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
@@ -83,15 +81,12 @@ static mp_obj_t mod_sam_render(size_t n_args, const mp_obj_t *pos_args,
         {MP_QSTR_throat, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 128}},
     };
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
-    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args),
-                     allowed_args, args);
+    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
     int buf_len;
     char *buf = sam_synthesize(
-        mp_obj_str_get_str(args[ARG_text].u_obj),
-        (unsigned char)args[ARG_speed].u_int,
-        (unsigned char)args[ARG_pitch].u_int,
-        (unsigned char)args[ARG_mouth].u_int,
+        mp_obj_str_get_str(args[ARG_text].u_obj), (unsigned char)args[ARG_speed].u_int,
+        (unsigned char)args[ARG_pitch].u_int, (unsigned char)args[ARG_mouth].u_int,
         (unsigned char)args[ARG_throat].u_int, &buf_len);
 
     // Create bytearray (copies data), then free our buffer
@@ -103,8 +98,7 @@ static MP_DEFINE_CONST_FUN_OBJ_KW(mod_sam_render_obj, 1, mod_sam_render);
 
 // sam.say(text, speed=72, pitch=64, mouth=128, throat=128, gain=100)
 // Renders and plays through pz_drive, blocks until done
-static mp_obj_t mod_sam_say(size_t n_args, const mp_obj_t *pos_args,
-                            mp_map_t *kw_args) {
+static mp_obj_t mod_sam_say(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum { ARG_text, ARG_speed, ARG_pitch, ARG_mouth, ARG_throat, ARG_gain };
     static const mp_arg_t allowed_args[] = {
         {MP_QSTR_text, MP_ARG_REQUIRED | MP_ARG_OBJ, {.u_obj = MP_OBJ_NULL}},
@@ -115,33 +109,26 @@ static mp_obj_t mod_sam_say(size_t n_args, const mp_obj_t *pos_args,
         {MP_QSTR_gain, MP_ARG_KW_ONLY | MP_ARG_INT, {.u_int = 100}},
     };
     mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
-    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args),
-                     allowed_args, args);
+    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
 
     int buf_len;
     char *buf = sam_synthesize(
-        mp_obj_str_get_str(args[ARG_text].u_obj),
-        (unsigned char)args[ARG_speed].u_int,
-        (unsigned char)args[ARG_pitch].u_int,
-        (unsigned char)args[ARG_mouth].u_int,
+        mp_obj_str_get_str(args[ARG_text].u_obj), (unsigned char)args[ARG_speed].u_int,
+        (unsigned char)args[ARG_pitch].u_int, (unsigned char)args[ARG_mouth].u_int,
         (unsigned char)args[ARG_throat].u_int, &buf_len);
 
     // Map gain percentage to DRV2665 register value
     int gain = args[ARG_gain].u_int;
     uint8_t gain_bits;
-    if (gain <= 25)
-        gain_bits = 0x00;
-    else if (gain <= 50)
-        gain_bits = 0x01;
-    else if (gain <= 75)
-        gain_bits = 0x02;
-    else
-        gain_bits = 0x03;
+    if (gain <= 25) gain_bits = 0x00;
+    else if (gain <= 50) gain_bits = 0x01;
+    else if (gain <= 75) gain_bits = 0x02;
+    else gain_bits = 0x03;
 
     // Configure DRV2665 for analog input before playback
-    drv2665_write_reg(0x02, 0x0C);                // CTRL2: clear timeout, set TIMEOUT_20MS
-    drv2665_write_reg(0x01, 0x04 | gain_bits);    // CTRL1: INPUT_ANALOG | gain
-    drv2665_write_reg(0x02, 0x02 | 0x0C);         // CTRL2: EN_OVERRIDE | TIMEOUT_20MS
+    drv2665_write_reg(0x02, 0x0C);             // CTRL2: clear timeout, set TIMEOUT_20MS
+    drv2665_write_reg(0x01, 0x04 | gain_bits); // CTRL1: INPUT_ANALOG | gain
+    drv2665_write_reg(0x02, 0x02 | 0x0C);      // CTRL2: EN_OVERRIDE | TIMEOUT_20MS
 
     // Play via pz_drive
     pzd_pwm_play_samples((const uint8_t *)buf, buf_len, 22050, false);

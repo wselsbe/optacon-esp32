@@ -4,12 +4,11 @@
 #include "sam.h"
 unsigned char ReadTableValue(SAMContext *ctx, unsigned char p, unsigned char Y);
 void WriteTableValue(SAMContext *ctx, unsigned char p, unsigned char Y, unsigned char value);
-void Interpolate(SAMContext *ctx, unsigned char width, unsigned char table, unsigned char frame, char diff);
+void Interpolate(SAMContext *ctx, unsigned char width, unsigned char table, unsigned char frame,
+                 char diff);
 unsigned char CreateTransitions(SAMContext *ctx);
 
-
-enum WhichTable
-{
+enum WhichTable {
     TBL_PITCH = 168,
     TBL_FREQ1 = 169,
     TBL_FREQ2 = 170,

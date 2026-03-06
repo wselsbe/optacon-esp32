@@ -4,10 +4,8 @@
 
 #include <math.h>
 
-unsigned char ReadTableValue(SAMContext *ctx, unsigned char whichTable, unsigned char Y)
-{
-    switch (whichTable)
-    {
+unsigned char ReadTableValue(SAMContext *ctx, unsigned char whichTable, unsigned char Y) {
+    switch (whichTable) {
     case TBL_PITCH:
         return ctx->pitches[Y];
     case TBL_FREQ1:
@@ -27,10 +25,9 @@ unsigned char ReadTableValue(SAMContext *ctx, unsigned char whichTable, unsigned
     }
 }
 
-void WriteTableValue(SAMContext *ctx, unsigned char whichTable, unsigned char Y, unsigned char value)
-{
-    switch (whichTable)
-    {
+void WriteTableValue(SAMContext *ctx, unsigned char whichTable, unsigned char Y,
+                     unsigned char value) {
+    switch (whichTable) {
     case TBL_PITCH:
         ctx->pitches[Y] = value;
         return;
@@ -59,8 +56,8 @@ void WriteTableValue(SAMContext *ctx, unsigned char whichTable, unsigned char Y,
 }
 
 // linearly interpolate values
-void Interpolate(SAMContext *ctx, unsigned char width, unsigned char table, unsigned char frame, char diff)
-{
+void Interpolate(SAMContext *ctx, unsigned char width, unsigned char table, unsigned char frame,
+                 char diff) {
     unsigned char sign = (diff < 0);
     unsigned char remainder = abs(diff) % width;
     unsigned char div = diff / width;
@@ -69,24 +66,20 @@ void Interpolate(SAMContext *ctx, unsigned char width, unsigned char table, unsi
     unsigned char pos = width;
     unsigned char val = ReadTableValue(ctx, table, frame) + div;
 
-    while (--pos)
-    {
+    while (--pos) {
         error += remainder;
-        if (error >= width)
-        { // accumulated a whole integer error, so adjust output
+        if (error >= width) { // accumulated a whole integer error, so adjust output
             error -= width;
-            if (sign)
-                val--;
-            else if (val)
-                val++; // if input is 0, we always leave it alone
+            if (sign) val--;
+            else if (val) val++; // if input is 0, we always leave it alone
         }
         WriteTableValue(ctx, table, ++frame, val); // Write updated value back to next frame.
         val += div;
     }
 }
 
-void InterpolatePitch(SAMContext *ctx, unsigned char pos, unsigned char mem49, unsigned char frame)
-{
+void InterpolatePitch(SAMContext *ctx, unsigned char pos, unsigned char mem49,
+                      unsigned char frame) {
     // unlike the other values, the pitches[] interpolates from
     // the middle of the current phoneme to the middle of the
     // next phoneme
@@ -100,12 +93,10 @@ void InterpolatePitch(SAMContext *ctx, unsigned char pos, unsigned char mem49, u
     Interpolate(ctx, width, TBL_PITCH, frame, pitch);
 }
 
-unsigned char CreateTransitions(SAMContext *ctx)
-{
+unsigned char CreateTransitions(SAMContext *ctx) {
     unsigned char mem49 = 0;
     unsigned char pos = 0;
-    while (1)
-    {
+    while (1) {
         unsigned char next_rank;
         unsigned char rank;
         unsigned char speedcounter;
@@ -117,28 +108,22 @@ unsigned char CreateTransitions(SAMContext *ctx)
         unsigned char phoneme = ctx->phonemeIndexOutput[pos];
         unsigned char next_phoneme = ctx->phonemeIndexOutput[pos + 1];
 
-        if (next_phoneme == 255)
-            break; // 255 == end_token
+        if (next_phoneme == 255) break; // 255 == end_token
 
         // get the ranking of each phoneme
         next_rank = blendRank[next_phoneme];
         rank = blendRank[phoneme];
 
         // compare the rank - lower rank value is stronger
-        if (rank == next_rank)
-        {
+        if (rank == next_rank) {
             // same rank, so use out blend lengths from each phoneme
             phase1 = outBlendLength[phoneme];
             phase2 = outBlendLength[next_phoneme];
-        }
-        else if (rank < next_rank)
-        {
+        } else if (rank < next_rank) {
             // next phoneme is stronger, so use its blend lengths
             phase1 = inBlendLength[next_phoneme];
             phase2 = outBlendLength[next_phoneme];
-        }
-        else
-        {
+        } else {
             // current phoneme is stronger, so use its blend lengths
             // note the out/in are swapped
             phase1 = outBlendLength[phoneme];
@@ -151,12 +136,10 @@ unsigned char CreateTransitions(SAMContext *ctx)
         phase3 = mem49 - phase1;
         transition = phase1 + phase2; // total transition?
 
-        if (((transition - 2) & 128) == 0)
-        {
+        if (((transition - 2) & 128) == 0) {
             unsigned char table = 169;
             InterpolatePitch(ctx, pos, mem49, phase3);
-            while (table < 175)
-            {
+            while (table < 175) {
                 // tables:
                 // 168  pitches[]
                 // 169  frequency1
@@ -166,7 +149,8 @@ unsigned char CreateTransitions(SAMContext *ctx)
                 // 173  amplitude2
                 // 174  amplitude3
 
-                char value = ReadTableValue(ctx, table, speedcounter) - ReadTableValue(ctx, table, phase3);
+                char value =
+                    ReadTableValue(ctx, table, speedcounter) - ReadTableValue(ctx, table, phase3);
                 Interpolate(ctx, transition, table, phase3, value);
                 table++;
             }

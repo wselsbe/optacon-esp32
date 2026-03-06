@@ -3,8 +3,10 @@
 
 #include "sam.h"
 
-void Insert(SAMContext *ctx, unsigned char position, unsigned char phonemeIndex, unsigned char phonemeLength, unsigned char stress);
-void ChangeRule(SAMContext *ctx, unsigned char position, unsigned char phonemeIndex, const char *descr);
+void Insert(SAMContext *ctx, unsigned char position, unsigned char phonemeIndex,
+            unsigned char phonemeLength, unsigned char stress);
+void ChangeRule(SAMContext *ctx, unsigned char position, unsigned char phonemeIndex,
+                const char *descr);
 void rule_j(SAMContext *ctx, unsigned char pos);
 void rule_g(SAMContext *ctx, unsigned char pos);
 void rule_alveolar_uw(SAMContext *ctx, unsigned char X);

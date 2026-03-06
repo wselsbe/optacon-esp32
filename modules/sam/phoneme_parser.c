@@ -55,8 +55,7 @@
 // the index 255 is placed at the end of the phonemeIndexTable[], and the
 // function returns with a 1 indicating success.
 
-int ParsePhonemes(SAMContext *ctx)
-{
+int ParsePhonemes(SAMContext *ctx) {
     unsigned char sign1;
     unsigned char position = 0;
     unsigned char srcpos = 0;
@@ -64,31 +63,25 @@ int ParsePhonemes(SAMContext *ctx)
     memset(ctx->stress, 0, 256); // Clear the stress table.
 
     while ((sign1 = ctx->toSpeak.input[srcpos]) != 155)
-    
+
     { // 155 (\233) is end of line marker
         signed int match;
         unsigned char sign2 = ctx->toSpeak.input[++srcpos];
-        if ((match = full_match(sign1, sign2)) != -1)
-        {
+        if ((match = full_match(sign1, sign2)) != -1) {
             // Matched both characters (no wildcards)
             ctx->phonemeIndex[position++] = (unsigned char)match;
             ++srcpos; // Skip the second character of the input as we've matched it
-        }
-        else if ((match = wild_match(sign1)) != -1)
-        {
+        } else if ((match = wild_match(sign1)) != -1) {
             // Matched just the first character (with second character matching '*'
             ctx->phonemeIndex[position++] = (unsigned char)match;
-        }
-        else
-        {
+        } else {
             // Should be a stress character. Search through the
             // stress table backwards.
             match = 8; // End of stress table. FIXME: Don't hardcode.
             while ((sign1 != stressInputTable[match]) && (match > 0))
                 --match;
 
-            if (match == 0)
-                return 0; // failure
+            if (match == 0) return 0; // failure
 
             ctx->stress[position - 1] = (unsigned char)match; // Set stress for prior phoneme
         }
@@ -98,35 +91,27 @@ int ParsePhonemes(SAMContext *ctx)
     return 1;
 }
 
-signed int full_match(unsigned char sign1, unsigned char sign2)
-{
+signed int full_match(unsigned char sign1, unsigned char sign2) {
     unsigned char Y = 0;
-    do
-    {
+    do {
         // GET FIRST CHARACTER AT POSITION Y IN signInputTable
         // --> should change name to PhonemeNameTable1
         unsigned char A = signInputTable1[Y];
 
-        if (A == sign1)
-        {
+        if (A == sign1) {
             A = signInputTable2[Y];
             // NOT A SPECIAL AND MATCHES SECOND CHARACTER?
-            if ((A != '*') && (A == sign2))
-                return Y;
+            if ((A != '*') && (A == sign2)) return Y;
         }
     } while (++Y != 81);
     return -1;
 }
 
-signed int wild_match(unsigned char sign1)
-{
+signed int wild_match(unsigned char sign1) {
     signed int Y = 0;
-    do
-    {
-        if (signInputTable2[Y] == '*')
-        {
-            if (signInputTable1[Y] == sign1)
-                return Y;
+    do {
+        if (signInputTable2[Y] == '*') {
+            if (signInputTable1[Y] == sign1) return Y;
         }
     } while (++Y != 81);
     return -1;

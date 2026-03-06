@@ -1,8 +1,7 @@
 #ifndef __RECITER_H__
 #define __RECITER_H__
 
-typedef struct SAMReciterContext
-{
+typedef struct SAMReciterContext {
     unsigned char reciterInput[256];
     unsigned char workingChar; // The current char which is often mutated
     unsigned char reciterIndex;

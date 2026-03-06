@@ -107,7 +107,10 @@ def _handle_command(msg):
         for token in notes_str.split():
             parts = token.split(":")
             note = parts[0]
-            beats = float(parts[1]) if len(parts) > 1 else 1
+            try:
+                beats = float(parts[1]) if len(parts) > 1 else 1
+            except ValueError:
+                return {"error": "invalid beat value: " + parts[1]}
             song.append((note if note != "R" else "R", beats))
         music.play(
             song,
@@ -295,7 +298,7 @@ async def music_songs(request):
     songs = []
     for name, (data, bpm, gain) in music.SONGS.items():
         notes = " ".join(
-            "{}:{}".format(t[0], t[1]) for t in data
+            f"{t[0]}:{t[1]}" for t in data
         )
         songs.append({"name": name, "notes": notes, "bpm": bpm, "gain": gain})
     return json.dumps({"songs": songs}), 200, {"Content-Type": "application/json"}

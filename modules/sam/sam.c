@@ -8,36 +8,32 @@
 #include "sam.h"
 #include "sam_tabs.h"
 
-void PrintPhonemes(SAMContext *ctx)
-{
+void PrintPhonemes(SAMContext *ctx) {
     (void)ctx; // no-op on embedded
 }
 
-void SAMInit(SAMContext *ctx)
-{
+void SAMInit(SAMContext *ctx) {
     int i;
     SAMSetMouthThroat(ctx);
 
     ctx->oldTimeTableIndex = 0;
 
-    for (i = 0; i < 256; i++)
-    {
+    for (i = 0; i < 256; i++) {
         ctx->stress[i] = 0;
         ctx->phonemeLength[i] = 0;
     }
 
-    for (i = 0; i < 60; i++)
-    {
+    for (i = 0; i < 60; i++) {
         ctx->phonemeIndexOutput[i] = 0;
         ctx->stressOutput[i] = 0;
         ctx->phonemeLengthOutput[i] = 0;
     }
-    ctx->phonemeIndex[255] = END; // to prevent buffer overflow // ML : changed from 32 to 255 to stop freezing with long inputs
+    ctx->phonemeIndex[255] = END; // to prevent buffer overflow // ML : changed from 32 to 255 to
+                                  // stop freezing with long inputs
     // ctx->phonemeindex[255] = 32;  // to prevent buffer overflow
 }
 
-void SAMSpeak(SAMUtterance *toSpeak)
-{
+void SAMSpeak(SAMUtterance *toSpeak) {
     SAMContext ctx;
     ctx.toSpeak = *toSpeak;
     // make a copy of the input string to pass to get phonemes out of
@@ -62,27 +58,17 @@ void SAMSpeak(SAMUtterance *toSpeak)
     PrepareOutput(&ctx);
 
     // if we were passed a callback on toSpeak, call it now with our buffer-
-    if (toSpeak->finished_callback)
-        toSpeak->finished_callback(toSpeak->userdata);
-
-    SAMFree(&ctx);
+    if (toSpeak->finished_callback) toSpeak->finished_callback(toSpeak->userdata);
 }
 
-void SAMFree(SAMContext *ctx)
-{
-}
-
-void PrepareOutput(SAMContext *ctx)
-{
+void PrepareOutput(SAMContext *ctx) {
     unsigned char srcpos = 0;  // Position in source
     unsigned char destpos = 0; // Position in output
 
-    while (1)
-    {
+    while (1) {
         unsigned char A = ctx->phonemeIndex[srcpos];
         ctx->phonemeIndexOutput[destpos] = A;
-        switch (A)
-        {
+        switch (A) {
         case END:
             RenderAudio(ctx);
             return;

@@ -5,8 +5,7 @@
 // includes an output callback
 // also includes parameters for voice
 
-typedef struct SAMUtterance
-{
+typedef struct SAMUtterance {
     char *input;
     // callback called to output audio
     void (*output_callback)(void *userdata, char *buffer, unsigned int length);
@@ -23,8 +22,7 @@ typedef struct SAMUtterance
 } SAMUtterance;
 
 // a struct containing shared context for SAM
-typedef struct SAMContext
-{
+typedef struct SAMContext {
 
     SAMUtterance toSpeak;
     unsigned char stress[256];        // numbers from 0 to 8
@@ -50,20 +48,12 @@ typedef struct SAMContext
     unsigned oldTimeTableIndex;
 } SAMContext;
 
-typedef enum
-{
-    pR = 23,
-    pD = 57,
-    pT = 69,
-    BREAK = 254,
-    END = 255
-} Phonemes;
+typedef enum { pR = 23, pD = 57, pT = 69, BREAK = 254, END = 255 } Phonemes;
 
 void PrintPhonemes(SAMContext *ctx);
 void SAMInit(SAMContext *ctx);
 
 void PrepareOutput(SAMContext *ctx);
 void SAMSpeak(SAMUtterance *toSpeak);
-void SAMFree(SAMContext *ctx);
 
 #endif // __SAM_H__

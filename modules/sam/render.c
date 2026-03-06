@@ -6,8 +6,7 @@
 #include <string.h>
 #include <math.h>
 
-void WriteToBuf(SAMContext *ctx, int index, unsigned char A)
-{
+void WriteToBuf(SAMContext *ctx, int index, unsigned char A) {
     int k, n;
     unsigned char zeroCount = timetable[ctx->oldTimeTableIndex][index] / 50;
     ctx->oldTimeTableIndex = index;
@@ -21,51 +20,20 @@ void WriteToBuf(SAMContext *ctx, int index, unsigned char A)
         ctx->toSpeak.output_callback(ctx->toSpeak.userdata, (char *)buf, l);
 }
 
-unsigned char MultiplyAndShift(unsigned char a, unsigned char b)
-{
+unsigned char MultiplyAndShift(unsigned char a, unsigned char b) {
     return (((unsigned int)a * b) >> 8) << 1;
 }
 
-void SAMSetMouthThroat(SAMContext *ctx)
-{
+void SAMSetMouthThroat(SAMContext *ctx) {
     // mouth formants (F1) 5..29
-    static const unsigned char mouthFormants5_29[30] = {
-        0, 0, 0, 0, 0, 10,
-        14, 19, 24, 27, 23, 21, 16, 20, 14, 18, 14, 18, 18,
-        16, 13, 15, 11, 18, 14, 11, 9, 6, 6, 6};
+    static const unsigned char mouthFormants5_29[30] = {0,  0,  0,  0,  0,  10, 14, 19, 24, 27,
+                                                        23, 21, 16, 20, 14, 18, 14, 18, 18, 16,
+                                                        13, 15, 11, 18, 14, 11, 9,  6,  6,  6};
 
     // throat formants (F2) 5..29
     static const unsigned char throatFormants5_29[30] = {
-        255,
-        255,
-        255,
-        255,
-        255,
-        84,
-        73,
-        67,
-        63,
-        40,
-        44,
-        31,
-        37,
-        45,
-        73,
-        49,
-        36,
-        30,
-        51,
-        37,
-        29,
-        69,
-        24,
-        50,
-        30,
-        24,
-        83,
-        46,
-        54,
-        86,
+        255, 255, 255, 255, 255, 84, 73, 67, 63, 40, 44, 31, 37, 45, 73,
+        49,  36,  30,  51,  37,  29, 69, 24, 50, 30, 24, 83, 46, 54, 86,
     };
 
     // there must be no zeros in these 2 tables
@@ -83,20 +51,17 @@ void SAMSetMouthThroat(SAMContext *ctx)
     unsigned char pos = 5;
 
     // recalculate formant frequencies 5..29 for the mouth (F1) and throat (F2)
-    while (pos < 30)
-    {
+    while (pos < 30) {
         // recalculate mouth frequency
         unsigned char initialFrequency = mouthFormants5_29[pos];
-        if (initialFrequency != 0)
-        {
+        if (initialFrequency != 0) {
             newFrequency = MultiplyAndShift(ctx->toSpeak.mouth, initialFrequency);
         }
         ctx->freq1data[pos] = newFrequency;
 
         // recalculate throat frequency
         initialFrequency = throatFormants5_29[pos];
-        if (initialFrequency != 0)
-        {
+        if (initialFrequency != 0) {
             newFrequency = MultiplyAndShift(ctx->toSpeak.throat, initialFrequency);
         }
         ctx->freq2data[pos] = newFrequency;
@@ -105,8 +70,7 @@ void SAMSetMouthThroat(SAMContext *ctx)
 
     // recalculate formant frequencies 48..53
     pos = 0;
-    while (pos < 6)
-    {
+    while (pos < 6) {
         // recalculate F1 (mouth formant)
         unsigned char initialFrequency = mouthFormants48_53[pos];
         ctx->freq1data[pos + 48] = MultiplyAndShift(ctx->toSpeak.mouth, initialFrequency);
@@ -122,24 +86,20 @@ void SAMSetMouthThroat(SAMContext *ctx)
 // index X. A rising inflection is used for questions, and
 // a falling inflection is used for statements.
 
-void AddInflection(SAMContext *ctx, unsigned char inflection, unsigned char pos)
-{
+void AddInflection(SAMContext *ctx, unsigned char inflection, unsigned char pos) {
     unsigned char A;
     // store the location of the punctuation
     unsigned char end = pos;
 
-    if (pos < 30)
-        pos = 0;
-    else
-        pos -= 30;
+    if (pos < 30) pos = 0;
+    else pos -= 30;
 
     // FIXME: Explain this fix better, it's not obvious
     // ML : A =, fixes a problem with invalid pitch with '.'
     while ((A = ctx->pitches[pos]) == 127)
         ++pos;
 
-    while (pos != end)
-    {
+    while (pos != end) {
         // add the inflection direction
         A += inflection;
 
@@ -160,25 +120,20 @@ void AddInflection(SAMContext *ctx, unsigned char inflection, unsigned char pos)
 // The parameters are copied from the phoneme to the frame verbatim.
 //
 
-void CreateFrames(SAMContext *ctx)
-{
+void CreateFrames(SAMContext *ctx) {
     unsigned char X = 0;
     unsigned int index = 0;
-    while (index < 256)
-    {
+    while (index < 256) {
         // get the phoneme at the index
         unsigned char phoneme = ctx->phonemeIndexOutput[index];
         unsigned char stressPitch;
         signed frameCount;
 
         // if terminal phoneme, exit the loop
-        if (phoneme == 255)
-            break;
+        if (phoneme == 255) break;
 
-        if (phoneme == PHONEME_PERIOD)
-            AddInflection(ctx, RISING_INFLECTION, X);
-        else if (phoneme == PHONEME_QUESTION)
-            AddInflection(ctx, FALLING_INFLECTION, X);
+        if (phoneme == PHONEME_PERIOD) AddInflection(ctx, RISING_INFLECTION, X);
+        else if (phoneme == PHONEME_QUESTION) AddInflection(ctx, FALLING_INFLECTION, X);
 
         // get the stress amount (more stress = higher pitch)
         stressPitch = stressPitchesTable[ctx->stressOutput[index] + 1];
@@ -188,16 +143,16 @@ void CreateFrames(SAMContext *ctx)
 
         // copy from the source to the frames list
 
-        do
-        {
-            ctx->frequency1[X] = freq1data[phoneme];                       // F1 frequency
-            ctx->frequency2[X] = freq2data[phoneme];                       // F2 frequency
-            ctx->frequency3[X] = freq3data[phoneme];                       // F3 frequency
-            ctx->amplitude1[X] = ampl1data[phoneme];                       // F1 amplitude
-            ctx->amplitude2[X] = ampl2data[phoneme];                       // F2 amplitude
-            ctx->amplitude3[X] = ampl3data[phoneme];                       // F3 amplitude
-            ctx->sampledConsonantFlag[X] = sampledConsonantFlags[phoneme]; // phoneme data for sampled consonants
-            ctx->pitches[X] = ctx->toSpeak.pitch + stressPitch;            // pitch
+        do {
+            ctx->frequency1[X] = freq1data[phoneme]; // F1 frequency
+            ctx->frequency2[X] = freq2data[phoneme]; // F2 frequency
+            ctx->frequency3[X] = freq3data[phoneme]; // F3 frequency
+            ctx->amplitude1[X] = ampl1data[phoneme]; // F1 amplitude
+            ctx->amplitude2[X] = ampl2data[phoneme]; // F2 amplitude
+            ctx->amplitude3[X] = ampl3data[phoneme]; // F3 amplitude
+            ctx->sampledConsonantFlag[X] =
+                sampledConsonantFlags[phoneme]; // phoneme data for sampled consonants
+            ctx->pitches[X] = ctx->toSpeak.pitch + stressPitch; // pitch
             ++X;
         } while (--frameCount != 0);
         ++index;
@@ -210,11 +165,9 @@ void CreateFrames(SAMContext *ctx)
 // pitch contour. Without this, the output would be at a single
 // pitch level (monotone).
 
-void AssignPitchContour(SAMContext *ctx)
-{
+void AssignPitchContour(SAMContext *ctx) {
     int i;
-    for (i = 0; i < 256; i++)
-    {
+    for (i = 0; i < 256; i++) {
         // subtract half of the frequency of the formant 1.
         // this adds variety to the voice
         ctx->pitches[i] -= (ctx->frequency1[i] >> 1);
@@ -226,24 +179,22 @@ void AssignPitchContour(SAMContext *ctx)
 //
 // Rescale volume from a linear scale to decibels.
 //
-void RescaleAmplitude(SAMContext *ctx)
-{
+void RescaleAmplitude(SAMContext *ctx) {
     int i;
-    for (i = 255; i >= 0; i--)
-    {
+    for (i = 255; i >= 0; i--) {
         ctx->amplitude1[i] = amplitudeRescale[ctx->amplitude1[i]];
         ctx->amplitude2[i] = amplitudeRescale[ctx->amplitude2[i]];
         ctx->amplitude3[i] = amplitudeRescale[ctx->amplitude3[i]];
     }
 }
 
-void CombineGlottalAndFormants(SAMContext *ctx, unsigned char phase1, unsigned char phase2, unsigned char phase3, unsigned char Y)
-{
+void CombineGlottalAndFormants(SAMContext *ctx, unsigned char phase1, unsigned char phase2,
+                               unsigned char phase3, unsigned char Y) {
     unsigned int tmp;
 
-    tmp = multtable[sinus[phase1] | ctx->amplitude1[Y]];      //     F1
-    tmp += multtable[sinus[phase2] | ctx->amplitude2[Y]];     // +   F2
-    tmp += tmp > 255 ? 1 : 0;                                 // if addition above overflows, we for some reason add one;   + 1
+    tmp = multtable[sinus[phase1] | ctx->amplitude1[Y]];  //     F1
+    tmp += multtable[sinus[phase2] | ctx->amplitude2[Y]]; // +   F2
+    tmp += tmp > 255 ? 1 : 0; // if addition above overflows, we for some reason add one;   + 1
     tmp += multtable[rectangle[phase3] | ctx->amplitude3[Y]]; // +   F3
     tmp += 136;
     tmp >>= 4; // Scale down to 0..15 range of C64 audio.
@@ -261,8 +212,7 @@ void CombineGlottalAndFormants(SAMContext *ctx, unsigned char phase1, unsigned c
 // reset at the beginning of each glottal pulse.
 //
 
-void ProcessFrames(SAMContext *ctx, unsigned char frameCount)
-{
+void ProcessFrames(SAMContext *ctx, unsigned char frameCount) {
     unsigned char speedcounter = 72;
     unsigned char phase1 = 0;
     unsigned char phase2 = 0;
@@ -274,45 +224,37 @@ void ProcessFrames(SAMContext *ctx, unsigned char frameCount)
     unsigned char glottal_pulse = ctx->pitches[0];
     unsigned char count = glottal_pulse - (glottal_pulse >> 2); // mem44 * 0.75
 
-    while (frameCount)
-    {
+    while (frameCount) {
         unsigned char flags = ctx->sampledConsonantFlag[Y];
 
         // unvoiced sampled phoneme?
-        if (flags & 248)
-        {
+        if (flags & 248) {
             RenderSample(ctx, &mem66, flags, Y);
             // skip ahead two in the phoneme buffer
             Y += 2;
             frameCount -= 2;
             speedcounter = ctx->toSpeak.speed;
-        }
-        else
-        {
+        } else {
             CombineGlottalAndFormants(ctx, phase1, phase2, phase3, Y);
 
             speedcounter--;
-            if (speedcounter == 0)
-            {
+            if (speedcounter == 0) {
                 Y++; // go to next amplitude
                 // decrement the frame count
                 frameCount--;
-                if (frameCount == 0)
-                    return;
+                if (frameCount == 0) return;
                 speedcounter = ctx->toSpeak.speed;
             }
 
             --glottal_pulse;
 
-            if (glottal_pulse != 0)
-            {
+            if (glottal_pulse != 0) {
                 // not finished with a glottal pulse
 
                 --count;
                 // within the first 75% of the glottal pulse?
                 // is the count non-zero and the sampled flag is zero?
-                if ((count != 0) || (flags == 0))
-                {
+                if ((count != 0) || (flags == 0)) {
                     // reset the phase of the formants to match the pulse
                     phase1 += ctx->frequency1[Y]; // F1
                     phase2 += ctx->frequency2[Y]; // F2
@@ -338,18 +280,15 @@ void ProcessFrames(SAMContext *ctx, unsigned char frameCount)
     }
 }
 
-static unsigned char RenderVoicedSample(SAMContext *ctx, unsigned short hi, unsigned char offset, unsigned char phase1)
-{
-    do
-    {
+static unsigned char RenderVoicedSample(SAMContext *ctx, unsigned short hi, unsigned char offset,
+                                        unsigned char phase1) {
+    do {
         unsigned char bit = 8;
         unsigned char sample = sampleTable[hi + offset];
-        do
-        {
+        do {
             if ((sample & 128) != 0) // bit 7 set?
                 WriteToBuf(ctx, 3, 26);
-            else
-                WriteToBuf(ctx, 4, 6);
+            else WriteToBuf(ctx, 4, 6);
             sample <<= 1;
         } while (--bit != 0);
         offset++;
@@ -357,18 +296,14 @@ static unsigned char RenderVoicedSample(SAMContext *ctx, unsigned short hi, unsi
     return offset;
 }
 
-void RenderUnvoicedSample(SAMContext *ctx, unsigned short hi, unsigned char off, unsigned char mem53)
-{
-    do
-    {
+void RenderUnvoicedSample(SAMContext *ctx, unsigned short hi, unsigned char off,
+                          unsigned char mem53) {
+    do {
         unsigned char bit = 8;
         unsigned char sample = sampleTable[hi + off];
-        do
-        {
-            if ((sample & 128) != 0)
-                WriteToBuf(ctx, 2, 5);
-            else
-                WriteToBuf(ctx, 1, mem53);
+        do {
+            if ((sample & 128) != 0) WriteToBuf(ctx, 2, 5);
+            else WriteToBuf(ctx, 1, mem53);
             sample <<= 1;
         } while (--bit != 0);
     } while (++off != 0);
@@ -426,8 +361,8 @@ void RenderUnvoicedSample(SAMContext *ctx, unsigned short hi, unsigned char off,
 //
 // For voices samples, samples are interleaved between voiced output.
 
-void RenderSample(SAMContext *ctx, unsigned char *out, unsigned char consonantFlag, unsigned char phonemeIndex)
-{
+void RenderSample(SAMContext *ctx, unsigned char *out, unsigned char consonantFlag,
+                  unsigned char phonemeIndex) {
 
     // mask low three bits and subtract 1 get value to
     // convert 0 bits on unvoiced samples.
@@ -443,14 +378,11 @@ void RenderSample(SAMContext *ctx, unsigned char *out, unsigned char consonantFl
     unsigned short hi = hibyte * 256;
     // voiced sample?
     unsigned char pitchl = consonantFlag & 248;
-    if (pitchl == 0)
-    {
+    if (pitchl == 0) {
         // voiced phoneme: Z*, ZH, V*, DH
         pitchl = ctx->pitches[phonemeIndex] >> 4;
         *out = RenderVoicedSample(ctx, hi, *out, pitchl ^ 255);
-    }
-    else
-        RenderUnvoicedSample(ctx, hi, pitchl ^ 255, tab48426[hibyte]);
+    } else RenderUnvoicedSample(ctx, hi, pitchl ^ 255, tab48426[hibyte]);
 }
 
 // RENDER THE PHONEMES IN THE LIST
@@ -467,18 +399,15 @@ void RenderSample(SAMContext *ctx, unsigned char *out, unsigned char consonantFl
 //
 // 4. Render each frame.
 
-int RenderAudio(SAMContext *ctx)
-{
+int RenderAudio(SAMContext *ctx) {
     unsigned char totalFrameCount = 0;
 
-    if (ctx->phonemeIndexOutput[0] == 255)
-        return 0; // exit if no data
+    if (ctx->phonemeIndexOutput[0] == 255) return 0; // exit if no data
 
     CreateFrames(ctx);
     totalFrameCount = CreateTransitions(ctx);
 
-    if (!ctx->toSpeak.singmode)
-        AssignPitchContour(ctx);
+    if (!ctx->toSpeak.singmode) AssignPitchContour(ctx);
     RescaleAmplitude(ctx);
     ProcessFrames(ctx, totalFrameCount);
     return totalFrameCount;
