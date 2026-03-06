@@ -116,6 +116,30 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
   font-family:inherit;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer;transition:all .12s}
 .sm-btn:hover{border-color:var(--text3);background:#eeedea}
 
+/* Tabs */
+.tab-row{display:flex;gap:2px;margin-left:auto}
+.tab-btn{padding:4px 12px;background:transparent;border:1.5px solid transparent;border-radius:4px;
+  font-family:"Consolas","SF Mono","Menlo",monospace;font-size:11px;font-weight:600;
+  letter-spacing:.5px;color:var(--text3);cursor:pointer;transition:all .12s}
+.tab-btn:hover{color:var(--text2);background:#f0efec}
+.tab-btn.sel{background:var(--esp);color:#fff;border-color:var(--esp)}
+
+/* Speech/Music feedback */
+.tts-msg{margin-top:10px;padding:8px 12px;border-radius:5px;font-size:12px;text-align:center;display:none;
+  font-family:"Consolas","SF Mono",monospace}
+.tts-msg.ok{background:#1a884815;color:var(--green);display:block}
+.tts-msg.err{background:#c82e2015;color:var(--red);display:block}
+.tts-msg.info{background:#2856a015;color:var(--esp);display:block}
+
+/* Song buttons */
+.song-btn{padding:7px 12px;background:var(--input);border:1.5px solid var(--border);border-radius:5px;
+  font-family:"Consolas","SF Mono",monospace;font-size:11px;font-weight:600;color:var(--text2);
+  cursor:pointer;transition:all .12s}
+.song-btn:hover{border-color:var(--text3);background:#eeedea}
+.song-btn:disabled{opacity:.5;cursor:not-allowed}
+.song-row{display:flex;align-items:center;gap:8px}
+.song-row .song-meta{font-family:"Consolas","SF Mono",monospace;font-size:11px;color:var(--text3);white-space:nowrap}
+
 /* Toast */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(60px);
   padding:10px 20px;background:var(--red);color:#fff;border-radius:var(--radius);font-size:13px;
@@ -163,9 +187,17 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 
 <!-- ESP32 Signal Generator -->
 <div class="card esp" id="card-esp">
-  <div class="card-h"><b>ESP32</b> <span>Signal Generator</span></div>
+  <div class="card-h">
+    <b>ESP32</b>
+    <div class="tab-row">
+      <button class="tab-btn sel" id="tab-btn-signal" data-tab="signal">Signal</button>
+      <button class="tab-btn" id="tab-btn-music" data-tab="music">Music</button>
+      <button class="tab-btn" id="tab-btn-speech" data-tab="speech">Speech</button>
+    </div>
+  </div>
   <div class="card-b">
-    <div class="field">
+    <!-- Shared waveform selector (hidden on Speech tab, DC disabled on Music tab) -->
+    <div class="field" id="waveform-section">
       <label>Waveform</label>
       <div class="wf-row">
         <button class="wf-btn" id="wf-dc" data-wf="dc">
@@ -198,37 +230,85 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
         </button>
       </div>
     </div>
-    <div class="field" id="freq-field">
-      <label>Frequency</label>
-      <div class="freq-row">
-        <input type="range" id="freq-slider" min="0" max="500" value="250">
-        <input type="number" id="freq" min="0" max="500" value="250" step="1">
-        <span class="unit">Hz</span>
-      </div>
-    </div>
-    <div class="field row" style="margin-bottom:12px">
-      <input type="checkbox" id="fullwave">
-      <label for="fullwave" style="cursor:pointer;text-transform:none;white-space:nowrap">Toggle Polarity</label>
-    </div>
-    <div class="field">
-      <label>Amplitude <span id="amp-val" style="color:var(--text);font-family:'Consolas','SF Mono',monospace">50%</span></label>
-      <input type="range" id="amplitude" min="0" max="100" value="50">
-    </div>
-    <div class="field-row" style="visibility:hidden;display:none">
-      <div class="field">
-        <label>Dead Time</label>
-        <div class="input-row">
-          <input type="number" id="dead-time" min="0" value="0">
-          <span class="unit">ticks</span>
+
+    <!-- Signal tab -->
+    <div class="tab-panel" id="tab-signal">
+      <div class="field" id="freq-field">
+        <label>Frequency</label>
+        <div class="freq-row">
+          <input type="range" id="freq-slider" min="0" max="500" value="250">
+          <input type="number" id="freq" min="0" max="500" value="250" step="1">
+          <span class="unit">Hz</span>
         </div>
       </div>
+      <div class="field row" style="margin-bottom:12px">
+        <input type="checkbox" id="fullwave">
+        <label for="fullwave" style="cursor:pointer;text-transform:none;white-space:nowrap">Toggle Polarity</label>
+      </div>
       <div class="field">
-        <label>Phase Advance</label>
-        <div class="input-row">
-          <input type="number" id="phase-advance" min="0" value="0">
-          <span class="unit">ticks</span>
+        <label>Amplitude <span id="amp-val" style="color:var(--text);font-family:'Consolas','SF Mono',monospace">50%</span></label>
+        <input type="range" id="amplitude" min="0" max="100" value="50">
+      </div>
+      <div class="field-row" style="visibility:hidden;display:none">
+        <div class="field">
+          <label>Dead Time</label>
+          <div class="input-row">
+            <input type="number" id="dead-time" min="0" value="0">
+            <span class="unit">ticks</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>Phase Advance</label>
+          <div class="input-row">
+            <input type="number" id="phase-advance" min="0" value="0">
+            <span class="unit">ticks</span>
+          </div>
         </div>
       </div>
+    </div>
+
+    <!-- Speech tab -->
+    <div class="tab-panel" id="tab-speech" style="display:none">
+      <div class="field" id="tts-text-field">
+        <label>Text</label>
+        <input type="text" id="tts-text" placeholder="Type something to say..." autocomplete="off"
+          style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:5px;
+          font-family:inherit;font-size:14px;background:var(--input);color:var(--text)">
+      </div>
+      <div class="field-row" id="tts-sliders">
+        <div class="field" id="tts-speed-field">
+          <label>Speed <span id="tts-speed-val" style="color:var(--text);font-family:'Consolas','SF Mono',monospace">72</span></label>
+          <input type="range" id="tts-speed" min="1" max="255" value="72">
+        </div>
+        <div class="field" id="tts-pitch-field">
+          <label>Pitch <span id="tts-pitch-val" style="color:var(--text);font-family:'Consolas','SF Mono',monospace">64</span></label>
+          <input type="range" id="tts-pitch" min="1" max="255" value="64">
+        </div>
+      </div>
+      <div class="tts-msg" id="tts-msg"></div>
+    </div>
+
+    <!-- Music tab -->
+    <div class="tab-panel" id="tab-music" style="display:none">
+      <div class="field" id="music-songs-field">
+        <label>Built-in Songs</label>
+        <div id="songs" style="display:flex;flex-direction:column;gap:4px">Loading...</div>
+      </div>
+      <div class="field" id="music-notes-field">
+        <label>Notes</label>
+        <textarea id="music-notes" rows="3" placeholder="C4:4 D4:4 E4:4 F4:4 G4:2"
+          style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:5px;
+          font-family:'Consolas','SF Mono',monospace;font-size:13px;background:var(--input);color:var(--text);
+          resize:vertical;line-height:1.5"></textarea>
+        <div id="music-notes-help" style="font-size:11px;color:var(--text3);margin-top:3px">NOTE:BEATS — C4:4 quarter, E4:8 eighth, G4:2 half, R:4 rest</div>
+      </div>
+      <div class="field" id="music-bpm-field">
+        <label>BPM</label>
+        <div class="input-row">
+          <input type="number" id="music-bpm" value="120" min="30" max="600" style="width:72px">
+        </div>
+      </div>
+      <div class="tts-msg" id="music-msg"></div>
     </div>
   </div>
 </div>
@@ -287,8 +367,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 
 <div class="toast" id="toast"></div>
 <div class="footer" id="footer" style="text-align:center;padding:16px 0 4px;font-size:11px;color:var(--text3)">
-  <a href="/speech" style="color:var(--esp);text-decoration:none">Speech</a> &middot;
-  <a href="/music" style="color:var(--esp);text-decoration:none">Music</a> &middot;
   <a href="/wifi" style="color:var(--esp);text-decoration:none">WiFi</a> &middot;
   <a href="/update" style="color:var(--esp);text-decoration:none">Updates</a>
   &middot; <span id="ver-info"></span>
@@ -296,12 +374,18 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;
 
 <script>
 var ws=null,state={},upd=false,rdelay=1e3,selGain=100,selWaveform='sine';
+var activeTab='signal',musicPlaying=false,speaking=false;
+var tabWaveform={signal:'sine',music:'sine',speech:'square'};
 var $=function(id){return document.getElementById(id)};
 var dot=$('dot'),conn=$('conn'),badge=$('badge');
 var freqField=$('freq-field'),freqSlider=$('freq-slider'),freq=$('freq'),fullwave=$('fullwave');
 var amplitude=$('amplitude'),ampVal=$('amp-val');
 var deadTime=$('dead-time'),phaseAdv=$('phase-advance');
 var startStop=$('start-stop');
+var ttsSpeed=$('tts-speed'),ttsPitch=$('tts-pitch');
+
+// Button labels per tab
+var tabLabels={signal:['START','STOP'],speech:['SPEAK','SPEAKING...'],music:['PLAY','STOP']};
 
 // Slider fill
 function fillSlider(el,color){
@@ -333,7 +417,14 @@ function connect(){
   ws.onmessage=function(e){
     var d;try{d=JSON.parse(e.data)}catch(x){return}
     if(d.output!=null){termAppend(d.output||'');return}
-    if(d.error){showErr(d.error);return}
+    if(d.msg==='speech complete'){
+      speaking=false;startStop.disabled=false;updateStartBtn();
+      showTtsMsg('Done','ok');return;
+    }
+    if(d.msg==='music complete'){setMusicPlaying(false);showMusicMsg('Done','ok');return}
+    if(d.error){showErr(d.error);
+      speaking=false;startStop.disabled=false;setMusicPlaying(false);updateStartBtn();return;
+    }
     state=d;upd=true;updateUI();upd=false;
   };
 }
@@ -370,22 +461,69 @@ function updateCenterlines(){
   }
 }
 
+// Update start button label based on active tab and state
+function updateStartBtn(){
+  if(activeTab==='signal'){
+    if(state.running){
+      startStop.textContent='STOP';startStop.className='big-btn halt';
+    }else{
+      startStop.textContent='START';startStop.className='big-btn go';
+    }
+  }else if(activeTab==='speech'){
+    if(speaking){
+      startStop.textContent='SPEAKING...';startStop.className='big-btn halt';
+    }else{
+      startStop.textContent='SPEAK';startStop.className='big-btn go';
+    }
+  }else if(activeTab==='music'){
+    if(musicPlaying){
+      startStop.textContent='STOP';startStop.className='big-btn halt';
+    }else{
+      startStop.textContent='PLAY';startStop.className='big-btn go';
+    }
+  }
+}
+
+// Update waveform section based on active tab
+function updateWaveformVis(){
+  var wfSection=$('waveform-section');
+  wfSection.style.display='';
+  var dcBtn=$('wf-dc');
+  var isSpeech=activeTab==='speech';
+  var isMusic=activeTab==='music';
+  // Disable DC on music/speech tabs
+  dcBtn.style.opacity=(isMusic||isSpeech)?'0.35':'';
+  dcBtn.style.pointerEvents=(isMusic||isSpeech)?'none':'';
+  // Disable entire waveform section on speech tab (visible but not interactive)
+  var wfBtnsAll=wfSection.querySelectorAll('.wf-btn');
+  for(var i=0;i<wfBtnsAll.length;i++){
+    wfBtnsAll[i].style.opacity=isSpeech?'0.35':'';
+    wfBtnsAll[i].style.pointerEvents=isSpeech?'none':'';
+  }
+  // Restore per-tab waveform selection
+  selWaveform=tabWaveform[activeTab]||'sine';
+  var all=document.querySelectorAll('.wf-btn');
+  for(var i=0;i<all.length;i++)all[i].classList.toggle('sel',all[i].dataset.wf===selWaveform);
+  updateDcState();
+}
+
 function updateUI(){
+  // Badge
   if(state.running){
     badge.textContent='RUNNING';badge.className='badge run';
-    startStop.textContent='STOP';startStop.className='big-btn halt';
   }else{
     badge.textContent='STOPPED';badge.className='badge stop';
-    startStop.textContent='START';startStop.className='big-btn go';
   }
+  updateStartBtn();
   // Freq range
   freq.min=0;freq.max=500;freqSlider.min=0;freqSlider.max=500;
-  // Values — don't overwrite frequency with 0 when in AC mode (keep user/default value)
+  // Values
   var fv=state.frequency||0;
   if(fv>0||selWaveform==='dc'){freq.value=fv;freqSlider.value=fv;}
-  // Waveform buttons — only sync AC waveform from server, leave DC as client choice
-  if(selWaveform!=='dc'){
+  // Waveform buttons — only sync from server on signal tab
+  if(activeTab==='signal'&&selWaveform!=='dc'){
     selWaveform=state.waveform||'sine';
+    tabWaveform.signal=selWaveform;
   }
   var wfBtns=document.querySelectorAll('.wf-btn');
   for(var i=0;i<wfBtns.length;i++)wfBtns[i].classList.toggle('sel',wfBtns[i].dataset.wf===selWaveform);
@@ -416,6 +554,7 @@ for(var i=0;i<wfBtns.length;i++){
   wfBtns[i].onclick=(function(btn){return function(){
     var wasDc=selWaveform==='dc';
     selWaveform=btn.dataset.wf;
+    tabWaveform[activeTab]=selWaveform;
     if(wasDc&&selWaveform!=='dc'&&(parseInt(freq.value)||0)===0){
       freq.value=250;freqSlider.value=250;
     }
@@ -423,7 +562,7 @@ for(var i=0;i<wfBtns.length;i++){
     for(var j=0;j<all.length;j++)all[j].classList.toggle('sel',all[j]===btn);
     updateDcState();
     updateSliders();
-    sendFreq();
+    if(activeTab==='signal')sendFreq();
   }})(wfBtns[i]);
 }
 
@@ -447,14 +586,37 @@ for(var i=0;i<gbs.length;i++){
     selGain=parseInt(btn.dataset.g);
     var all=document.querySelectorAll('.gain-btn');
     for(var j=0;j<all.length;j++)all[j].classList.toggle('sel',all[j]===btn);
-    if(state.running)send({cmd:'start',gain:selGain});
+    if(state.running&&activeTab==='signal')send({cmd:'start',gain:selGain});
   }})(gbs[i]);
 }
 
+// Start/Stop button — behavior depends on active tab
 startStop.onclick=function(){
-  if(state.running)send({cmd:'stop'});
-  else send({cmd:'start',gain:selGain});
+  if(activeTab==='signal'){
+    if(state.running)send({cmd:'stop'});
+    else send({cmd:'start',gain:selGain});
+  }else if(activeTab==='speech'){
+    if(speaking)return;
+    var text=$('tts-text').value.trim();
+    if(!text){showTtsMsg('Enter some text first','err');return}
+    if(!ws||ws.readyState!==1){showTtsMsg('Not connected','err');return}
+    speaking=true;startStop.disabled=true;updateStartBtn();
+    showTtsMsg('Speaking...','info');
+    send({cmd:'say',text:text,speed:parseInt(ttsSpeed.value),pitch:parseInt(ttsPitch.value)});
+  }else if(activeTab==='music'){
+    if(musicPlaying){
+      send({cmd:'stop'});setMusicPlaying(false);showMusicMsg('Stopped','ok');
+      return;
+    }
+    var notes=$('music-notes').value.trim();
+    if(!notes){showMusicMsg('Enter some notes first','err');return}
+    if(!ws||ws.readyState!==1){showMusicMsg('Not connected','err');return}
+    setMusicPlaying(true);showMusicMsg('Playing...','info');
+    send({cmd:'play_music',notes:notes,bpm:parseInt($('music-bpm').value)||120,
+      waveform:selWaveform,gain:selGain});
+  }
 };
+
 $('set-all').onclick=function(){send({cmd:'set_all',value:true})};
 $('clear-all').onclick=function(){send({cmd:'set_all',value:false})};
 
@@ -492,6 +654,75 @@ termIn.onkeydown=function(e){
     else{termIdx=termHist.length;termIn.value=''}
   }
 };
+
+// Tab switching
+var tabBtns=document.querySelectorAll('.tab-btn');
+for(var i=0;i<tabBtns.length;i++){
+  tabBtns[i].onclick=(function(btn){return function(){
+    var all=document.querySelectorAll('.tab-btn');
+    for(var j=0;j<all.length;j++)all[j].classList.toggle('sel',all[j]===btn);
+    var panels=document.querySelectorAll('.tab-panel');
+    for(var j=0;j<panels.length;j++)panels[j].style.display='none';
+    $('tab-'+btn.dataset.tab).style.display='';
+    activeTab=btn.dataset.tab;
+    updateStartBtn();
+    updateWaveformVis();
+    if(activeTab==='music'&&!songsLoaded)loadSongs();
+  }})(tabBtns[i]);
+}
+
+// Speech sliders
+ttsSpeed.oninput=function(){$('tts-speed-val').textContent=this.value;fillSlider(this,'#2856a0')};
+ttsPitch.oninput=function(){$('tts-pitch-val').textContent=this.value;fillSlider(this,'#2856a0')};
+fillSlider(ttsSpeed,'#2856a0');fillSlider(ttsPitch,'#2856a0');
+
+function showTtsMsg(text,cls){var el=$('tts-msg');el.textContent=text;el.className='tts-msg '+cls}
+function showMusicMsg(text,cls){var el=$('music-msg');el.textContent=text;el.className='tts-msg '+cls}
+
+// Enter on speech text input triggers start button
+$('tts-text').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!speaking)startStop.click();
+});
+
+// Music
+function setMusicPlaying(v){
+  musicPlaying=v;updateStartBtn();
+  var btns=document.querySelectorAll('.song-btn');
+  for(var i=0;i<btns.length;i++)btns[i].disabled=v;
+}
+
+// Songs — load list, click populates notes field
+var songsLoaded=false,songData={};
+function loadSongs(){
+  fetch('/api/music/songs').then(function(r){return r.json()}).then(function(d){
+    var grid=$('songs');grid.innerHTML='';songsLoaded=true;
+    if(!d.songs||!d.songs.length){grid.textContent='No songs available';return}
+    d.songs.forEach(function(s){
+      var name=typeof s==='string'?s:s.name;
+      var notes=s.notes||'';
+      var bpm=s.bpm||120;
+      var gain=s.gain||75;
+      songData[name]={notes:notes,bpm:bpm,gain:gain};
+      var row=document.createElement('div');row.className='song-row';
+      row.id='song-row-'+name;
+      var btn=document.createElement('button');btn.className='song-btn';
+      btn.id='song-btn-'+name;
+      btn.textContent=name.replace(/_/g,' ');
+      btn.onclick=(function(n,no,bp,ga){return function(){
+        $('music-notes').value=no;
+        $('music-bpm').value=bp;
+        selGain=ga;
+        var all=document.querySelectorAll('.gain-btn');
+        for(var j=0;j<all.length;j++)all[j].classList.toggle('sel',parseInt(all[j].dataset.g)===ga);
+      }})(name,notes,bpm,gain);
+      var meta=document.createElement('span');meta.className='song-meta';
+      meta.id='song-meta-'+name;
+      meta.textContent=bpm+' BPM · '+gain+' Vpp';
+      row.appendChild(btn);row.appendChild(meta);
+      grid.appendChild(row);
+    });
+  }).catch(function(){$('songs').textContent='Failed to load songs'});
+}
 
 connect();
 fetch('/api/ota/status').then(function(r){return r.json()}).then(function(d){

@@ -288,21 +288,16 @@ async def ota_diagnostics(request):
     }
 
 
-@app.route("/speech")
-async def speech_page(request):
-    return send_file("/web/speech.html")
-
-
-@app.route("/music")
-async def music_page(request):
-    return send_file("/web/music.html")
-
-
 @app.route("/api/music/songs")
 async def music_songs(request):
     import music
 
-    songs = list(music.SONGS.keys())
+    songs = []
+    for name, (data, bpm, gain) in music.SONGS.items():
+        notes = " ".join(
+            "{}:{}".format(t[0], t[1]) for t in data
+        )
+        songs.append({"name": name, "notes": notes, "bpm": bpm, "gain": gain})
     return json.dumps({"songs": songs}), 200, {"Content-Type": "application/json"}
 
 
