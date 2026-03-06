@@ -72,6 +72,8 @@ class OTAMockServer:
         )
         if self.error_mode == "500":
             return web.Response(status=500)
+        # Serves the same test binary for all versions; add per-version files
+        # to fixtures/ if multi-version testing is needed.
         bin_path = os.path.join(self.fixtures_dir, "test_firmware.bin")
         if not os.path.exists(bin_path):
             return web.Response(status=404)
@@ -89,7 +91,7 @@ class OTAMockServer:
         )
         if self.error_mode == "500":
             return web.Response(status=500)
-        file_path = os.path.join(self.fixtures_dir, "files", filename)
+        file_path = os.path.join(self.fixtures_dir, "files", os.path.basename(filename))
         if not os.path.exists(file_path):
             return web.Response(status=404, text="File not found")
         with open(file_path, "rb") as f:

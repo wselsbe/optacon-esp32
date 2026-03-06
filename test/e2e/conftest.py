@@ -167,3 +167,4 @@ def page_url(mock_deps):
     app.shutdown()
     loop.call_soon_threadsafe(loop.stop)
     thread.join(timeout=2)
+    loop.close()
