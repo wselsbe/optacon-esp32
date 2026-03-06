@@ -339,35 +339,48 @@ def create_app(deps=None):
     return app
 
 
+async def _ota_auto_check():
+    """Background OTA version check — runs after server is already listening."""
+    import ota
+
+    await asyncio.sleep(2)  # let server settle before HTTP call
+    try:
+        cfg = ota.load_config()
+        if not cfg.get("auto_check", True):
+            return
+        result = ota.check_for_updates()
+        if result and (result["firmware_available"] or result["files_available"]):
+            parts = []
+            if result["firmware_available"]:
+                parts.append("firmware " + result["latest_firmware"])
+            if result["files_available"]:
+                parts.append("files " + result["latest_files"])
+            msg = "OTA auto-check: update available (" + ", ".join(parts) + ")"
+            print("[BOOT]", msg)
+            try:
+                with open("/boot.log", "a") as f:
+                    f.write(msg + "\n")
+            except Exception:
+                pass
+    except Exception as e:
+        print("[BOOT] OTA auto-check failed:", e)
+
+
+async def _start_async():
+    """Start web server and schedule background OTA check."""
+    import wifi
+
+    app = create_app()
+    server = asyncio.create_task(app.start_server(host="0.0.0.0", port=80))
+    if wifi.mode == "sta":
+        asyncio.create_task(_ota_auto_check())
+    await server
+
+
 def start():
     """Connect WiFi and start the web server (runs forever)."""
-    import ota
     import wifi
 
     wifi.connect()
     print("Starting web server on http://" + wifi.ip + ":80")
-
-    # OTA auto-check after WiFi connects (station mode only)
-    if wifi.mode == "sta":
-        try:
-            cfg = ota.load_config()
-            if cfg.get("auto_check", True):
-                result = ota.check_for_updates()
-                if result and (result["firmware_available"] or result["files_available"]):
-                    parts = []
-                    if result["firmware_available"]:
-                        parts.append("firmware " + result["latest_firmware"])
-                    if result["files_available"]:
-                        parts.append("files " + result["latest_files"])
-                    msg = "OTA auto-check: update available (" + ", ".join(parts) + ")"
-                    print("[BOOT]", msg)
-                    try:
-                        with open("/boot.log", "a") as f:
-                            f.write(msg + "\n")
-                    except Exception:
-                        pass
-        except Exception as e:
-            print("[BOOT] OTA auto-check failed:", e)
-
-    app = create_app()
-    asyncio.run(app.start_server(host="0.0.0.0", port=80))
+    asyncio.run(_start_async())
