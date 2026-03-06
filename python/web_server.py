@@ -351,6 +351,10 @@ def create_app(deps=None):
             output.append(buf.getvalue())
         return json.dumps({"output": "".join(output)}), 200, {"Content-Type": "application/json"}
 
+    @app.route("/api")
+    async def api_page(request):
+        return send_file("/web/api.html")
+
     @app.route("/update")
     async def update_page(request):
         return send_file("/web/update.html")
