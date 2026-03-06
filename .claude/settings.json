@@ -15,6 +15,10 @@
           {
             "type": "command",
             "command": "bash -c 'CMD=$(jq -r .tool_input.command < /dev/stdin); case \"$CMD\" in *\"git commit\"*|*\"git \"*\" commit\"*) ;; *) exit 0;; esac; API_FILES=$(git diff --cached --name-only -- python/pz_drive_py.py python/music.py python/drv2665.py python/shift_register.py); [ -z \"$API_FILES\" ] && exit 0; DOCS_STAGED=$(git diff --cached --name-only -- web/docs.html); if [ -z \"$DOCS_STAGED\" ]; then echo \"WARNING: API source files changed but web/docs.html is not staged.\"; echo \"Changed API files: $API_FILES\"; echo \"Consider updating web/docs.html to reflect the API changes.\"; fi; exit 0'"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/review-docs.sh"
           }
         ]
       }

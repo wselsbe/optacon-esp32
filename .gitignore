@@ -20,6 +20,7 @@ wifi_config.json
 
 # Claude Code (machine-specific)
 .claude/settings.local.json
+.claude/.doc-reviewed
 .playwright-mcp/
 
 # Runtime PID files
