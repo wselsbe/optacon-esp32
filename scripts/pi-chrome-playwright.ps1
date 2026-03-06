@@ -1,4 +1,4 @@
-# Pi Chrome Playwright — Start SSH tunnel (port 9222) and Chrome CDP for remote Playwright.
+# Pi Chrome Playwright - Start SSH tunnel (port 9222) and Chrome CDP for remote Playwright.
 # Double-click pi-chrome-playwright.cmd to launch.
 # Safe to run multiple times: PID files prevent duplicate instances.
 
@@ -35,12 +35,11 @@ if (-not $tunnelRunning) {
         Write-Host ""
         if ($stderr -match "remote port forwarding failed") {
             # Query who's holding the port
-            $checkScript = "$PSScriptRoot\pi-check-tunnel-port.sh"
-            $portInfo = ssh optacon-pi 'bash -s' < $checkScript 9222 2>$null
+            $portInfo = ssh optacon-pi 'bash ~/projects/optacon-firmware/scripts/pi-check-tunnel-port.sh 9222' 2>$null
             if ($portInfo -match "^(\d+)\s+(\S+)") {
                 $remotePid = $Matches[1]
                 $remoteIp = $Matches[2]
-                $myIp = (ssh optacon-pi "echo `$SSH_CLIENT" 2>$null) -replace '\s.*', ''
+                $myIp = (ssh optacon-pi 'echo $SSH_CLIENT' 2>$null) -replace '\s.*', ''
 
                 Write-Host "Port 9222 on optacon-pi is held by SSH from $remoteIp (sshd pid=$remotePid)" -ForegroundColor Red
                 if ($remoteIp -ne $myIp) {
@@ -48,15 +47,15 @@ if (-not $tunnelRunning) {
                     Write-Host ""
                     $answer = Read-Host "Kill the remote tunnel? [y/N]"
                     if ($answer -eq 'y') {
-                        ssh optacon-pi 'bash -s' < $checkScript 9222 --kill 2>$null | Out-Null
+                        ssh optacon-pi 'bash ~/projects/optacon-firmware/scripts/pi-check-tunnel-port.sh 9222 --kill' 2>$null | Out-Null
                         Write-Host "Killed. Re-run this script to start the tunnel." -ForegroundColor Green
                     }
                 } else {
-                    Write-Host "This is from YOUR machine — a stale tunnel." -ForegroundColor Yellow
+                    Write-Host "This is from YOUR machine - a stale tunnel." -ForegroundColor Yellow
                     Write-Host ""
                     $answer = Read-Host "Kill the stale tunnel? [y/N]"
                     if ($answer -eq 'y') {
-                        ssh optacon-pi 'bash -s' < $checkScript 9222 --kill 2>$null | Out-Null
+                        ssh optacon-pi 'bash ~/projects/optacon-firmware/scripts/pi-check-tunnel-port.sh 9222 --kill' 2>$null | Out-Null
                         Write-Host "Killed. Re-run this script to start the tunnel." -ForegroundColor Green
                     }
                 }
