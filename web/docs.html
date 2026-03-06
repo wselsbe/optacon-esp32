@@ -468,7 +468,7 @@ sr.set_pins([<span class="n">1</span>,<span class="n">0</span>,<span class="n">1
   <div id="ver-info" style="margin-top:4px"></div>
 </div>
 <script>
-fetch('/api/ota/status').then(function(r){return r.json()}).then(function(d){
+fetch('/api/device/status').then(function(r){return r.json()}).then(function(d){
   var v='FW '+d.firmware_version;
   if(d.files_version)v+=' · Files '+d.files_version;
   document.getElementById('ver-info').textContent=v;
