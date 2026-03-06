@@ -80,19 +80,32 @@ class SCPIConnection:
 
 
 class Oscilloscope:
-    """Siglent SDS oscilloscope — measurement and configuration."""
+    """Siglent SDS oscilloscope — measurement and configuration.
+
+    Tracks state to skip redundant SCPI writes and uses *OPC? to wait
+    for operations to complete before measuring.
+    """
 
     def __init__(self, host: str, port: int = 5025):
         self._conn = SCPIConnection(host, port)
+        self._state: dict[str, str] = {}
 
     def connect(self):
         self._conn.connect()
+        self._state.clear()
 
     def disconnect(self):
         self._conn.disconnect()
+        self._state.clear()
 
     def identify(self) -> str:
         return self._conn.query("*IDN?")
+
+    def _write_if_changed(self, key: str, command: str):
+        """Only send command if state has changed."""
+        if self._state.get(key) != command:
+            self._conn.write(command)
+            self._state[key] = command
 
     def configure_channel(
         self,
@@ -102,18 +115,26 @@ class Oscilloscope:
         trace: bool = True,
         probe: int = 10,
     ):
-        self._conn.write(f"{channel}:VDIV {vdiv}")
-        self._conn.write(f"{channel}:CPL {coupling}")
-        self._conn.write(f"{channel}:TRA {'ON' if trace else 'OFF'}")
-        self._conn.write(f"{channel}:ATTN {probe}")
+        self._write_if_changed(f"{channel}:VDIV", f"{channel}:VDIV {vdiv}")
+        self._write_if_changed(f"{channel}:CPL", f"{channel}:CPL {coupling}")
+        tra = "ON" if trace else "OFF"
+        self._write_if_changed(f"{channel}:TRA", f"{channel}:TRA {tra}")
+        self._write_if_changed(f"{channel}:ATTN", f"{channel}:ATTN {probe}")
 
     def configure_timebase(self, timebase: str):
-        self._conn.write(f"TDIV {timebase}")
+        self._write_if_changed("TDIV", f"TDIV {timebase}")
 
     def configure_trigger(self, source: str, level: str, slope: str = "POS"):
-        self._conn.write(f"{source}:TRLV {level}")
-        self._conn.write(f"{source}:TRSL {slope}")
-        self._conn.write("TRSE EDGE,SR," + source + ",HT,OFF")
+        self._write_if_changed("TRLV", f"{source}:TRLV {level}")
+        self._write_if_changed("TRSL", f"{source}:TRSL {slope}")
+        trse = "TRSE EDGE,SR," + source + ",HT,OFF"
+        self._write_if_changed("TRSE", trse)
+        # Use auto trigger mode so scope acquires even without trigger event
+        self._write_if_changed("TRMD", "TRMD AUTO")
+
+    def wait_ready(self):
+        """Wait for all pending operations to complete."""
+        self._conn.query("*OPC?")
 
     def run(self):
         self._conn.write("ARM")

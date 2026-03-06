@@ -173,12 +173,18 @@ def configure_scope(oscilloscope, channels):
         if vdiv is None:
             vdiv = "1V" if target_ch == channels["in_plus"] else "10V"
         # Always configure IN+ (trigger source) so probe/vdiv are correct
+        # Always configure both IN+ and target channel
         ch_in = channels["in_plus"]
+        oscilloscope.configure_channel(ch_in, vdiv="1V", coupling="D1M", probe=10)
         if target_ch != ch_in:
-            oscilloscope.configure_channel(ch_in, vdiv="1V", coupling="D1M", probe=10)
-        oscilloscope.configure_channel(target_ch, vdiv=vdiv, coupling="D1M", probe=10)
+            oscilloscope.configure_channel(target_ch, vdiv=vdiv, coupling="D1M", probe=10)
+        # Disable unused channels to avoid stale state
+        for ch_name, ch_id in channels.items():
+            if ch_id not in (ch_in, target_ch) and ch_name != "polarity":
+                oscilloscope.configure_channel(ch_id, vdiv="10V", trace=False)
         oscilloscope.configure_timebase(timebase)
         oscilloscope.configure_trigger(ch_in, level="0.5V", slope="POS")
+        oscilloscope.wait_ready()
         oscilloscope.run()
 
     return _setup
