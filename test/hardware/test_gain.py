@@ -23,13 +23,13 @@ GAIN_LEVELS = [25, 50, 75, 100]
 
 def test_gain_ordering(board_url, oscilloscope, channels, configure_scope):
     """Higher gain settings should produce higher OUT+ amplitude."""
-    from test.hardware.board_client import BoardClient
+    from test.hardware.board_client import WSBoardClient
 
     measurements = {}
     ws_url = board_url.replace("http://", "ws://") + "/ws"
 
     for gain in GAIN_LEVELS:
-        client = BoardClient(ws_url)
+        client = WSBoardClient(ws_url)
         client.connect()
         try:
             ch_out = channels["out_plus"]

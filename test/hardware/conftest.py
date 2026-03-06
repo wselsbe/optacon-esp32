@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from test.hardware.board_client import BoardClient
+from test.hardware.board_client import REPLBoardClient, WSBoardClient
 from test.hardware.instruments import Multimeter, Oscilloscope, PowerSupply
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -125,10 +125,29 @@ def board_url(config):
     pytest.fail(f"Board at {url} is not responding to /api/device/status")
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--board-client",
+        default="ws",
+        choices=["ws", "repl"],
+        help="Board client type: ws (WebSocket API) or repl (mpremote serial)",
+    )
+    parser.addoption(
+        "--board-port",
+        default=None,
+        help="Serial port for REPL client (e.g. /dev/ttyACM0)",
+    )
+
+
 @pytest.fixture
-def board(board_url):
-    ws_url = board_url.replace("http://", "ws://") + "/ws"
-    client = BoardClient(ws_url)
+def board(board_url, request):
+    client_type = request.config.getoption("--board-client")
+    if client_type == "repl":
+        port = request.config.getoption("--board-port")
+        client = REPLBoardClient(port)
+    else:
+        ws_url = board_url.replace("http://", "ws://") + "/ws"
+        client = WSBoardClient(ws_url)
     client.connect()
     yield client
     client.stop()
