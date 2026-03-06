@@ -323,3 +323,15 @@ def test_update_page_loads(page: Page, page_url: str):
     page.goto(page_url + "/update")
     _assert_brand(page)
     expect(page.locator(".footer")).to_be_visible()
+
+
+# ---------------------------------------------------------------------------
+# Docs Page
+# ---------------------------------------------------------------------------
+
+
+def test_docs_page_loads(page: Page, page_url: str):
+    """Docs page loads with brand and footer."""
+    page.goto(page_url + "/web/docs.html")
+    _assert_brand(page)
+    expect(page.locator(".footer")).to_be_visible()
