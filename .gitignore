@@ -16,6 +16,11 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# Screenshots
+*.png
+*.jpeg
+*.jpg
+
 wifi_config.json
 
 # Claude Code (machine-specific)
