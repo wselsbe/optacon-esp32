@@ -8,7 +8,7 @@ MODE_DIGITAL = "digital"
 MODE_ANALOG = "analog"
 
 
-class PzActuator:
+class PzDrive:
     """High-level piezo actuator controller.
 
     Wraps DRV2665 (I2C), HV509 shift registers (SPI), and

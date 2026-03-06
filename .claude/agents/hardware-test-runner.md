@@ -52,8 +52,8 @@ Only run these if instructed, or if the changes being tested are related to thes
 
 **Analog output** (after changes to `pwm.c` or analog path):
 ```python
-from pz_actuator_py import PzActuator
-pa = PzActuator()
+from pz_drive_py import PzDrive
+pa = PzDrive()
 pa.set_frequency_analog(250)
 pa.start()
 import pz_drive
@@ -65,8 +65,8 @@ Expected: `running: True`, `stopped: True`
 
 **Digital FIFO** (after changes to `fifo.c` or digital path):
 ```python
-from pz_actuator_py import PzActuator
-pa = PzActuator()
+from pz_drive_py import PzDrive
+pa = PzDrive()
 pa.set_frequency_digital(250)
 pa.start()
 import pz_drive
@@ -78,8 +78,8 @@ Expected: `running: True`, `stopped: True`
 
 **Shift register** (after changes to `hv509.c` or shift register code):
 ```python
-from pz_actuator_py import PzActuator
-pa = PzActuator()
+from pz_drive_py import PzDrive
+pa = PzDrive()
 pa.set_all(True)
 print('all on:', pa.get_all())
 pa.set_all(False)

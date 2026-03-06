@@ -59,8 +59,8 @@ mpremote connect COM7
 Import the actuator controller:
 
 ```python
-from pz_actuator_py import PzActuator
-pa = PzActuator()
+from pz_drive_py import PzDrive
+pa = PzDrive()
 ```
 
 To enter bootloader mode for reflashing:
