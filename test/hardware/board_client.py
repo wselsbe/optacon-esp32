@@ -1,34 +1,41 @@
-"""WebSocket wrapper for board commands — removes json.dumps/recv boilerplate."""
+"""Synchronous WebSocket wrapper for board commands."""
 
 import json
 
+from websocket import WebSocket
+
 
 class BoardClient:
-    """Thin async wrapper around a websockets connection to the board."""
+    """Thin sync wrapper around a WebSocket connection to the board."""
 
-    def __init__(self, ws):
-        self._ws = ws
+    def __init__(self, url: str):
+        self._url = url
+        self._ws = WebSocket()
 
-    async def send_cmd(self, cmd: str, **kwargs) -> dict:
+    def connect(self):
+        self._ws.connect(self._url)
+        self._ws.recv()  # initial status message
+
+    def send_cmd(self, cmd: str, **kwargs) -> dict:
         """Send a command and return the parsed JSON response."""
         payload = {"cmd": cmd, **kwargs}
-        await self._ws.send(json.dumps(payload))
-        return json.loads(await self._ws.recv())
+        self._ws.send(json.dumps(payload))
+        return json.loads(self._ws.recv())
 
-    async def stop(self) -> dict:
-        return await self.send_cmd("stop")
+    def stop(self) -> dict:
+        return self.send_cmd("stop")
 
-    async def start(self, gain: int = 100) -> dict:
-        return await self.send_cmd("start", gain=gain)
+    def start(self, gain: int = 100) -> dict:
+        return self.send_cmd("start", gain=gain)
 
-    async def set_frequency_analog(
+    def set_frequency_analog(
         self,
         hz: int,
         amplitude: int = 100,
         waveform: str = "sine",
         fullwave: bool = False,
     ) -> dict:
-        return await self.send_cmd(
+        return self.send_cmd(
             "set_frequency_analog",
             hz=hz,
             amplitude=amplitude,
@@ -36,11 +43,11 @@ class BoardClient:
             fullwave=fullwave,
         )
 
-    async def set_pin(self, pin: int, value: int) -> dict:
-        return await self.send_cmd("set_pin", pin=pin, value=value)
+    def set_pin(self, pin: int, value: int) -> dict:
+        return self.send_cmd("set_pin", pin=pin, value=value)
 
-    async def set_all(self, value: int) -> dict:
-        return await self.send_cmd("set_all", value=value)
+    def set_all(self, value: int) -> dict:
+        return self.send_cmd("set_all", value=value)
 
-    async def close(self):
-        await self._ws.close()
+    def close(self):
+        self._ws.close()

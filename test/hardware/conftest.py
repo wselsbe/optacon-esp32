@@ -4,10 +4,9 @@ import json
 import os
 import subprocess
 
-import aiohttp
 import pytest
-import pytest_asyncio
 
+from test.hardware.board_client import BoardClient
 from test.hardware.instruments import Multimeter, Oscilloscope, PowerSupply
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -47,32 +46,32 @@ def psu_channel(config):
     return config["power_supply_channel"]
 
 
-@pytest_asyncio.fixture(scope="session")
-async def oscilloscope(config):
+@pytest.fixture(scope="session")
+def oscilloscope(config):
     host, port = _parse_address(config["sds"])
     scope = Oscilloscope(host, port)
-    await scope.connect()
+    scope.connect()
     yield scope
-    await scope.disconnect()
+    scope.disconnect()
 
 
-@pytest_asyncio.fixture(scope="session")
-async def power_supply(config):
+@pytest.fixture(scope="session")
+def power_supply(config):
     host, port = _parse_address(config["spd"])
     psu = PowerSupply(host, port)
-    await psu.connect()
+    psu.connect()
     yield psu
-    await psu.disconnect()
+    psu.disconnect()
 
 
-@pytest_asyncio.fixture(scope="session")
-async def multimeter(config):
+@pytest.fixture(scope="session")
+def multimeter(config):
     host, port = _parse_address(config["sdm"])
     dmm = Multimeter(host, port)
-    await dmm.connect()
-    await dmm.configure_dc_current("0.6")
+    dmm.connect()
+    dmm.configure_dc_current("0.6")
     yield dmm
-    await dmm.disconnect()
+    dmm.disconnect()
 
 
 def _discover_board(hostname: str) -> str:
@@ -126,27 +125,20 @@ def board_url(config):
     pytest.fail(f"Board at {url} is not responding to /api/device/status")
 
 
-@pytest_asyncio.fixture
-async def board_ws(board_url):
-    import websockets
-
-    from test.hardware.board_client import BoardClient
-
+@pytest.fixture
+def board(board_url):
     ws_url = board_url.replace("http://", "ws://") + "/ws"
-
-    async def _connect():
-        ws = await websockets.connect(ws_url)
-        await ws.recv()  # initial status
-        return BoardClient(ws)
-
-    return _connect
+    client = BoardClient(ws_url)
+    client.connect()
+    yield client
+    client.close()
 
 
 @pytest.fixture
 def configure_scope(oscilloscope, channels):
     """Configure oscilloscope for signal measurement at a given frequency."""
 
-    async def _setup(freq_hz, ch=None, vdiv="20V"):
+    def _setup(freq_hz, ch=None, vdiv="20V"):
         if freq_hz <= 100:
             timebase = "5MS"
         elif freq_hz <= 300:
@@ -155,15 +147,9 @@ def configure_scope(oscilloscope, channels):
             timebase = "1MS"
 
         target_ch = ch or channels["in_plus"]
-        await oscilloscope.configure_channel(target_ch, vdiv=vdiv, coupling="D1M", probe=10)
-        await oscilloscope.configure_timebase(timebase)
-        await oscilloscope.configure_trigger(channels["in_plus"], level="1V", slope="POS")
-        await oscilloscope.run()
+        oscilloscope.configure_channel(target_ch, vdiv=vdiv, coupling="D1M", probe=10)
+        oscilloscope.configure_timebase(timebase)
+        oscilloscope.configure_trigger(channels["in_plus"], level="1V", slope="POS")
+        oscilloscope.run()
 
     return _setup
-
-
-@pytest_asyncio.fixture
-async def board_api(board_url):
-    async with aiohttp.ClientSession(base_url=board_url) as session:
-        yield session
