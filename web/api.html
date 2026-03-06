@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Optacon — HTTP API</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#edebe7;--card:#fff;--border:#ccc9c2;--text:#1a1a20;--text2:#68686e;--text3:#98989e;
+  --input:#f5f4f0;--esp:#2856a0;--green:#1a8848;--red:#c82e20;--orange:#b85a14;--teal:#167868;--radius:6px;
+}
+html{font-family:system-ui,-apple-system,sans-serif;font-size:14px;background:var(--bg);color:var(--text)}
+body{max-width:640px;margin:0 auto;padding:10px 12px 28px}
+
+/* Header */
+header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;
+  box-shadow:0 1px 3px #0001}
+.brand{font-family:"Consolas","SF Mono","Menlo",monospace;font-weight:700;font-size:15px;letter-spacing:3px;color:var(--text2)}
+a.back{font-size:13px;color:var(--esp);text-decoration:none;font-weight:600}
+a.back:hover{text-decoration:underline}
+
+/* Page title */
+.page-title{font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px}
+.page-subtitle{font-size:13px;color:var(--text3);margin-bottom:14px;line-height:1.5}
+
+/* Nav */
+.nav{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.nav a{padding:5px 10px;border-radius:4px;font-size:12px;font-weight:600;text-decoration:none;
+  font-family:"Consolas","SF Mono","Menlo",monospace;letter-spacing:.3px;border:1px solid;transition:all .12s}
+.nav a.device{color:var(--esp);border-color:var(--esp);background:#2856a008}
+.nav a.device:hover{background:var(--esp);color:#fff}
+.nav a.ota{color:var(--orange);border-color:var(--orange);background:#b85a1408}
+.nav a.ota:hover{background:var(--orange);color:#fff}
+.nav a.wifi{color:var(--teal);border-color:var(--teal);background:#16786808}
+.nav a.wifi:hover{background:var(--teal);color:#fff}
+.nav a.music{color:var(--green);border-color:var(--green);background:#1a884808}
+.nav a.music:hover{background:var(--green);color:#fff}
+.nav a.tts{color:#8856a0;border-color:#8856a0;background:#8856a008}
+.nav a.tts:hover{background:#8856a0;color:#fff}
+.nav a.exec{color:var(--text2);border-color:var(--text3);background:#68686e08}
+.nav a.exec:hover{background:var(--text2);color:#fff}
+.nav a.ws{color:var(--red);border-color:var(--red);background:#c82e2008}
+.nav a.ws:hover{background:var(--red);color:#fff}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  margin-bottom:12px;overflow:hidden;box-shadow:0 1px 3px #0001}
+.card.device{border-left:4px solid var(--esp)}
+.card.ota{border-left:4px solid var(--orange)}
+.card.wifi{border-left:4px solid var(--teal)}
+.card.music{border-left:4px solid var(--green)}
+.card.tts{border-left:4px solid #8856a0}
+.card.exec{border-left:4px solid var(--text3)}
+.card.ws{border-left:4px solid var(--red)}
+.card-h{padding:9px 16px;border-bottom:1px solid var(--border);background:#faf9f7;display:flex;align-items:baseline;gap:8px}
+.card-h b{font-family:"Consolas","SF Mono","Menlo",monospace;font-size:13px;letter-spacing:.5px}
+.card.device .card-h b{color:var(--esp)}
+.card.ota .card-h b{color:var(--orange)}
+.card.wifi .card-h b{color:var(--teal)}
+.card.music .card-h b{color:var(--green)}
+.card.tts .card-h b{color:#8856a0}
+.card.exec .card-h b{color:var(--text2)}
+.card.ws .card-h b{color:var(--red)}
+.card-h span{font-size:12px;color:var(--text3);font-weight:400}
+.card-b{padding:14px 16px}
+
+/* Description */
+.desc{font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px}
+.desc:last-child{margin-bottom:0}
+.desc code{font-family:"Consolas","SF Mono","Menlo",monospace;font-size:12px;background:var(--input);
+  padding:1px 5px;border-radius:3px;border:1px solid var(--border);color:var(--text)}
+
+/* Endpoint block */
+.endpoint{margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid #f0efec}
+.endpoint:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.ep-sig{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.method-badge{font-family:"Consolas","SF Mono","Menlo",monospace;font-size:11px;font-weight:700;
+  padding:2px 7px;border-radius:3px;letter-spacing:.5px;flex-shrink:0}
+.method-badge.get{background:#1a884818;color:var(--green)}
+.method-badge.post{background:#2856a018;color:var(--esp)}
+.method-badge.put{background:#b85a1418;color:var(--orange)}
+.ep-path{font-family:"Consolas","SF Mono","Menlo",monospace;font-size:13px;font-weight:700;color:var(--text)}
+.ep-desc{font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:8px}
+
+/* Parameter tables */
+.params{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:8px}
+.params th{text-align:left;font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;
+  letter-spacing:.5px;padding:4px 8px 4px 0;border-bottom:1px solid var(--border)}
+.params td{padding:4px 8px 4px 0;border-bottom:1px solid #f0efec;vertical-align:top}
+.params tr:last-child td{border-bottom:none}
+.params td:first-child{font-family:"Consolas","SF Mono","Menlo",monospace;font-size:12px;
+  color:var(--text);white-space:nowrap;font-weight:600}
+.params td:nth-child(2){font-family:"Consolas","SF Mono","Menlo",monospace;font-size:11.5px;
+  color:var(--text3);white-space:nowrap}
+.params td:last-child{color:var(--text2)}
+
+/* Response blocks */
+pre.resp{background:#1a1a2e;color:#e0e0e0;font-family:"Consolas","SF Mono","Menlo",monospace;
+  font-size:12px;padding:10px 12px;border-radius:5px;overflow-x:auto;line-height:1.5;
+  margin-bottom:4px;-webkit-overflow-scrolling:touch}
+pre.resp:last-child{margin-bottom:0}
+pre.resp .k{color:#6aa4d4}
+pre.resp .s{color:#d4954a}
+pre.resp .n{color:#8cc084}
+
+/* Section labels */
+.section-label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;
+  letter-spacing:.8px;margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--border)}
+.section-label:first-child{margin-top:0;padding-top:0;border-top:none}
+
+/* WS command blocks */
+.ws-cmd{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f0efec}
+.ws-cmd:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+.ws-name{font-family:"Consolas","SF Mono","Menlo",monospace;font-size:13px;font-weight:700;
+  color:var(--text);margin-bottom:4px}
+.ws-desc{font-size:12.5px;color:var(--text2);line-height:1.5;margin-bottom:6px}
+
+/* Footer */
+.footer{text-align:center;padding:16px 0 4px;font-size:11px;color:var(--text3)}
+.footer a{color:var(--esp);text-decoration:none}
+.footer a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">OPTACON</div>
+  <a href="/" class="back">Control Panel</a>
+</header>
+
+<div class="page-title">HTTP API Reference</div>
+<div class="page-subtitle">REST endpoints and WebSocket commands for the Optacon ESP32-S3 web server.
+  For the MicroPython REPL API, see <a href="/web/docs.html" style="color:var(--esp)">Python API Docs</a>.</div>
+
+<div class="nav">
+  <a href="#api-device" class="device">/api/device</a>
+  <a href="#api-ota" class="ota">/api/ota</a>
+  <a href="#api-wifi" class="wifi">/api/wifi</a>
+  <a href="#api-music" class="music">/api/music</a>
+  <a href="#api-tts" class="tts">/api/tts</a>
+  <a href="#api-exec" class="exec">/api/exec</a>
+  <a href="#ws" class="ws">WebSocket</a>
+</div>
+
+<!-- Device -->
+<div class="card device" id="api-device">
+  <div class="card-h"><b>/api/device</b> <span>Device Status &amp; Diagnostics</span></div>
+  <div class="card-b">
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge get">GET</span><span class="ep-path">/api/device/status</span></div>
+      <p class="ep-desc">Returns firmware version, file version, update URL, and OTA status.</p>
+<pre class="resp">{
+  <span class="k">"firmware_version"</span>: <span class="s">"0.3.0"</span>,
+  <span class="k">"files_version"</span>: <span class="s">"0.3.0"</span>,
+  <span class="k">"update_url"</span>: <span class="s">"https://example.com/ota"</span>,
+  <span class="k">"diagnostics_url"</span>: <span class="s">""</span>
+}</pre>
+    </div>
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge get">GET</span><span class="ep-path">/api/device/log?file=boot</span></div>
+      <p class="ep-desc">Read a log file. Valid names: <code>boot</code>, <code>boot.prev</code>, <code>check</code>, <code>update</code>.</p>
+<pre class="resp">{
+  <span class="k">"log"</span>: <span class="s">"Boot OK\nOTA auto-check: up to date"</span>
+}</pre>
+    </div>
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge post">POST</span><span class="ep-path">/api/device/diagnostics</span></div>
+      <p class="ep-desc">Send device logs to the configured diagnostics URL.</p>
+<pre class="resp"><span class="n">// Success:</span>  { <span class="k">"status"</span>: <span class="s">"ok"</span> }
+<span class="n">// Failure:</span>  { <span class="k">"error"</span>: <span class="s">"Failed to send diagnostics"</span> }  <span class="n">// 500</span></pre>
+    </div>
+  </div>
+</div>
+
+<!-- OTA -->
+<div class="card ota" id="api-ota">
+  <div class="card-h"><b>/api/ota</b> <span>Over-the-Air Updates</span></div>
+  <div class="card-b">
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge get">GET</span><span class="ep-path">/api/ota/config</span></div>
+      <p class="ep-desc">Get OTA configuration.</p>
+<pre class="resp">{
+  <span class="k">"update_url"</span>: <span class="s">"https://example.com/ota"</span>,
+  <span class="k">"auto_check"</span>: <span class="n">true</span>,
+  <span class="k">"diagnostics_url"</span>: <span class="s">""</span>
+}</pre>
+    </div>
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge put">PUT</span><span class="ep-path">/api/ota/config</span></div>
+      <p class="ep-desc">Update OTA configuration. Only included fields are changed.</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>update_url</td><td>string</td><td>URL of the OTA update server</td></tr>
+        <tr><td>auto_check</td><td>bool</td><td>Check for updates on boot</td></tr>
+      </table>
+    </div>
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge post">POST</span><span class="ep-path">/api/ota/check</span></div>
+      <p class="ep-desc">Check for available updates from the configured update server.</p>
+<pre class="resp">{
+  <span class="k">"firmware_available"</span>: <span class="n">true</span>,
+  <span class="k">"latest_firmware"</span>: <span class="s">"0.4.0"</span>,
+  <span class="k">"files_available"</span>: <span class="n">false</span>,
+  <span class="k">"latest_files"</span>: <span class="s">"0.3.0"</span>,
+  <span class="k">"current_firmware"</span>: <span class="s">"0.3.0"</span>,
+  <span class="k">"current_files"</span>: <span class="s">"0.3.0"</span>,
+  <span class="k">"manifest"</span>: { <span class="n">...</span> }
+}</pre>
+    </div>
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge post">POST</span><span class="ep-path">/api/ota/update/firmware</span></div>
+      <p class="ep-desc">Download and install firmware from the update server. Device reboots on success.</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>version</td><td>string</td><td>Version to install (required)</td></tr>
+        <tr><td>manifest</td><td>object</td><td>Manifest from <code>/api/ota/check</code> (required)</td></tr>
+      </table>
+    </div>
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge post">POST</span><span class="ep-path">/api/ota/update/files</span></div>
+      <p class="ep-desc">Download and install file updates from the update server.</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>version</td><td>string</td><td>Version to install (required)</td></tr>
+        <tr><td>manifest</td><td>object</td><td>Manifest from <code>/api/ota/check</code> (required)</td></tr>
+      </table>
+    </div>
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge post">POST</span><span class="ep-path">/api/ota/upload</span></div>
+      <p class="ep-desc">Upload a file or firmware binary directly. Send raw binary body.</p>
+      <table class="params">
+        <tr><th>Query Param</th><th>Type</th><th>Description</th></tr>
+        <tr><td>filename</td><td>string</td><td>If set, uploads as a file. If omitted, uploads as firmware (triggers reboot).</td></tr>
+      </table>
+<pre class="resp"><span class="n">// File upload:</span>   { <span class="k">"status"</span>: <span class="s">"ok"</span>, <span class="k">"path"</span>: <span class="s">"/test.py"</span> }
+<span class="n">// FW upload:</span>    { <span class="k">"status"</span>: <span class="s">"ok"</span>, <span class="k">"message"</span>: <span class="s">"Firmware uploaded. Rebooting..."</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- WiFi -->
+<div class="card wifi" id="api-wifi">
+  <div class="card-h"><b>/api/wifi</b> <span>WiFi Configuration</span></div>
+  <div class="card-b">
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge get">GET</span><span class="ep-path">/api/wifi/status</span></div>
+      <p class="ep-desc">Returns current WiFi connection status.</p>
+<pre class="resp">{
+  <span class="k">"mode"</span>: <span class="s">"sta"</span>,
+  <span class="k">"ssid"</span>: <span class="s">"MyNetwork"</span>,
+  <span class="k">"ip"</span>: <span class="s">"192.168.1.42"</span>,
+  <span class="k">"hostname"</span>: <span class="s">"esp-optacon.local"</span>
+}</pre>
+    </div>
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge put">PUT</span><span class="ep-path">/api/wifi/config</span></div>
+      <p class="ep-desc">Save WiFi credentials and reconnect. Returns 400 if SSID is empty.</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>ssid</td><td>string</td><td>Network name (required)</td></tr>
+        <tr><td>password</td><td>string</td><td>Network password</td></tr>
+      </table>
+<pre class="resp">{ <span class="k">"msg"</span>: <span class="s">"WiFi reconnected"</span>, <span class="k">"ip"</span>: <span class="s">"192.168.1.42"</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- Music -->
+<div class="card music" id="api-music">
+  <div class="card-h"><b>/api/music</b> <span>Sheet Music Playback</span></div>
+  <div class="card-b">
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge get">GET</span><span class="ep-path">/api/music/songs</span></div>
+      <p class="ep-desc">List built-in songs with their note data.</p>
+<pre class="resp">{
+  <span class="k">"songs"</span>: [
+    { <span class="k">"name"</span>: <span class="s">"super_mario"</span>, <span class="k">"notes"</span>: <span class="s">"E5:1 E5:1 ..."</span>, <span class="k">"bpm"</span>: <span class="n">400</span>, <span class="k">"gain"</span>: <span class="n">75</span> }
+  ]
+}</pre>
+    </div>
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge post">POST</span><span class="ep-path">/api/music/play</span></div>
+      <p class="ep-desc">Play a sequence of notes. Blocks until playback completes. Returns 400 if notes empty or beat value invalid.</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>notes</td><td>string</td><td>Space-separated notes, e.g. <code>"C4:1 E4:1 G4:2"</code> (required)</td></tr>
+        <tr><td>bpm</td><td>int</td><td>Beats per minute (default: 120)</td></tr>
+        <tr><td>waveform</td><td>string</td><td>"sine", "triangle", or "square" (default: "sine")</td></tr>
+        <tr><td>gain</td><td>int</td><td>25, 50, 75, or 100 Vpp (default: 75)</td></tr>
+      </table>
+<pre class="resp">{ <span class="k">"msg"</span>: <span class="s">"music complete"</span> }</pre>
+    </div>
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge post">POST</span><span class="ep-path">/api/music/play_song</span></div>
+      <p class="ep-desc">Play a built-in song by name. Returns 404 if song unknown.</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>name</td><td>string</td><td>Song name from <code>/api/music/songs</code> (required)</td></tr>
+        <tr><td>waveform</td><td>string</td><td>"sine", "triangle", or "square" (default: "sine")</td></tr>
+      </table>
+<pre class="resp">{ <span class="k">"msg"</span>: <span class="s">"music complete"</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- TTS -->
+<div class="card tts" id="api-tts">
+  <div class="card-h"><b>/api/tts</b> <span>Text-to-Speech</span></div>
+  <div class="card-b">
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge post">POST</span><span class="ep-path">/api/tts/say</span></div>
+      <p class="ep-desc">Speak text using the SAM speech synthesizer. Blocks until speech completes. Returns 400 if text empty.</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>text</td><td>string</td><td>Text to speak (required)</td></tr>
+        <tr><td>speed</td><td>int</td><td>Speech speed (default: 72)</td></tr>
+        <tr><td>pitch</td><td>int</td><td>Voice pitch (default: 64)</td></tr>
+        <tr><td>mouth</td><td>int</td><td>Mouth shape parameter (default: 128)</td></tr>
+        <tr><td>throat</td><td>int</td><td>Throat shape parameter (default: 128)</td></tr>
+      </table>
+<pre class="resp">{ <span class="k">"msg"</span>: <span class="s">"speech complete"</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- Exec -->
+<div class="card exec" id="api-exec">
+  <div class="card-h"><b>/api/exec</b> <span>Remote Code Execution</span></div>
+  <div class="card-b">
+
+    <div class="endpoint">
+      <div class="ep-sig"><span class="method-badge post">POST</span><span class="ep-path">/api/exec</span></div>
+      <p class="ep-desc">Evaluate a Python expression or execute a statement. Tries <code>eval()</code> first, falls back to <code>exec()</code> on SyntaxError. Exceptions are returned in the output.</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>code</td><td>string</td><td>Python code to execute</td></tr>
+      </table>
+<pre class="resp"><span class="n">// Expression:</span>  { <span class="k">"output"</span>: <span class="s">"4\n"</span> }
+<span class="n">// Statement:</span>   { <span class="k">"output"</span>: <span class="s">"hello world\n"</span> }
+<span class="n">// Error:</span>       { <span class="k">"output"</span>: <span class="s">"Traceback ...\nNameError: ..."</span> }</pre>
+    </div>
+  </div>
+</div>
+
+<!-- WebSocket -->
+<div class="card ws" id="ws">
+  <div class="card-h"><b>WebSocket</b> <span>/ws &mdash; Real-time Hardware Control</span></div>
+  <div class="card-b">
+    <p class="desc">
+      Connect to <code>ws://&lt;host&gt;/ws</code>. On connect, the server sends an initial status message.
+      Send JSON commands; receive JSON status or error responses.
+    </p>
+
+    <div class="section-label">Commands</div>
+
+    <div class="ws-cmd">
+      <div class="ws-name">get_status</div>
+      <p class="ws-desc">Request current device status. Always returns full status dict.</p>
+<pre class="resp"><span class="n">// Send:</span>     { <span class="k">"cmd"</span>: <span class="s">"get_status"</span> }
+<span class="n">// Receive:</span>  { <span class="k">"running"</span>: <span class="n">false</span>, <span class="k">"mode"</span>: <span class="n">null</span>, <span class="k">"frequency"</span>: <span class="n">0</span>, <span class="k">"gain"</span>: <span class="n">100</span>,
+               <span class="k">"fullwave"</span>: <span class="n">false</span>, <span class="k">"waveform"</span>: <span class="s">"sine"</span>, <span class="k">"polarity"</span>: <span class="n">false</span>,
+               <span class="k">"pins"</span>: [<span class="n">0,0,...,0</span>], <span class="k">"amplitude"</span>: <span class="n">100</span>, ... }</pre>
+    </div>
+
+    <div class="ws-cmd">
+      <div class="ws-name">start</div>
+      <p class="ws-desc">Start output. Must configure frequency first.</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>gain</td><td>int</td><td>25, 50, 75, or 100 Vpp (default: 100)</td></tr>
+      </table>
+    </div>
+
+    <div class="ws-cmd">
+      <div class="ws-name">stop</div>
+      <p class="ws-desc">Stop output and put DRV2665 in standby.</p>
+    </div>
+
+    <div class="ws-cmd">
+      <div class="ws-name">set_frequency_analog</div>
+      <p class="ws-desc">Configure analog DDS mode. If already running with same fullwave/dead_time/phase_advance, updates live without restart.</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>hz</td><td>int</td><td>0 &ndash; 1000 Hz (default: 250)</td></tr>
+        <tr><td>amplitude</td><td>int</td><td>0 &ndash; 100% (default: 100)</td></tr>
+        <tr><td>waveform</td><td>string</td><td>"sine", "triangle", "square", or "dc" (default: "sine")</td></tr>
+        <tr><td>fullwave</td><td>bool</td><td>Enable fullwave polarity toggle (default: false)</td></tr>
+        <tr><td>dead_time</td><td>int</td><td>ISR ticks after zero-crossing (default: 0)</td></tr>
+        <tr><td>phase_advance</td><td>int</td><td>ISR ticks before zero-crossing (default: 0)</td></tr>
+      </table>
+    </div>
+
+    <div class="ws-cmd">
+      <div class="ws-name">set_frequency_digital</div>
+      <p class="ws-desc">Configure digital FIFO mode (8 kHz sample rate).</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>hz</td><td>int</td><td>1 &ndash; 500 Hz (default: 100)</td></tr>
+        <tr><td>fullwave</td><td>bool</td><td>Enable fullwave (default: false)</td></tr>
+        <tr><td>waveform</td><td>string</td><td>"sine", "triangle", or "square" (default: "sine")</td></tr>
+      </table>
+    </div>
+
+    <div class="ws-cmd">
+      <div class="ws-name">set_pin</div>
+      <p class="ws-desc">Set a single HV509 shift register output pin.</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>pin</td><td>int</td><td>0 &ndash; 19</td></tr>
+        <tr><td>value</td><td>int</td><td>0 or 1</td></tr>
+      </table>
+    </div>
+
+    <div class="ws-cmd">
+      <div class="ws-name">set_all</div>
+      <p class="ws-desc">Set all 20 shift register pins to the same value.</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>value</td><td>bool</td><td>true = all on, false = all off</td></tr>
+      </table>
+    </div>
+
+    <div class="ws-cmd">
+      <div class="ws-name">set_polarity</div>
+      <p class="ws-desc">Manually set the polarity output (GPIO 12/13).</p>
+      <table class="params">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>value</td><td>bool</td><td>true or false</td></tr>
+      </table>
+    </div>
+
+    <div class="section-label">Connection Example</div>
+<pre class="resp"><span class="n">// JavaScript</span>
+<span class="k">var</span> ws = <span class="k">new</span> WebSocket(<span class="s">'ws://'</span> + location.host + <span class="s">'/ws'</span>);
+ws.onmessage = <span class="k">function</span>(e) {
+  <span class="k">var</span> status = JSON.parse(e.data);
+  console.log(status.running, status.frequency);
+};
+<span class="n">// Start output at 250 Hz</span>
+ws.send(JSON.stringify({<span class="k">cmd</span>:<span class="s">'set_frequency_analog'</span>, <span class="k">hz</span>:<span class="n">250</span>}));
+ws.send(JSON.stringify({<span class="k">cmd</span>:<span class="s">'start'</span>, <span class="k">gain</span>:<span class="n">100</span>}));</pre>
+  </div>
+</div>
+
+<div class="footer">
+  <a href="/">Control Panel</a> &middot;
+  <a href="/web/docs.html">Python API</a> &middot;
+  <a href="/wifi">WiFi</a> &middot;
+  <a href="/update">Updates</a>
+  <div id="ver-info" style="margin-top:4px"></div>
+</div>
+<script>
+fetch('/api/device/status').then(function(r){return r.json()}).then(function(d){
+  var v='FW '+d.firmware_version;
+  if(d.files_version)v+=' · Files '+d.files_version;
+  document.getElementById('ver-info').textContent=v;
+}).catch(function(){});
+</script>
+
+</body>
+</html>

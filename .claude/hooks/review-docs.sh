@@ -9,7 +9,7 @@ case "$CMD" in *"git commit"*) ;; *) exit 0;; esac
 
 # Find staged doc files (excluding docs/plans/)
 DOC_FILES=$(git diff --cached --name-only --diff-filter=ACM -- \
-  "docs/*.md" "docs/**/*.md" "README.md" "CLAUDE.md" "web/docs.html" \
+  "docs/*.md" "docs/**/*.md" "README.md" "CLAUDE.md" "web/docs.html" "web/api.html" \
   ".claude/skills/**/*.md" ".claude/agents/*.md" \
   | grep -v "^docs/plans/")
 
