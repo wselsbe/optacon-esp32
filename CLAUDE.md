@@ -32,6 +32,31 @@ flash.cmd [COM_PORT]
 mpremote connect COM7
 ```
 
+### Run tests:
+```bash
+# All tests (142 tests: integration + E2E API + Playwright UI)
+pytest test/
+
+# Integration only
+pytest test/integration/
+
+# E2E API tests
+pytest test/e2e/test_api.py
+
+# Playwright UI tests
+pytest test/e2e/test_ui.py
+
+# OTA mock server (standalone, for testing against real hardware)
+python -m test.e2e.ota_server --port 8080
+```
+
+### Provision hardware identity:
+```bash
+python scripts/provision.py --port /dev/ttyACM0 \
+    --serial-number "OPT-2026-0042" \
+    --hw-revision "1.2"
+```
+
 ## Architecture Overview
 
 MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 shift registers. Python controls high-level logic; the `pz_drive` C module handles all real-time hardware (PWM ISR, FIFO task, SPI, I2C).
@@ -53,10 +78,17 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
   - `pz_drive_py.py` — High-level PzActuator orchestrator
   - `drv2665.py` — DRV2665 I2C register driver (delegates to pz_drive)
   - `shift_register.py` — HV509 shift register driver (delegates to pz_drive)
+  - `hw_info.py` — Read-only device identity from hw_info NVS partition
   - `main.py` — Application entry point and demo functions
 - `python/_boot.py` — Custom VFS mount (overlaid onto vendor _boot.py by build.sh)
 - `python/` — Filesystem Python modules (uploaded to board, not frozen)
-  - `web_server.py` — Async HTTP/WebSocket server (microdot), serves UI + API
+  - `web_server.py` — Async HTTP/WebSocket server (microdot), `create_app(deps)` for DI/testability
+- `config/partitions-4MiB-ota.csv` — Custom partition table with hw_info NVS partition
+- `scripts/provision.py` — One-time hardware identity provisioning tool
+- `test/` — Test suite (CPython, pytest)
+  - `mocks/` — Mock C modules (pz_drive, sam, board_utils) + MicroPython builtins
+  - `integration/` — Integration tests for all Python modules
+  - `e2e/` — E2E tests: API/WebSocket (aiohttp) + Playwright UI tests + OTA mock server
   - `music.py` — Sheet music player: note sequences, built-in songs, play via PzActuator
   - `wifi.py` — WiFi STA management, config persistence
   - `ota.py` — OTA firmware update client
