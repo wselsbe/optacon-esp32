@@ -11,11 +11,13 @@ pytestmark = pytest.mark.hardware
 @pytest.mark.parametrize("freq_hz", [50, 250, 500])
 def test_signal_frequency(board, oscilloscope, channels, tolerance, configure_scope, waveform, freq_hz):
     """Verify measured frequency matches requested frequency."""
-    configure_scope(freq_hz)
-    oscilloscope.configure_channel(channels["out_plus"], vdiv="20V", coupling="D1M", probe=10)
-
+    # Start signal first, then configure scope so it triggers immediately
     board.set_frequency_analog(hz=freq_hz, waveform=waveform)
     board.start()
+    time.sleep(0.5)
+
+    configure_scope(freq_hz)
+    oscilloscope.configure_channel(channels["out_plus"], vdiv="10V", coupling="D1M", probe=10)
     time.sleep(1.0)
 
     measured_freq = oscilloscope.measure_float(channels["in_plus"], "FREQ")
@@ -33,11 +35,12 @@ def test_signal_frequency(board, oscilloscope, channels, tolerance, configure_sc
 @pytest.mark.parametrize("waveform", ["sine", "triangle", "square"])
 def test_signal_amplitude(board, oscilloscope, channels, configure_scope, waveform):
     """Verify signal has non-trivial amplitude on IN+ and OUT+."""
-    configure_scope(250)
-    oscilloscope.configure_channel(channels["out_plus"], vdiv="20V", coupling="D1M", probe=10)
-
     board.set_frequency_analog(hz=250, waveform=waveform)
     board.start()
+    time.sleep(0.5)
+
+    configure_scope(250)
+    oscilloscope.configure_channel(channels["out_plus"], vdiv="10V", coupling="D1M", probe=10)
     time.sleep(1.0)
 
     in_pkpk = oscilloscope.measure_float(channels["in_plus"], "PKPK")

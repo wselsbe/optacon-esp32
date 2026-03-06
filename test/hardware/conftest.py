@@ -138,7 +138,7 @@ def board(board_url):
 def configure_scope(oscilloscope, channels):
     """Configure oscilloscope for signal measurement at a given frequency."""
 
-    def _setup(freq_hz, ch=None, vdiv="20V"):
+    def _setup(freq_hz, ch=None, vdiv=None):
         if freq_hz <= 100:
             timebase = "5MS"
         elif freq_hz <= 300:
@@ -147,9 +147,16 @@ def configure_scope(oscilloscope, channels):
             timebase = "1MS"
 
         target_ch = ch or channels["in_plus"]
+        # IN+ is ~3.3Vpp, OUT+ is ~45Vpp — pick sensible defaults
+        if vdiv is None:
+            vdiv = "1V" if target_ch == channels["in_plus"] else "10V"
+        # Always configure IN+ (trigger source) so probe/vdiv are correct
+        ch_in = channels["in_plus"]
+        if target_ch != ch_in:
+            oscilloscope.configure_channel(ch_in, vdiv="1V", coupling="D1M", probe=10)
         oscilloscope.configure_channel(target_ch, vdiv=vdiv, coupling="D1M", probe=10)
         oscilloscope.configure_timebase(timebase)
-        oscilloscope.configure_trigger(channels["in_plus"], level="1V", slope="POS")
+        oscilloscope.configure_trigger(ch_in, level="0.5V", slope="POS")
         oscilloscope.run()
 
     return _setup

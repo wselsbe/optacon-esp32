@@ -13,11 +13,12 @@ def test_sweep_frequency_increases(board_url, board, oscilloscope, channels, con
     """During a sweep from 50-500 Hz, measured frequency should increase over time."""
     ch_in = channels["in_plus"]
 
-    configure_scope(250)
-
-    # Set initial frequency and start
+    # Start signal first so scope can trigger
     board.set_frequency_analog(hz=50)
     board.start()
+    time.sleep(0.5)
+
+    configure_scope(250)
     time.sleep(0.5)
 
     # Start sweep via exec API (fire-and-forget — sweep blocks for 5s)
@@ -32,7 +33,7 @@ def test_sweep_frequency_increases(board_url, board, oscilloscope, channels, con
     sweep_thread.start()
 
     # Sample frequency at intervals during the sweep
-    time.sleep(0.3)  # let sweep start
+    time.sleep(0.5)  # let sweep start
     frequencies = []
     for _ in range(5):
         time.sleep(0.8)

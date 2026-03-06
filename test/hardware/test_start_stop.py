@@ -19,6 +19,7 @@ def test_no_signal_before_start(board, oscilloscope, channels):
 
     oscilloscope.configure_channel(ch_out, vdiv="10V", coupling="D1M", probe=10)
     oscilloscope.configure_timebase("2MS")
+    oscilloscope.configure_trigger(ch_out, level="5V", slope="POS")
     oscilloscope.run()
     time.sleep(1.0)
 
@@ -28,13 +29,19 @@ def test_no_signal_before_start(board, oscilloscope, channels):
     )
 
 
-def test_signal_appears_on_start(board, oscilloscope, channels, configure_scope):
+def test_signal_appears_on_start(board, oscilloscope, channels):
     """Positive: OUT+ should show signal after start."""
     ch_out = channels["out_plus"]
 
-    configure_scope(250, ch=ch_out)
     board.set_frequency_analog(hz=250)
     board.start()
+    time.sleep(0.5)
+
+    oscilloscope.configure_channel(ch_out, vdiv="10V", coupling="D1M", probe=10)
+    oscilloscope.configure_channel(channels["in_plus"], vdiv="1V", coupling="D1M", probe=10)
+    oscilloscope.configure_timebase("2MS")
+    oscilloscope.configure_trigger(channels["in_plus"], level="0.5V", slope="POS")
+    oscilloscope.run()
     time.sleep(1.0)
 
     pkpk = oscilloscope.measure_float(ch_out, "PKPK")
@@ -50,15 +57,18 @@ def test_signal_disappears_on_stop(board, oscilloscope, channels):
     ch_out = channels["out_plus"]
     ch_in = channels["in_plus"]
 
-    oscilloscope.configure_channel(ch_out, vdiv="10V", coupling="D1M", probe=10)
-    oscilloscope.configure_timebase("2MS")
-    oscilloscope.run()
-
     board.set_frequency_analog(hz=250)
     board.start()
     time.sleep(1.0)
 
     board.stop()
+    time.sleep(1.0)
+
+    oscilloscope.configure_channel(ch_out, vdiv="10V", coupling="D1M", probe=10)
+    oscilloscope.configure_channel(ch_in, vdiv="1V", coupling="D1M", probe=10)
+    oscilloscope.configure_timebase("2MS")
+    oscilloscope.configure_trigger(ch_out, level="5V", slope="POS")
+    oscilloscope.run()
     time.sleep(1.0)
 
     out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")

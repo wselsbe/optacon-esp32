@@ -23,10 +23,12 @@ def test_gain_ordering(board_url, oscilloscope, channels, configure_scope):
         try:
             ch_out = channels["out_plus"]
 
-            configure_scope(FREQ_HZ, ch=ch_out)
             client.set_frequency_analog(hz=FREQ_HZ)
             client.start(gain=gain)
-            time.sleep(2.0)
+            time.sleep(0.5)
+
+            configure_scope(FREQ_HZ, ch=ch_out)
+            time.sleep(1.5)
 
             out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
             if out_pkpk is None:
@@ -55,10 +57,12 @@ def test_gain_produces_signal(board, oscilloscope, channels, configure_scope, ga
     """Each gain setting should produce a measurable signal on OUT+."""
     ch_out = channels["out_plus"]
 
-    configure_scope(FREQ_HZ, ch=ch_out)
     board.set_frequency_analog(hz=FREQ_HZ)
     board.start(gain=gain)
-    time.sleep(2.0)
+    time.sleep(0.5)
+
+    configure_scope(FREQ_HZ, ch=ch_out)
+    time.sleep(1.5)
 
     out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
     if out_pkpk is None:
