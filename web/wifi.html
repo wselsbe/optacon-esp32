@@ -81,9 +81,7 @@ a.back:hover{text-decoration:underline}
 </div>
 
 <script>
-var ws;
-
-fetch('/wifi/status').then(function(r){return r.json()}).then(function(d){
+fetch('/api/wifi/status').then(function(r){return r.json()}).then(function(d){
   document.getElementById('w-mode').textContent=d.mode==='sta'?'Station':'Access Point';
   document.getElementById('w-ssid').textContent=d.ssid||'--';
   document.getElementById('w-ip').textContent=d.ip||'--';
@@ -104,31 +102,23 @@ document.getElementById('apply-btn').onclick=function(){
   btn.disabled=true;
   btn.textContent='SAVING...';
 
-  var proto=location.protocol==='https:'?'wss:':'ws:';
-  ws=new WebSocket(proto+'//'+location.host+'/ws');
-  ws.onopen=function(){
-    ws.send(JSON.stringify({cmd:'wifi_config',ssid:ssid,password:pass}));
-  };
-  ws.onmessage=function(e){
-    var d=JSON.parse(e.data);
+  fetch('/api/wifi/config',{method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ssid:ssid,password:pass})
+  }).then(function(r){return r.json()}).then(function(d){
     if(d.ip){
       showMsg('Connected! New IP: '+d.ip,true);
-      btn.disabled=false;
-      btn.textContent='APPLY';
       document.getElementById('w-ip').textContent=d.ip;
       document.getElementById('w-ssid').textContent=document.getElementById('ssid').value.trim();
       document.getElementById('w-mode').textContent='Station';
     }else if(d.error){
       showMsg('Error: '+d.error,false);
-      btn.disabled=false;
-      btn.textContent='APPLY & REBOOT';
     }
-  };
-  ws.onerror=function(){
+  }).catch(function(){
     showMsg('Connection error',false);
+  }).finally(function(){
     btn.disabled=false;
-    btn.textContent='APPLY & REBOOT';
-  };
+    btn.textContent='APPLY';
+  });
 };
 </script>
 <div id="footer" style="text-align:center;padding:16px 0 4px;font-size:11px;color:var(--text3)">
@@ -137,7 +127,7 @@ document.getElementById('apply-btn').onclick=function(){
   &middot; <span id="ver-info"></span>
 </div>
 <script>
-fetch('/api/ota/status').then(function(r){return r.json()}).then(function(d){
+fetch('/api/device/status').then(function(r){return r.json()}).then(function(d){
   var v='FW '+d.firmware_version;
   if(d.files_version)v+=' · Files '+d.files_version;
   document.getElementById('ver-info').textContent=v;

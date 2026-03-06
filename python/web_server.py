@@ -98,87 +98,6 @@ def create_app(deps=None):
             pz_drive.pol_set(bool(data.get("value", False)))
         elif cmd == "get_status":
             pass  # status is always returned
-        elif cmd == "wifi_config":
-            deps.wifi.save_config(data["ssid"], data.get("password", ""))
-            deps.wifi.reconnect()
-            return {"msg": "WiFi reconnected", "ip": deps.wifi.ip}
-        elif cmd == "say":
-            import sam
-
-            text = data.get("text", "")
-            if not text:
-                return {"error": "no text provided"}
-            sam.say(
-                text,
-                speed=data.get("speed", 72),
-                pitch=data.get("pitch", 64),
-                mouth=data.get("mouth", 128),
-                throat=data.get("throat", 128),
-            )
-            return {"msg": "speech complete"}
-        elif cmd == "play_music":
-            import music
-
-            notes_str = data.get("notes", "")
-            if not notes_str:
-                return {"error": "no notes provided"}
-            song = []
-            for token in notes_str.split():
-                parts = token.split(":")
-                note = parts[0]
-                try:
-                    beats = float(parts[1]) if len(parts) > 1 else 1
-                except ValueError:
-                    return {"error": "invalid beat value: " + parts[1]}
-                song.append((note if note != "R" else "R", beats))
-            music.play(
-                song,
-                bpm=data.get("bpm", 120),
-                waveform=data.get("waveform", "sine"),
-                gain=data.get("gain", 75),
-            )
-            return {"msg": "music complete"}
-        elif cmd == "play_song":
-            import music
-
-            name = data.get("name", "")
-            if name not in music.SONGS:
-                return {"error": "unknown song: " + name}
-            music.play_song(
-                name,
-                waveform=data.get("waveform", "sine"),
-            )
-            return {"msg": "music complete"}
-        elif cmd == "exec":
-            code = data.get("code", "")
-            output = []
-
-            def _print(*args, **kw):
-                sep = kw.get("sep", " ")
-                end = kw.get("end", "\n")
-                output.append(sep.join(str(a) for a in args) + end)
-
-            g = {"print": _print}
-            try:
-                try:
-                    result = eval(code, g)
-                    if result is not None:
-                        output.append(repr(result) + "\n")
-                except SyntaxError:
-                    exec(code, g)
-            except Exception as e:
-                import io
-                import sys
-
-                buf = io.StringIO()
-                try:
-                    sys.print_exception(e, buf)
-                except AttributeError:
-                    import traceback
-
-                    traceback.print_exception(type(e), e, e.__traceback__, file=buf)
-                output.append(buf.getvalue())
-            return {"output": "".join(output)}
         else:
             return {"error": f"unknown command: {cmd}"}
 
@@ -198,15 +117,7 @@ def create_app(deps=None):
     async def wifi_page(request):
         return send_file("/web/wifi.html")
 
-    @app.route("/wifi/status")
-    async def wifi_status(request):
-        return json.dumps(deps.wifi.get_status()), 200, {"Content-Type": "application/json"}
-
     # --- OTA API ---
-
-    @app.route("/api/ota/status")
-    async def ota_status(request):
-        return json.dumps(deps.ota.get_status()), 200, {"Content-Type": "application/json"}
 
     @app.route("/api/ota/config", methods=["GET", "PUT"])
     async def ota_config(request):
@@ -286,21 +197,6 @@ def create_app(deps=None):
                 )
             return json.dumps({"error": "Upload failed"}), 500, {"Content-Type": "application/json"}
 
-    @app.route("/api/ota/log")
-    async def ota_log(request):
-        name = request.args.get("file", "boot")
-        content = deps.ota.get_log(name)
-        return json.dumps({"log": content}), 200, {"Content-Type": "application/json"}
-
-    @app.route("/api/ota/diagnostics", methods=["POST"])
-    async def ota_diagnostics(request):
-        ok = deps.ota.send_diagnostics()
-        if ok:
-            return json.dumps({"status": "ok"}), 200, {"Content-Type": "application/json"}
-        return json.dumps({"error": "Failed to send diagnostics"}), 500, {
-            "Content-Type": "application/json"
-        }
-
     @app.route("/api/music/songs")
     async def music_songs(request):
         import music
@@ -312,6 +208,148 @@ def create_app(deps=None):
             )
             songs.append({"name": name, "notes": notes, "bpm": bpm, "gain": gain})
         return json.dumps({"songs": songs}), 200, {"Content-Type": "application/json"}
+
+    # --- Device API ---
+
+    @app.route("/api/device/status")
+    async def device_status(request):
+        return json.dumps(deps.ota.get_status()), 200, {"Content-Type": "application/json"}
+
+    @app.route("/api/device/log")
+    async def device_log(request):
+        name = request.args.get("file", "boot")
+        content = deps.ota.get_log(name)
+        return json.dumps({"log": content}), 200, {"Content-Type": "application/json"}
+
+    @app.route("/api/device/diagnostics", methods=["POST"])
+    async def device_diagnostics(request):
+        ok = deps.ota.send_diagnostics()
+        if ok:
+            return json.dumps({"status": "ok"}), 200, {"Content-Type": "application/json"}
+        return json.dumps({"error": "Failed to send diagnostics"}), 500, {
+            "Content-Type": "application/json"
+        }
+
+    # --- WiFi API ---
+
+    @app.route("/api/wifi/status")
+    async def wifi_status(request):
+        return json.dumps(deps.wifi.get_status()), 200, {"Content-Type": "application/json"}
+
+    @app.route("/api/wifi/config", methods=["PUT"])
+    async def wifi_config(request):
+        data = json.loads(request.body.decode())
+        ssid = data.get("ssid", "")
+        if not ssid:
+            return json.dumps({"error": "ssid required"}), 400, {"Content-Type": "application/json"}
+        deps.wifi.save_config(ssid, data.get("password", ""))
+        deps.wifi.reconnect()
+        return json.dumps({"msg": "WiFi reconnected", "ip": deps.wifi.ip}), 200, {
+            "Content-Type": "application/json"
+        }
+
+    # --- TTS API ---
+
+    @app.route("/api/tts/say", methods=["POST"])
+    async def tts_say(request):
+        import sam
+
+        data = json.loads(request.body.decode())
+        text = data.get("text", "")
+        if not text:
+            return json.dumps({"error": "no text provided"}), 400, {
+                "Content-Type": "application/json"
+            }
+        sam.say(
+            text,
+            speed=data.get("speed", 72),
+            pitch=data.get("pitch", 64),
+            mouth=data.get("mouth", 128),
+            throat=data.get("throat", 128),
+        )
+        return json.dumps({"msg": "speech complete"}), 200, {"Content-Type": "application/json"}
+
+    # --- Music API (play/play_song) ---
+
+    @app.route("/api/music/play", methods=["POST"])
+    async def music_play(request):
+        import music
+
+        data = json.loads(request.body.decode())
+        notes_str = data.get("notes", "")
+        if not notes_str:
+            return json.dumps({"error": "no notes provided"}), 400, {
+                "Content-Type": "application/json"
+            }
+        song = []
+        for token in notes_str.split():
+            parts = token.split(":")
+            note = parts[0]
+            try:
+                beats = float(parts[1]) if len(parts) > 1 else 1
+            except ValueError:
+                return json.dumps({"error": "invalid beat value: " + parts[1]}), 400, {
+                    "Content-Type": "application/json"
+                }
+            song.append((note if note != "R" else "R", beats))
+        music.play(
+            song,
+            bpm=data.get("bpm", 120),
+            waveform=data.get("waveform", "sine"),
+            gain=data.get("gain", 75),
+        )
+        return json.dumps({"msg": "music complete"}), 200, {"Content-Type": "application/json"}
+
+    @app.route("/api/music/play_song", methods=["POST"])
+    async def music_play_song(request):
+        import music
+
+        data = json.loads(request.body.decode())
+        name = data.get("name", "")
+        if name not in music.SONGS:
+            return json.dumps({"error": "unknown song: " + name}), 404, {
+                "Content-Type": "application/json"
+            }
+        music.play_song(
+            name,
+            waveform=data.get("waveform", "sine"),
+        )
+        return json.dumps({"msg": "music complete"}), 200, {"Content-Type": "application/json"}
+
+    # --- Exec API ---
+
+    @app.route("/api/exec", methods=["POST"])
+    async def exec_code(request):
+        data = json.loads(request.body.decode())
+        code = data.get("code", "")
+        output = []
+
+        def _print(*args, **kw):
+            sep = kw.get("sep", " ")
+            end = kw.get("end", "\n")
+            output.append(sep.join(str(a) for a in args) + end)
+
+        g = {"print": _print}
+        try:
+            try:
+                result = eval(code, g)
+                if result is not None:
+                    output.append(repr(result) + "\n")
+            except SyntaxError:
+                exec(code, g)
+        except Exception as e:
+            import io
+            import sys
+
+            buf = io.StringIO()
+            try:
+                sys.print_exception(e, buf)
+            except AttributeError:
+                import traceback
+
+                traceback.print_exception(type(e), e, e.__traceback__, file=buf)
+            output.append(buf.getvalue())
+        return json.dumps({"output": "".join(output)}), 200, {"Content-Type": "application/json"}
 
     @app.route("/update")
     async def update_page(request):

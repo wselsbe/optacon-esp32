@@ -601,7 +601,12 @@ startStop.onclick=function(){
     if(!ws||ws.readyState!==1){showTtsMsg('Not connected','err');return}
     speaking=true;startStop.disabled=true;updateStartBtn();
     showTtsMsg('Speaking...','info');
-    send({cmd:'say',text:text,speed:parseInt(ttsSpeed.value),pitch:parseInt(ttsPitch.value)});
+    fetch('/api/tts/say',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({text:text,speed:parseInt(ttsSpeed.value),pitch:parseInt(ttsPitch.value)})
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.error){showTtsMsg(d.error,'err');speaking=false;startStop.disabled=false;updateStartBtn();return}
+      speaking=false;startStop.disabled=false;updateStartBtn();showTtsMsg('Done','ok');
+    }).catch(function(e){showTtsMsg('Request failed','err');speaking=false;startStop.disabled=false;updateStartBtn()});
   }else if(activeTab==='music'){
     if(musicPlaying){
       send({cmd:'stop'});setMusicPlaying(false);showMusicMsg('Stopped','ok');
@@ -611,8 +616,13 @@ startStop.onclick=function(){
     if(!notes){showMusicMsg('Enter some notes first','err');return}
     if(!ws||ws.readyState!==1){showMusicMsg('Not connected','err');return}
     setMusicPlaying(true);showMusicMsg('Playing...','info');
-    send({cmd:'play_music',notes:notes,bpm:parseInt($('music-bpm').value)||120,
-      waveform:selWaveform,gain:selGain});
+    fetch('/api/music/play',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({notes:notes,bpm:parseInt($('music-bpm').value)||120,
+        waveform:selWaveform,gain:selGain})
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.error){showMusicMsg(d.error,'err');setMusicPlaying(false);return}
+      setMusicPlaying(false);showMusicMsg('Done','ok');
+    }).catch(function(e){showMusicMsg('Request failed','err');setMusicPlaying(false)});
   }
 };
 
@@ -642,7 +652,12 @@ termIn.onkeydown=function(e){
     var code=termIn.value;if(!code)return;
     termHist.push(code);termIdx=termHist.length;
     termAppend('>>> '+code+'\n');
-    send({cmd:'exec',code:code});
+    fetch('/api/exec',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({code:code})
+    }).then(function(r){return r.json()}).then(function(d){
+      if(d.error){termAppend(d.error+'\n','err');return}
+      if(d.output!=null)termAppend(d.output||'');
+    }).catch(function(e){termAppend('Request failed\n','err')});
     termIn.value='';
   }else if(e.key==='ArrowUp'){
     e.preventDefault();
@@ -724,7 +739,7 @@ function loadSongs(){
 }
 
 connect();
-fetch('/api/ota/status').then(function(r){return r.json()}).then(function(d){
+fetch('/api/device/status').then(function(r){return r.json()}).then(function(d){
   var v='FW '+d.firmware_version;
   if(d.files_version)v+=' · Files '+d.files_version;
   document.getElementById('ver-info').textContent=v;
