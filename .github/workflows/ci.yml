@@ -64,3 +64,14 @@ jobs:
             build/bootloader.bin
             build/partition-table.bin
             build/micropython.bin
+
+      - name: Upload filesystem
+        uses: actions/upload-artifact@v4
+        with:
+          name: filesystem
+          path: |
+            python/music.py
+            python/web_server.py
+            python/wifi.py
+            python/ota.py
+            web/
