@@ -126,6 +126,23 @@ static mp_obj_t mod_sam_say(size_t n_args, const mp_obj_t *pos_args,
         (unsigned char)args[ARG_mouth].u_int,
         (unsigned char)args[ARG_throat].u_int, &buf_len);
 
+    // Map gain percentage to DRV2665 register value
+    int gain = args[ARG_gain].u_int;
+    uint8_t gain_bits;
+    if (gain <= 25)
+        gain_bits = 0x00;
+    else if (gain <= 50)
+        gain_bits = 0x01;
+    else if (gain <= 75)
+        gain_bits = 0x02;
+    else
+        gain_bits = 0x03;
+
+    // Configure DRV2665 for analog input before playback
+    drv2665_write_reg(0x02, 0x0C);                // CTRL2: clear timeout, set TIMEOUT_20MS
+    drv2665_write_reg(0x01, 0x04 | gain_bits);    // CTRL1: INPUT_ANALOG | gain
+    drv2665_write_reg(0x02, 0x02 | 0x0C);         // CTRL2: EN_OVERRIDE | TIMEOUT_20MS
+
     // Play via pz_drive
     pzd_pwm_play_samples((const uint8_t *)buf, buf_len, 22050, false);
 
@@ -134,6 +151,9 @@ static mp_obj_t mod_sam_say(size_t n_args, const mp_obj_t *pos_args,
         mp_handle_pending(true);
         mp_hal_delay_ms(10);
     }
+
+    // Put DRV2665 in standby
+    drv2665_write_reg(0x02, 0x40);
 
     m_free(buf);
     return mp_const_none;
