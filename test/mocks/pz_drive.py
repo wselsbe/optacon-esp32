@@ -55,8 +55,9 @@ def _reset():
     sr_stage.reset_mock()
     sr_write.reset_mock()
 
-    i2c_read.reset_mock(return_value=True)
+    i2c_read.reset_mock(return_value=True, side_effect=True)
     i2c_read.return_value = 0
+    i2c_read.side_effect = None
     i2c_write.reset_mock()
 
     pol_init.reset_mock()
