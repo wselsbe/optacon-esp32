@@ -1,12 +1,9 @@
 """Test power consumption: idle, active, per-pin, all-pins.
 
-TODO: 16/20 per-pin tests fail — known hardware issue. Most pins draw more
-than the 100mA limit. Two categories:
-- Pins 0-3, 5-6, 13-14, 19: marginally over limit (~100-110mA), likely just
-  above the base load + measurement noise. Could raise limit to ~110mA.
-- Pins 4, 7-9, 11, 15-16: significantly over limit (270-365mA), genuine
-  hardware fault — these pins have excessive current draw through the piezo load.
-Passing pins: 10, 12, 17, 18.
+TODO: 7/20 per-pin tests fail — known hardware issue. Pins 4, 7-9, 11, 15-16
+draw 297-361mA (well above the 120mA limit). These pins have excessive current
+through the piezo load, indicating solder bridges or damaged piezo elements.
+Passing pins (13/20): 0-3, 5-6, 10, 12-14, 17-19.
 """
 
 import time

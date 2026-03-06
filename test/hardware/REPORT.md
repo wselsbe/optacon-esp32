@@ -6,7 +6,7 @@
 
 ## Summary
 
-48 tests total: **19 passed, 29 failed**
+48 tests total: **27 passed, 21 failed**
 
 | Module | Pass | Fail | Notes |
 |--------|------|------|-------|
@@ -16,7 +16,7 @@
 | signal_amplitude | 2/3 | 1 | Triangle waveform fails |
 | gain | 2/5 | 3 | OUT+ PKPK returns None intermittently |
 | power (idle/active/all) | 3/3 | 0 | All passing |
-| power (per-pin) | 5/20 | 15 | Known hardware fault |
+| power (per-pin) | 13/20 | 7 | Known hardware fault |
 | sweep | 0/1 | 1 | Sweep never executes via /api/exec |
 
 ## Passing Tests
@@ -27,7 +27,7 @@
 - **signal_amplitude**: sine and square produce measurable amplitude on IN+ and OUT+.
 - **gain**: gain=25 and gain=75 produce measurable signal.
 - **power**: Idle <60mA, active <200mA, all-pins <500mA.
-- **power (per-pin)**: Pins 5, 10, 12, 17, 19 pass at 120mA limit.
+- **power (per-pin)**: Pins 0-3, 5-6, 10, 12-14, 17-19 pass at 120mA limit.
 
 ## Failing Tests — Analysis
 
@@ -56,18 +56,21 @@ sine/square at the same settings, falling below the scope's auto-measurement thr
 pass in isolation, suggesting a scope state issue from previous test iterations. The test
 creates fresh BoardClient connections per gain level, which may contribute.
 
-### Power Per-Pin (15/20 fail)
+### Power Per-Pin (7/20 fail)
 
-Two categories of failure at the 120mA limit:
+All failures are genuine hardware faults — drawing 297-361mA (well above 120mA limit):
 
-**Marginal (100-120mA):** Pins 0-3, 6, 13-14 — just above base load (~90mA) plus
-measurement noise. These are borderline and may pass with a slightly higher limit.
+| Pin | Current | Pin | Current |
+|-----|---------|-----|---------|
+| 4   | 361mA   | 11  | 310mA   |
+| 7   | 341mA   | 15  | 336mA   |
+| 8   | 317mA   | 16  | 297mA   |
+| 9   | 339mA   |     |         |
 
-**Hardware fault (270-365mA):** Pins 4, 7-9, 11, 15-16 — significantly over limit.
 These pins have excessive current draw through the piezo load, indicating a genuine
 hardware issue (likely solder bridges or damaged piezo elements).
 
-**Passing pins:** 5, 10, 12, 17, 19
+**Passing pins (13/20):** 0-3, 5-6, 10, 12-14, 17-19
 
 ### Sweep (1/1 fail)
 
