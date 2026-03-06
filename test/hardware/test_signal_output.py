@@ -1,64 +1,26 @@
 """Test signal output verification on oscilloscope."""
 
 import asyncio
-import json
 
 import pytest
 
 pytestmark = pytest.mark.hardware
 
 
-@pytest.fixture
-def _configure_scope(oscilloscope, channels):
-    """Configure oscilloscope channels for signal measurement."""
-
-    async def _setup(freq_hz):
-        if freq_hz <= 100:
-            timebase = "5MS"
-        elif freq_hz <= 300:
-            timebase = "2MS"
-        else:
-            timebase = "1MS"
-
-        ch_in = channels["in_plus"]
-        ch_out = channels["out_plus"]
-
-        await oscilloscope.configure_channel(ch_in, vdiv="1V", coupling="D1M", probe=10)
-        await oscilloscope.configure_channel(ch_out, vdiv="20V", coupling="D1M", probe=10)
-        await oscilloscope.configure_timebase(timebase)
-        await oscilloscope.configure_trigger(ch_in, level="1V", slope="POS")
-        await oscilloscope.run()
-        await asyncio.sleep(0.5)
-
-    return _setup
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("waveform", ["sine", "triangle", "square"])
 @pytest.mark.parametrize("freq_hz", [50, 250, 500])
 async def test_signal_frequency(
-    board_ws, oscilloscope, channels, tolerance, _configure_scope, waveform, freq_hz
+    board_ws, oscilloscope, channels, tolerance, configure_scope, waveform, freq_hz
 ):
     """Verify measured frequency matches requested frequency."""
-    ws = await board_ws()
+    board = await board_ws()
     try:
-        await _configure_scope(freq_hz)
+        await configure_scope(freq_hz)
+        await oscilloscope.configure_channel(channels["out_plus"], vdiv="20V", coupling="D1M", probe=10)
 
-        await ws.send(
-            json.dumps(
-                {
-                    "cmd": "set_frequency_analog",
-                    "hz": freq_hz,
-                    "amplitude": 100,
-                    "waveform": waveform,
-                    "fullwave": False,
-                }
-            )
-        )
-        await ws.recv()
-        await ws.send(json.dumps({"cmd": "start", "gain": 100}))
-        await ws.recv()
-
+        await board.set_frequency_analog(hz=freq_hz, waveform=waveform)
+        await board.start()
         await asyncio.sleep(1.0)
 
         measured_freq = await oscilloscope.measure_float(channels["in_plus"], "FREQ")
@@ -70,37 +32,24 @@ async def test_signal_frequency(
             f"(tolerance {tolerance * 100}%)"
         )
 
-        await ws.send(json.dumps({"cmd": "stop"}))
-        await ws.recv()
+        await board.stop()
     finally:
-        await ws.close()
+        await board.close()
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("waveform", ["sine", "triangle", "square"])
 async def test_signal_amplitude(
-    board_ws, oscilloscope, channels, tolerance, _configure_scope, waveform
+    board_ws, oscilloscope, channels, configure_scope, waveform
 ):
     """Verify signal has non-trivial amplitude on IN+ and OUT+."""
-    ws = await board_ws()
+    board = await board_ws()
     try:
-        await _configure_scope(250)
+        await configure_scope(250)
+        await oscilloscope.configure_channel(channels["out_plus"], vdiv="20V", coupling="D1M", probe=10)
 
-        await ws.send(
-            json.dumps(
-                {
-                    "cmd": "set_frequency_analog",
-                    "hz": 250,
-                    "amplitude": 100,
-                    "waveform": waveform,
-                    "fullwave": False,
-                }
-            )
-        )
-        await ws.recv()
-        await ws.send(json.dumps({"cmd": "start", "gain": 100}))
-        await ws.recv()
-
+        await board.set_frequency_analog(hz=250, waveform=waveform)
+        await board.start()
         await asyncio.sleep(1.0)
 
         in_pkpk = await oscilloscope.measure_float(channels["in_plus"], "PKPK")
@@ -109,7 +58,6 @@ async def test_signal_amplitude(
         out_pkpk = await oscilloscope.measure_float(channels["out_plus"], "PKPK")
         assert out_pkpk is not None and out_pkpk > 5.0, f"OUT+ PKPK too low: {out_pkpk}V"
 
-        await ws.send(json.dumps({"cmd": "stop"}))
-        await ws.recv()
+        await board.stop()
     finally:
-        await ws.close()
+        await board.close()

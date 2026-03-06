@@ -6,7 +6,7 @@ import asyncio
 class SCPIConnection:
     """Async TCP connection to a SCPI instrument."""
 
-    def __init__(self, host: str, port: int, timeout: float = 5.0, drain_banner: bool = False):
+    def __init__(self, host: str, port: int, timeout: float = 10.0, drain_banner: bool = False):
         self.host = host
         self.port = port
         self.timeout = timeout

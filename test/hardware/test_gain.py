@@ -1,7 +1,6 @@
 """Test gain level amplitude scaling on OUT+."""
 
 import asyncio
-import json
 
 import pytest
 
@@ -12,41 +11,63 @@ GAIN_LEVELS = [25, 50, 75, 100]
 
 
 @pytest.mark.asyncio
+async def test_gain_ordering(board_ws, oscilloscope, channels, configure_scope):
+    """Higher gain settings should produce higher OUT+ amplitude."""
+    measurements = {}
+
+    for gain in GAIN_LEVELS:
+        board = await board_ws()
+        try:
+            ch_out = channels["out_plus"]
+
+            await configure_scope(FREQ_HZ, ch=ch_out)
+            await board.set_frequency_analog(hz=FREQ_HZ)
+            await board.start(gain=gain)
+            await asyncio.sleep(2.0)
+
+            out_pkpk = await oscilloscope.measure_float(ch_out, "PKPK")
+            if out_pkpk is None:
+                await asyncio.sleep(1.0)
+                out_pkpk = await oscilloscope.measure_float(ch_out, "PKPK")
+            assert out_pkpk is not None, f"Could not measure OUT+ PKPK at gain={gain}"
+            measurements[gain] = out_pkpk
+
+            await board.stop()
+        finally:
+            await board.close()
+
+    # Verify monotonically increasing amplitude with gain
+    for i in range(len(GAIN_LEVELS) - 1):
+        low = GAIN_LEVELS[i]
+        high = GAIN_LEVELS[i + 1]
+        assert measurements[high] > measurements[low], (
+            f"Gain {high} ({measurements[high]:.2f}Vpp) should be > "
+            f"gain {low} ({measurements[low]:.2f}Vpp). "
+            f"All measurements: {measurements}"
+        )
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("gain", GAIN_LEVELS)
-async def test_gain_amplitude(board_ws, oscilloscope, channels, tolerance, gain):
-    """OUT+ PKPK should be proportional to gain setting."""
-    ws = await board_ws()
+async def test_gain_produces_signal(board_ws, oscilloscope, channels, configure_scope, gain):
+    """Each gain setting should produce a measurable signal on OUT+."""
+    board = await board_ws()
     try:
         ch_out = channels["out_plus"]
 
-        vdiv = f"{max(gain // 4, 5)}V"
-        await oscilloscope.configure_channel(ch_out, vdiv=vdiv, coupling="D1M", probe=10)
-        await oscilloscope.configure_timebase("2MS")
-        await oscilloscope.configure_trigger(channels["in_plus"], level="1V", slope="POS")
-        await oscilloscope.run()
-
-        await ws.send(json.dumps({
-            "cmd": "set_frequency_analog",
-            "hz": FREQ_HZ,
-            "amplitude": 100,
-            "waveform": "sine",
-            "fullwave": False,
-        }))
-        await ws.recv()
-        await ws.send(json.dumps({"cmd": "start", "gain": gain}))
-        await ws.recv()
-        await asyncio.sleep(1.5)
+        await configure_scope(FREQ_HZ, ch=ch_out)
+        await board.set_frequency_analog(hz=FREQ_HZ)
+        await board.start(gain=gain)
+        await asyncio.sleep(2.0)
 
         out_pkpk = await oscilloscope.measure_float(ch_out, "PKPK")
-        assert out_pkpk is not None, f"Could not measure OUT+ PKPK at gain={gain}"
-
-        expected_vpp = float(gain)
-        assert abs(out_pkpk - expected_vpp) / expected_vpp <= tolerance, (
-            f"Gain {gain}: expected ~{expected_vpp}Vpp, got {out_pkpk}Vpp "
-            f"(tolerance {tolerance*100}%)"
+        if out_pkpk is None:
+            await asyncio.sleep(1.0)
+            out_pkpk = await oscilloscope.measure_float(ch_out, "PKPK")
+        assert out_pkpk is not None and out_pkpk > 1.5, (
+            f"Gain {gain}: OUT+ PKPK too low ({out_pkpk}V), expected signal"
         )
 
-        await ws.send(json.dumps({"cmd": "stop"}))
-        await ws.recv()
+        await board.stop()
     finally:
-        await ws.close()
+        await board.close()

@@ -70,7 +70,7 @@ async def multimeter(config):
     host, port = _parse_address(config["sdm"])
     dmm = Multimeter(host, port)
     await dmm.connect()
-    await dmm.configure_dc_current("6")
+    await dmm.configure_dc_current("0.6")
     yield dmm
     await dmm.disconnect()
 
@@ -130,14 +130,37 @@ def board_url(config):
 async def board_ws(board_url):
     import websockets
 
+    from test.hardware.board_client import BoardClient
+
     ws_url = board_url.replace("http://", "ws://") + "/ws"
 
     async def _connect():
         ws = await websockets.connect(ws_url)
         await ws.recv()  # initial status
-        return ws
+        return BoardClient(ws)
 
     return _connect
+
+
+@pytest.fixture
+def configure_scope(oscilloscope, channels):
+    """Configure oscilloscope for signal measurement at a given frequency."""
+
+    async def _setup(freq_hz, ch=None, vdiv="20V"):
+        if freq_hz <= 100:
+            timebase = "5MS"
+        elif freq_hz <= 300:
+            timebase = "2MS"
+        else:
+            timebase = "1MS"
+
+        target_ch = ch or channels["in_plus"]
+        await oscilloscope.configure_channel(target_ch, vdiv=vdiv, coupling="D1M", probe=10)
+        await oscilloscope.configure_timebase(timebase)
+        await oscilloscope.configure_trigger(channels["in_plus"], level="1V", slope="POS")
+        await oscilloscope.run()
+
+    return _setup
 
 
 @pytest_asyncio.fixture

@@ -1,7 +1,6 @@
 """Test frequency sweep verification."""
 
 import asyncio
-import json
 
 import aiohttp
 import pytest
@@ -10,38 +9,32 @@ pytestmark = pytest.mark.hardware
 
 
 @pytest.mark.asyncio
-async def test_sweep_frequency_increases(board_url, board_ws, oscilloscope, channels):
+async def test_sweep_frequency_increases(board_url, board_ws, oscilloscope, channels, configure_scope):
     """During a sweep from 50-500 Hz, measured frequency should increase over time."""
-    ws = await board_ws()
+    board = await board_ws()
     try:
         ch_in = channels["in_plus"]
 
-        await oscilloscope.configure_channel(ch_in, vdiv="1V", coupling="D1M", probe=10)
-        await oscilloscope.configure_timebase("5MS")
-        await oscilloscope.configure_trigger(ch_in, level="1V", slope="POS")
-        await oscilloscope.run()
+        await configure_scope(250)
 
         # Set initial frequency and start
-        await ws.send(json.dumps({
-            "cmd": "set_frequency_analog",
-            "hz": 50,
-            "amplitude": 100,
-            "waveform": "sine",
-            "fullwave": False,
-        }))
-        await ws.recv()
-        await ws.send(json.dumps({"cmd": "start", "gain": 100}))
-        await ws.recv()
+        await board.set_frequency_analog(hz=50)
+        await board.start()
         await asyncio.sleep(0.5)
 
-        # Start sweep via exec API (sweep_analog is not a WS command)
-        async with aiohttp.ClientSession() as session:
-            await session.post(
-                f"{board_url}/api/exec",
-                json={"code": "pa.sweep_analog(50, 500, 5000, waveform='sine', gain=100)"},
-            )
+        # Start sweep via exec API (fire-and-forget — sweep blocks for 5s)
+        async def _fire_sweep():
+            async with aiohttp.ClientSession() as session:
+                await session.post(
+                    f"{board_url}/api/exec",
+                    json={"code": "pa.sweep_analog(50, 500, 5000, waveform='sine', gain=100)"},
+                    timeout=aiohttp.ClientTimeout(total=15),
+                )
+
+        sweep_task = asyncio.create_task(_fire_sweep())
 
         # Sample frequency at intervals during the sweep
+        await asyncio.sleep(0.3)  # let sweep start
         frequencies = []
         for _ in range(5):
             await asyncio.sleep(0.8)
@@ -49,9 +42,9 @@ async def test_sweep_frequency_increases(board_url, board_ws, oscilloscope, chan
             if freq is not None:
                 frequencies.append(freq)
 
-        # Stop after sweep
-        await ws.send(json.dumps({"cmd": "stop"}))
-        await ws.recv()
+        # Wait for sweep to finish, then stop
+        await sweep_task
+        await board.stop()
 
         assert len(frequencies) >= 3, f"Not enough frequency samples: {frequencies}"
 
@@ -66,4 +59,4 @@ async def test_sweep_frequency_increases(board_url, board_ws, oscilloscope, chan
         assert frequencies[0] < 200, f"First frequency too high for sweep start: {frequencies[0]}"
         assert frequencies[-1] > 200, f"Last frequency too low for sweep end: {frequencies[-1]}"
     finally:
-        await ws.close()
+        await board.close()
