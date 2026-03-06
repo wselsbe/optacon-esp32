@@ -225,7 +225,7 @@ function hideOverlay(){$('overlay').classList.remove('show')}
 
 // --- Load status ---
 function loadStatus(){
-  fetch('/api/ota/status').then(function(r){return r.json()}).then(function(d){
+  fetch('/api/device/status').then(function(r){return r.json()}).then(function(d){
     $('s-fw').textContent=d.firmware_version||'--';
     $('s-files').textContent=d.files_version||'--';
     $('s-url').textContent=d.update_url||'(not configured)';
@@ -427,7 +427,7 @@ for(var i=0;i<logTabs.length;i++){
 
 function loadLog(name){
   $('log-out').textContent='Loading...';
-  fetch('/api/ota/log?file='+encodeURIComponent(name)).then(function(r){return r.json()}).then(function(d){
+  fetch('/api/device/log?file='+encodeURIComponent(name)).then(function(r){return r.json()}).then(function(d){
     $('log-out').textContent=d.log||'(empty)';
     $('log-out').scrollTop=$('log-out').scrollHeight;
   }).catch(function(e){
@@ -440,7 +440,7 @@ $('diag-btn').onclick=function(){
   var btn=this;btn.disabled=true;btn.textContent='SENDING...';
   hideMsg($('diag-msg'));
 
-  fetch('/api/ota/diagnostics',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
+  fetch('/api/device/diagnostics',{method:'POST'}).then(function(r){return r.json()}).then(function(d){
     btn.disabled=false;btn.textContent='SEND DIAGNOSTICS';
     if(d.error){showMsg($('diag-msg'),d.error,false);return}
     showMsg($('diag-msg'),'Diagnostics sent successfully',true);
