@@ -75,7 +75,7 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
 - `python/frozen/` — Frozen Python modules (compiled into firmware image)
   - `boot_cfg.py` — OTA/boot configuration constants
   - `boot.py` — Boot sequence: OTA rollback safety, watchdog, HW init
-  - `pz_drive_py.py` — High-level PzActuator orchestrator
+  - `pz_drive_py.py` — High-level PzDrive orchestrator
   - `drv2665.py` — DRV2665 I2C register driver (delegates to pz_drive)
   - `shift_register.py` — HV509 shift register driver (delegates to pz_drive)
   - `hw_info.py` — Read-only device identity from hw_info NVS partition
@@ -89,7 +89,7 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
   - `mocks/` — Mock C modules (pz_drive, sam, board_utils) + MicroPython builtins
   - `integration/` — Integration tests for all Python modules
   - `e2e/` — E2E tests: API/WebSocket (aiohttp) + Playwright UI tests + OTA mock server
-  - `music.py` — Sheet music player: note sequences, built-in songs, play via PzActuator
+  - `music.py` — Sheet music player: note sequences, built-in songs, play via PzDrive
   - `wifi.py` — WiFi STA management, config persistence
   - `ota.py` — OTA firmware update client
 - `web/` — Web UI files (served from board filesystem)
@@ -100,11 +100,11 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
 - `scripts/` — Docker build and flash helpers (`build.sh`, `flash.sh`)
 - `mcp_micropython.py` — MCP server for serial interaction with the board from Claude Code
 
-### Python API (`PzActuator` class in `pz_drive_py`)
+### Python API (`PzDrive` class in `pz_drive_py`)
 
 ```python
-from pz_drive_py import PzActuator
-pa = PzActuator()
+from pz_drive_py import PzDrive
+pa = PzDrive()
 pa.set_frequency_analog(hz, resolution=8, amplitude=100, fullwave=False,
                         dead_time=0, phase_advance=0, waveform='sine')  # 0-1000 Hz
 pa.set_frequency_digital(hz, fullwave=False, waveform='sine')  # 1-500 Hz (FIFO rate limited)

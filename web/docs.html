@@ -141,15 +141,15 @@ pre.code .k{color:#6aa4d4}
 <div class="page-subtitle">MicroPython API for driving piezo actuators via the ESP32-S3 REPL.</div>
 
 <div class="nav">
-  <a href="#doc-pzactuator" class="esp">PzActuator</a>
+  <a href="#doc-pzactuator" class="esp">PzDrive</a>
   <a href="#doc-music" class="music">music</a>
   <a href="#doc-drv2665" class="drv">DRV2665</a>
   <a href="#doc-shiftreg" class="hv">ShiftRegister</a>
 </div>
 
-<!-- PzActuator -->
+<!-- PzDrive -->
 <div class="card esp" id="doc-pzactuator">
-  <div class="card-h"><b>PzActuator</b> <span>pz_drive_py</span></div>
+  <div class="card-h"><b>PzDrive</b> <span>pz_drive_py</span></div>
   <div class="card-b">
     <p class="desc">
       Main high-level API. Wraps DRV2665 (I2C), HV509 shift registers (SPI), and the real-time
@@ -159,7 +159,7 @@ pre.code .k{color:#6aa4d4}
 
     <div class="section-label">Constructor</div>
     <div class="method">
-      <code class="sig"><span class="mn">PzActuator</span>()</code>
+      <code class="sig"><span class="mn">PzDrive</span>()</code>
       <p class="mdesc">Initialize hardware. Call once at boot. Access the shift register via the <code>shift_register</code> attribute.</p>
     </div>
 
@@ -227,8 +227,8 @@ pre.code .k{color:#6aa4d4}
     </div>
 
     <div class="section-label">Examples</div>
-<pre class="code"><span class="k">from</span> pz_drive_py <span class="k">import</span> PzActuator
-pa = PzActuator()
+<pre class="code"><span class="k">from</span> pz_drive_py <span class="k">import</span> PzDrive
+pa = PzDrive()
 
 <span class="c"># 250 Hz sine wave, half amplitude</span>
 pa.set_frequency_analog(<span class="n">250</span>, amplitude=<span class="n">50</span>)
@@ -355,7 +355,7 @@ music.note_freq(<span class="s">"Db5"</span>)  <span class="c"># 554.37</span></
   <div class="card-b">
     <p class="desc">
       Low-level I2C interface to the DRV2665 piezo driver. Usually accessed indirectly via
-      <code>PzActuator</code>. Direct use is for advanced configuration.
+      <code>PzDrive</code>. Direct use is for advanced configuration.
     </p>
 
     <div class="section-label">Constants</div>
@@ -377,7 +377,7 @@ music.note_freq(<span class="s">"Db5"</span>)  <span class="c"># 554.37</span></
     </div>
     <div class="method">
       <code class="sig"><span class="mn">standby</span>()</code>
-      <p class="mdesc">Enter standby mode. Called automatically by <code>PzActuator.stop()</code>.</p>
+      <p class="mdesc">Enter standby mode. Called automatically by <code>PzDrive.stop()</code>.</p>
     </div>
     <div class="method">
       <code class="sig"><span class="mn">status</span>()</code>

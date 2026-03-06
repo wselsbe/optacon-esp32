@@ -1,7 +1,7 @@
 """Sheet music player for piezo actuators via PWM.
 
 Plays sequences of notes defined as tuples with optional dynamics and sweeps.
-Uses the analog PWM path through PzActuator with live frequency updates
+Uses the analog PWM path through PzDrive with live frequency updates
 (no start/stop per note) for smooth playback.
 
 Note format (variable-length tuples, backward compatible):
@@ -96,9 +96,9 @@ def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
         loop: if True, repeat until KeyboardInterrupt
     """
     import pz_drive
-    from pz_drive_py import PzActuator
+    from pz_drive_py import PzDrive
 
-    pa = PzActuator()
+    pa = PzDrive()
     from shift_register import ShiftRegister
     sr = ShiftRegister()
     sr.set_all(True)
