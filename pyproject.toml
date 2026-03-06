@@ -19,8 +19,6 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["test/integration", "test/e2e"]
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "session"
-asyncio_default_test_loop_scope = "session"
 markers = [
     "hardware: tests requiring physical lab instruments (not run in CI)",
 ]
