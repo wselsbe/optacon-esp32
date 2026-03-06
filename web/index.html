@@ -597,7 +597,7 @@ for(var i=0;i<gbs.length;i++){
 startStop.onclick=function(){
   if(activeTab==='signal'){
     if(state.running)send({cmd:'stop'});
-    else send({cmd:'start',gain:selGain});
+    else{if(!state.mode)sendFreq();send({cmd:'start',gain:selGain})};
   }else if(activeTab==='speech'){
     if(speaking)return;
     var text=$('tts-text').value.trim();
