@@ -1,0 +1,22 @@
+{
+  "latest_firmware": "0.2.0",
+  "latest_files": "0.2.0",
+  "firmware": {
+    "0.2.0": {
+      "url": "firmware/0.2.0.bin",
+      "size": 4096,
+      "sha256": ""
+    }
+  },
+  "files": {
+    "0.2.0": {
+      "changes": [
+        {
+          "path": "web_server.py",
+          "url": "files/0.2.0/web_server.py",
+          "sha256": ""
+        }
+      ]
+    }
+  }
+}

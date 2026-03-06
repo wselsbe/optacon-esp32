@@ -491,15 +491,14 @@ function updateWaveformVis(){
   var dcBtn=$('wf-dc');
   var isSpeech=activeTab==='speech';
   var isMusic=activeTab==='music';
-  // Disable DC on music/speech tabs
-  dcBtn.style.opacity=(isMusic||isSpeech)?'0.35':'';
-  dcBtn.style.pointerEvents=(isMusic||isSpeech)?'none':'';
   // Disable entire waveform section on speech tab (visible but not interactive)
   var wfBtnsAll=wfSection.querySelectorAll('.wf-btn');
   for(var i=0;i<wfBtnsAll.length;i++){
     wfBtnsAll[i].style.opacity=isSpeech?'0.35':'';
     wfBtnsAll[i].style.pointerEvents=isSpeech?'none':'';
   }
+  // Disable DC on music/speech tabs (after loop so it doesn't get reset)
+  if(isMusic||isSpeech){dcBtn.style.opacity='0.35';dcBtn.style.pointerEvents='none';}
   // Restore per-tab waveform selection
   selWaveform=tabWaveform[activeTab]||'sine';
   var all=document.querySelectorAll('.wf-btn');

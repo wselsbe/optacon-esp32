@@ -72,6 +72,16 @@ def save_config(cfg):
         json.dump(cfg, f)
 
 
+def _device_details():
+    """Get X-Device-* headers for OTA requests."""
+    try:
+        import hw_info
+
+        return hw_info.get_headers()
+    except Exception as e:
+        return {"X-Device-Error": str(e)}
+
+
 def _parse_url(url):
     """Parse URL into (host, port, path, use_ssl)."""
     proto, _, host_path = url.split("/", 2)
@@ -110,11 +120,15 @@ def _http_request(method, url, body=None, headers=None):
         if use_ssl and ssl:
             s = ssl.wrap_socket(s, server_hostname=host)
 
+        # Merge device identity headers
+        all_headers = _device_details()
+        if headers:
+            all_headers.update(headers)
+
         # Send request
         req = f"{method} {path} HTTP/1.0\r\nHost: {host}\r\n"
-        if headers:
-            for k, v in headers.items():
-                req += f"{k}: {v}\r\n"
+        for k, v in all_headers.items():
+            req += f"{k}: {v}\r\n"
         if body is not None:
             req += f"Content-Length: {len(body)}\r\n"
         req += "\r\n"
