@@ -150,20 +150,50 @@ if ($ClipboardServer) {
 
 $Host.UI.RawUI.WindowTitle = "Claude Code (optacon-pi)"
 
-# Launch Chrome with remote debugging (reuse existing if already running)
-$chrome = Get-Process chrome -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -match "remote-debugging-port" }
-if (-not $chrome) {
-    Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentList `
+# Launch Chrome with remote debugging (PID file prevents duplicate instances)
+$chromePidFile = "$PSScriptRoot\chrome-cdp.pid"
+$chromeRunning = $false
+if (Test-Path $chromePidFile) {
+    $savedPid = [int](Get-Content $chromePidFile -ErrorAction SilentlyContinue)
+    if ($savedPid -and (Get-Process -Id $savedPid -ErrorAction SilentlyContinue)) {
+        $chromeRunning = $true
+    }
+}
+if (-not $chromeRunning) {
+    $chromeProc = Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentList `
         "--remote-debugging-port=9222",
         "--user-data-dir=$env:TEMP\chrome-debug",
         "--no-first-run",
         "--no-default-browser-check",
         "--window-size=1280,900" `
-        -WindowStyle Minimized
-    Write-Host "Chrome CDP started (port 9222)" -ForegroundColor DarkGray
+        -PassThru -WindowStyle Minimized
+    $chromeProc.Id | Set-Content $chromePidFile
+    Write-Host "Chrome CDP started (port 9222, pid=$($chromeProc.Id))" -ForegroundColor DarkGray
 } else {
-    Write-Host "Chrome CDP already running" -ForegroundColor DarkGray
+    Write-Host "Chrome CDP already running (pid=$savedPid)" -ForegroundColor DarkGray
+}
+
+# Launch SSH tunnel (PID file prevents duplicate instances)
+$tunnelPidFile = "$PSScriptRoot\ssh-tunnel.pid"
+$tunnelRunning = $false
+if (Test-Path $tunnelPidFile) {
+    $savedTunnelPid = [int](Get-Content $tunnelPidFile -ErrorAction SilentlyContinue)
+    if ($savedTunnelPid -and (Get-Process -Id $savedTunnelPid -ErrorAction SilentlyContinue)) {
+        $tunnelRunning = $true
+    }
+}
+if (-not $tunnelRunning) {
+    $tunnelProc = Start-Process ssh -ArgumentList `
+        "-N",
+        "-R 9222:127.0.0.1:9222",
+        "-L 8224:127.0.0.1:8224",
+        "-R 8225:127.0.0.1:8225",
+        "optacon-pi" `
+        -PassThru -WindowStyle Hidden
+    $tunnelProc.Id | Set-Content $tunnelPidFile
+    Write-Host "SSH tunnel started (pid=$($tunnelProc.Id))" -ForegroundColor DarkGray
+} else {
+    Write-Host "SSH tunnel already running (pid=$savedTunnelPid)" -ForegroundColor DarkGray
 }
 
 $watcherProc = Start-Process powershell -ArgumentList `
@@ -179,11 +209,7 @@ Write-Host "Clipboard sync started (watcher=$($watcherProc.Id), server=$($server
 
 try {
     while ($true) {
-        ssh -t `
-            -R 9222:127.0.0.1:9222 `
-            -L 8224:127.0.0.1:8224 `
-            -R 8225:127.0.0.1:8225 `
-            optacon-pi 'n=0; while ! tmux has-session -t claude 2>/dev/null; do sleep 1; n=$((n+1)); if [ $n -ge 30 ]; then echo "Timeout waiting for claude session"; exit 1; fi; done; exec tmux attach -t claude'
+        ssh -t optacon-pi 'n=0; while ! tmux has-session -t claude 2>/dev/null; do sleep 1; n=$((n+1)); if [ $n -ge 30 ]; then echo "Timeout waiting for claude session"; exit 1; fi; done; exec tmux attach -t claude'
         Write-Host ""
         Write-Host "Disconnected. Reconnecting in 3 seconds... (Ctrl+C to quit)"
         Start-Sleep -Seconds 3
