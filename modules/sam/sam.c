@@ -1,0 +1,90 @@
+#include <string.h>
+#include <ctype.h>
+
+#include "phoneme_parser.h"
+#include "reciter.h"
+#include "render.h"
+#include "rules.h"
+#include "sam.h"
+#include "sam_tabs.h"
+
+void PrintPhonemes(SAMContext *ctx) {
+    (void)ctx; // no-op on embedded
+}
+
+void SAMInit(SAMContext *ctx) {
+    int i;
+    SAMSetMouthThroat(ctx);
+
+    ctx->oldTimeTableIndex = 0;
+
+    for (i = 0; i < 256; i++) {
+        ctx->stress[i] = 0;
+        ctx->phonemeLength[i] = 0;
+    }
+
+    for (i = 0; i < 60; i++) {
+        ctx->phonemeIndexOutput[i] = 0;
+        ctx->stressOutput[i] = 0;
+        ctx->phonemeLengthOutput[i] = 0;
+    }
+    ctx->phonemeIndex[255] = END; // to prevent buffer overflow // ML : changed from 32 to 255 to
+                                  // stop freezing with long inputs
+    // ctx->phonemeindex[255] = 32;  // to prevent buffer overflow
+}
+
+void SAMSpeak(SAMUtterance *toSpeak) {
+    SAMContext ctx;
+    ctx.toSpeak = *toSpeak;
+    // make a copy of the input string to pass to get phonemes out of
+    // this is because the input string is modified by the phoneme parser
+    unsigned char inputCopy[256];
+    memset(inputCopy, 155, 256);
+    for (int i = 0; toSpeak->input[i]; i++)
+        inputCopy[i] = toupper((unsigned char)toSpeak->input[i]);
+    inputCopy[strlen(toSpeak->input)] = 0;
+    TextToPhonemes(inputCopy);
+    ctx.toSpeak.input = (char *)inputCopy;
+    SAMInit(&ctx);
+    ParsePhonemes(&ctx);
+    ApplyRules(&ctx);
+    CopyStressToPrevVowel(&ctx);
+    SetPhonemeLengths(&ctx);
+    AdjustPhonemeLengths(&ctx);
+    AddVoicedStopConsonants(&ctx);
+    CheckPhonemes(&ctx);
+    InsertBreath(&ctx);
+    // PrintPhonemes(&ctx);
+    PrepareOutput(&ctx);
+
+    // if we were passed a callback on toSpeak, call it now with our buffer-
+    if (toSpeak->finished_callback) toSpeak->finished_callback(toSpeak->userdata);
+}
+
+void PrepareOutput(SAMContext *ctx) {
+    unsigned char srcpos = 0;  // Position in source
+    unsigned char destpos = 0; // Position in output
+
+    while (1) {
+        unsigned char A = ctx->phonemeIndex[srcpos];
+        ctx->phonemeIndexOutput[destpos] = A;
+        switch (A) {
+        case END:
+            RenderAudio(ctx);
+            return;
+        case BREAK:
+            ctx->phonemeIndexOutput[destpos] = END;
+            RenderAudio(ctx);
+            destpos = 0;
+            break;
+        case 0:
+            break;
+        default:
+            ctx->phonemeLengthOutput[destpos] = ctx->phonemeLength[srcpos];
+            ctx->stressOutput[destpos] = ctx->stress[srcpos];
+            ++destpos;
+            break;
+        }
+        ++srcpos;
+    }
+}

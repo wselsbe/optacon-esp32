@@ -36,7 +36,7 @@ When only filesystem Python files changed, skip the build entirely:
 1. Copy changed files to the board:
    ```bash
    mpremote cp python/music.py python/web_server.py python/wifi.py python/ota.py :
-   mpremote cp web/index.html web/wifi.html web/docs.html web/update.html :web/
+   mpremote cp web/*.html :web/
    ```
 2. Soft reset:
    ```
@@ -82,7 +82,7 @@ After flashing (or as the only step in fast path), upload non-frozen Python file
 
 ```bash
 mpremote cp python/music.py python/web_server.py python/wifi.py python/ota.py :
-mpremote cp web/index.html web/wifi.html web/docs.html web/update.html :web/
+mpremote cp web/*.html :web/
 ```
 
 These files are NOT frozen into firmware and must live on the board's filesystem.
@@ -113,5 +113,5 @@ These files are NOT frozen into firmware and must live on the board's filesystem
 - The port number often changes between normal mode and bootloader mode (e.g., ttyACM0 → ttyACM2). The auto-detect flags handle this.
 - Frozen modules: all `.py` in `python/frozen/` + `python/_boot.py` (overlaid) + `python/microdot/`
 - Filesystem modules: `music.py`, `web_server.py`, `wifi.py`, `ota.py`
-- Filesystem web: `web/index.html`, `web/wifi.html`, `web/docs.html`, `web/update.html`
+- Filesystem web: all `web/*.html`
 - **IMPORTANT**: A stock `boot.py` on the filesystem shadows the frozen one, breaking boot safety and OTA rollback. After a fresh flash, verify there's no `/boot.py` on the filesystem (`mpremote rm :boot.py` if needed).

@@ -45,6 +45,7 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
   - `fifo.c` — FreeRTOS FIFO fill task (8 kHz), digital fullwave
   - `hv509.c` — SPI bus + CS/LE, polarity GPIOs (12/13), 32-bit write, stage/latch
   - `drv2665.c` — I2C bus init, register read/write, FIFO helpers
+- `modules/sam/` — SAM speech synthesizer C module (text-to-speech, 22 kHz 8-bit PCM)
 - `modules/board_utils/` — C module: enter_bootloader() utility
 - `python/frozen/` — Frozen Python modules (compiled into firmware image)
   - `boot_cfg.py` — OTA/boot configuration constants
@@ -55,6 +56,15 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
   - `main.py` — Application entry point and demo functions
 - `python/_boot.py` — Custom VFS mount (overlaid onto vendor _boot.py by build.sh)
 - `python/` — Filesystem Python modules (uploaded to board, not frozen)
+  - `web_server.py` — Async HTTP/WebSocket server (microdot), serves UI + API
+  - `music.py` — Sheet music player: note sequences, built-in songs, play via PzActuator
+  - `wifi.py` — WiFi STA management, config persistence
+  - `ota.py` — OTA firmware update client
+- `web/` — Web UI files (served from board filesystem)
+  - `index.html` — Main control panel with tabbed Signal/Music/Speech interface
+  - `docs.html` — API reference documentation
+  - `wifi.html` — WiFi configuration page
+  - `update.html` — OTA firmware update page
 - `scripts/` — Docker build and flash helpers (`build.sh`, `flash.sh`)
 - `mcp_micropython.py` — MCP server for serial interaction with the board from Claude Code
 
@@ -104,6 +114,15 @@ pz_drive.sr_write(word32)  # immediate SPI write (debug)
 pz_drive.i2c_read(reg) / pz_drive.i2c_write(reg, val)
 # Polarity
 pz_drive.pol_init() / pz_drive.pol_get()  # pol_toggle is internal only
+```
+
+**sam** (text-to-speech via SAM formant synthesizer):
+```python
+import sam
+sam.say("hello world")                          # blocking TTS playback via pz_drive ISR
+sam.say("test", speed=72, pitch=64, gain=100)   # with voice parameters
+buf = sam.render("hello")                       # returns 8-bit PCM bytearray at 22050 Hz
+buf = sam.render("test", speed=72, pitch=64, mouth=128, throat=128)
 ```
 
 **board_utils**:

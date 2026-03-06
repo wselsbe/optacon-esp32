@@ -237,12 +237,23 @@ modules/pz_drive/         C module: all real-time hardware control
   fifo.c                  digital FIFO task (8 kHz esp_timer)
   hv509.c                 SPI shift register + polarity GPIOs
   drv2665.c               I2C bus init, register access, FIFO helpers
+modules/sam/              C module: SAM text-to-speech (22 kHz 8-bit PCM)
 modules/board_utils/      C module: enter_bootloader()
-python/
-  pz_actuator_py.py       high-level PzActuator orchestrator
+python/frozen/            frozen modules (compiled into firmware)
+  pz_drive_py.py          high-level PzActuator orchestrator
   drv2665.py              DRV2665 register driver
   shift_register.py       HV509 shift register driver
-  main.py                 boot script + demo functions
+  main.py                 application entry point
+python/                   filesystem modules (uploaded to board)
+  web_server.py           async HTTP/WebSocket server (microdot)
+  music.py                sheet music player + built-in songs
+  wifi.py                 WiFi STA management
+  ota.py                  OTA firmware update client
+web/                      web UI files (served from board filesystem)
+  index.html              control panel: Signal/Music/Speech tabs
+  docs.html               API reference documentation
+  wifi.html               WiFi configuration
+  update.html             OTA firmware updates
 scripts/                  build and flash helpers
 ```
 
