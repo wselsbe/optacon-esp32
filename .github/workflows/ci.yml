@@ -31,6 +31,29 @@ jobs:
           find modules -name '*.c' -o -name '*.h' \
             | xargs clang-format --dry-run --Werror
 
+  test-integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r test/requirements.txt
+      - run: pytest test/integration/ -v
+
+  test-e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r test/requirements.txt
+      - run: playwright install --with-deps chromium
+      - run: pytest test/e2e/ -v
+
   build:
     name: Build firmware
     runs-on: ubuntu-latest
