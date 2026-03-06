@@ -131,6 +131,7 @@ def board(board_url):
     client = BoardClient(ws_url)
     client.connect()
     yield client
+    client.stop()
     client.close()
 
 

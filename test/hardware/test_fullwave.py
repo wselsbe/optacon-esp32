@@ -34,8 +34,6 @@ def test_fullwave_polarity_toggles(board, oscilloscope, channels, tolerance):
         f"Polarity PKPK too low for digital signal: {pol_pkpk}V"
     )
 
-    board.stop()
-
 
 def test_non_fullwave_polarity_static(board, oscilloscope, channels):
     """In non-fullwave mode, polarity channel should be static (no toggling)."""
@@ -55,8 +53,6 @@ def test_non_fullwave_polarity_static(board, oscilloscope, channels):
     assert pol_pkpk is None or pol_pkpk < 1.5, (
         f"Polarity should be static in non-fullwave mode, but PKPK={pol_pkpk}V"
     )
-
-    board.stop()
 
 
 def test_fullwave_doubles_frequency(board, oscilloscope, channels, tolerance):
@@ -79,5 +75,3 @@ def test_fullwave_doubles_frequency(board, oscilloscope, channels, tolerance):
     assert abs(in_freq - expected_freq) / expected_freq <= tolerance, (
         f"IN+ frequency in fullwave: expected {expected_freq} Hz, got {in_freq} Hz"
     )
-
-    board.stop()

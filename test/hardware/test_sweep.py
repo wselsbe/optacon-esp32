@@ -1,4 +1,16 @@
-"""Test frequency sweep verification."""
+"""Test frequency sweep verification.
+
+TODO: Sweep test fails — frequency stays at 50.1 Hz throughout the entire
+sweep duration. The /api/exec POST fires sweep_analog() in a background thread,
+but the measured frequency never changes. Possible causes:
+1. The exec endpoint may not have access to the PzActuator instance (pa)
+2. sweep_analog() may block on the web server's event loop, preventing the
+   WS connection from working during the sweep
+3. The scope may be reading the pre-sweep frequency (set by board.set_frequency_analog)
+   rather than the sweep output
+Need to verify sweep_analog actually runs by checking board logs or adding
+a simpler test that calls sweep via WS instead of /api/exec.
+"""
 
 import threading
 import time
@@ -41,9 +53,8 @@ def test_sweep_frequency_increases(board_url, board, oscilloscope, channels, con
         if freq is not None:
             frequencies.append(freq)
 
-    # Wait for sweep to finish, then stop
+    # Wait for sweep to finish
     sweep_thread.join(timeout=15)
-    board.stop()
 
     assert len(frequencies) >= 3, f"Not enough frequency samples: {frequencies}"
 

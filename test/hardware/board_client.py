@@ -23,10 +23,15 @@ class BoardClient:
         return json.loads(self._ws.recv())
 
     def stop(self) -> dict:
-        return self.send_cmd("stop")
+        status = self.send_cmd("stop")
+        assert status.get("running") is False, f"Board did not stop: {status}"
+        return status
 
     def start(self, gain: int = 100) -> dict:
-        return self.send_cmd("start", gain=gain)
+        status = self.send_cmd("start", gain=gain)
+        assert status.get("running") is True, f"Board did not start: {status}"
+        assert status.get("gain") == gain, f"Board did not accept gain={gain}: {status}"
+        return status
 
     def set_frequency_analog(
         self,
@@ -35,13 +40,20 @@ class BoardClient:
         waveform: str = "sine",
         fullwave: bool = False,
     ) -> dict:
-        return self.send_cmd(
+        status = self.send_cmd(
             "set_frequency_analog",
             hz=hz,
             amplitude=amplitude,
             waveform=waveform,
             fullwave=fullwave,
         )
+        assert status.get("frequency") == hz, (
+            f"Board did not accept frequency={hz}: {status}"
+        )
+        assert status.get("fullwave") == fullwave, (
+            f"Board did not accept fullwave={fullwave}: {status}"
+        )
+        return status
 
     def set_pin(self, pin: int, value: int) -> dict:
         return self.send_cmd("set_pin", pin=pin, value=value)

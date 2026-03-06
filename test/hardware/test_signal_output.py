@@ -1,4 +1,16 @@
-"""Test signal output verification on oscilloscope."""
+"""Test signal output verification on oscilloscope.
+
+TODO: 7/9 frequency tests fail — scope returns **** (can't measure) or reads
+stale frequency from previous test (e.g. 50.1 Hz when expecting 250 Hz).
+Root cause: set_frequency_analog via WS may not take effect between tests,
+or scope trigger/timebase not settling. Need to investigate whether adding
+a stop/start cycle between frequency changes fixes it, or whether the scope
+needs longer settling time after reconfiguration.
+
+TODO: 1/3 amplitude tests fail (triangle) — IN+ PKPK returns None.
+Triangle waveform may have lower amplitude than sine/square, falling below
+the scope's measurement threshold at current V/div settings.
+"""
 
 import time
 
@@ -11,7 +23,6 @@ pytestmark = pytest.mark.hardware
 @pytest.mark.parametrize("freq_hz", [50, 250, 500])
 def test_signal_frequency(board, oscilloscope, channels, tolerance, configure_scope, waveform, freq_hz):
     """Verify measured frequency matches requested frequency."""
-    # Start signal first, then configure scope so it triggers immediately
     board.set_frequency_analog(hz=freq_hz, waveform=waveform)
     board.start()
     time.sleep(0.5)
@@ -28,8 +39,6 @@ def test_signal_frequency(board, oscilloscope, channels, tolerance, configure_sc
         f"Frequency mismatch: expected {freq_hz} Hz, got {measured_freq} Hz "
         f"(tolerance {tolerance * 100}%)"
     )
-
-    board.stop()
 
 
 @pytest.mark.parametrize("waveform", ["sine", "triangle", "square"])
@@ -48,5 +57,3 @@ def test_signal_amplitude(board, oscilloscope, channels, configure_scope, wavefo
 
     out_pkpk = oscilloscope.measure_float(channels["out_plus"], "PKPK")
     assert out_pkpk is not None and out_pkpk > 5.0, f"OUT+ PKPK too low: {out_pkpk}V"
-
-    board.stop()

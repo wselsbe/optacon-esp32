@@ -49,8 +49,6 @@ def test_signal_appears_on_start(board, oscilloscope, channels):
         f"OUT+ should show signal after start, but PKPK={pkpk}V"
     )
 
-    board.stop()
-
 
 def test_signal_disappears_on_stop(board, oscilloscope, channels):
     """Positive: OUT+ should return to noise floor after stop."""
