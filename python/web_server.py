@@ -215,7 +215,7 @@ def create_app(deps=None):
         # PUT: update config
         data = json.loads(request.body.decode())
         cfg = deps.ota.load_config()
-        for key in ("update_url", "diagnostics_url", "auto_check"):
+        for key in ("update_url", "auto_check"):
             if key in data:
                 cfg[key] = data[key]
         deps.ota.save_config(cfg)

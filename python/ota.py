@@ -72,14 +72,14 @@ def save_config(cfg):
         json.dump(cfg, f)
 
 
-def _device_headers():
+def _device_details():
     """Get X-Device-* headers for OTA requests."""
     try:
         import hw_info
 
         return hw_info.get_headers()
-    except Exception:
-        return {}
+    except Exception as e:
+        return {"X-Device-Error": str(e)}
 
 
 def _parse_url(url):
@@ -121,7 +121,7 @@ def _http_request(method, url, body=None, headers=None):
             s = ssl.wrap_socket(s, server_hostname=host)
 
         # Merge device identity headers
-        all_headers = _device_headers()
+        all_headers = _device_details()
         if headers:
             all_headers.update(headers)
 

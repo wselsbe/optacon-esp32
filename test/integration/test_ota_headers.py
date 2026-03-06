@@ -16,8 +16,8 @@ def ota_module(tmp_path, monkeypatch):
     return ota
 
 
-def test_device_headers_helper(ota_module):
-    """_device_headers() returns hw_info.get_headers() result."""
+def test_device_details_helper(ota_module):
+    """_device_details() returns hw_info.get_headers() result."""
     import hw_info
     from unittest.mock import patch
 
@@ -27,18 +27,18 @@ def test_device_headers_helper(ota_module):
         "X-Device-Firmware-Version": "0.1.0",
     }
     with patch.object(hw_info, "get_headers", return_value=expected):
-        result = ota_module._device_headers()
+        result = ota_module._device_details()
     assert result == expected
 
 
-def test_device_headers_fallback_on_error(ota_module):
-    """_device_headers() returns {} if hw_info fails."""
+def test_device_details_fallback_on_error(ota_module):
+    """_device_details() returns X-Device-Error header if hw_info fails."""
     import hw_info
     from unittest.mock import patch
 
     with patch.object(hw_info, "get_headers", side_effect=Exception("no NVS")):
-        result = ota_module._device_headers()
-    assert result == {}
+        result = ota_module._device_details()
+    assert result == {"X-Device-Error": "no NVS"}
 
 
 def test_headers_included_in_http_request(ota_module):
@@ -84,7 +84,7 @@ def test_headers_included_in_http_request(ota_module):
     assert "X-Device-Firmware-Version: 0.1.0" in req_str
 
 
-def test_caller_headers_override_device_headers(ota_module):
+def test_caller_headers_override_device_details(ota_module):
     """Caller-supplied headers should override device headers."""
     import hw_info
     from unittest.mock import patch
@@ -96,7 +96,7 @@ def test_caller_headers_override_device_headers(ota_module):
     caller_headers = {"Content-Type": "application/json"}
 
     with patch.object(hw_info, "get_headers", return_value=device_headers):
-        merged = ota_module._device_headers()
+        merged = ota_module._device_details()
         merged.update(caller_headers)
 
     assert merged["Content-Type"] == "application/json"  # caller wins
