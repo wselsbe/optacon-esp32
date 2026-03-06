@@ -140,9 +140,11 @@ def configure_scope(oscilloscope, channels):
     """Configure oscilloscope for signal measurement at a given frequency."""
 
     def _setup(freq_hz, ch=None, vdiv=None):
-        if freq_hz <= 100:
+        if freq_hz <= 60:
+            timebase = "10MS"
+        elif freq_hz <= 200:
             timebase = "5MS"
-        elif freq_hz <= 300:
+        elif freq_hz <= 500:
             timebase = "2MS"
         else:
             timebase = "1MS"

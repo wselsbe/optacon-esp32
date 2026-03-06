@@ -1,5 +1,6 @@
 """Lightweight SCPI instrument clients for hardware E2E tests."""
 
+import re
 import socket
 import threading
 import time
@@ -120,21 +121,23 @@ class Oscilloscope:
     def stop(self):
         self._conn.write("STOP")
 
+    _NUMERIC_RE = re.compile(r"[-+]?\d+\.?\d*(?:[eE][-+]?\d+)?")
+
     def measure(self, channel: str, parameter: str) -> str:
         result = self._conn.query(f"{channel}:PAVA? {parameter}")
         parts = result.split(",")
         if len(parts) >= 2:
-            val = parts[1].rstrip(
-                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ%"
-            )
-            return val
+            return parts[1]
         return result
 
     def measure_float(self, channel: str, parameter: str) -> float | None:
         val = self.measure(channel, parameter)
         if "****" in val or not val:
             return None
-        return float(val)
+        m = self._NUMERIC_RE.search(val)
+        if m is None:
+            return None
+        return float(m.group())
 
 
 class PowerSupply:

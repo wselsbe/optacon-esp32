@@ -329,7 +329,7 @@ def create_app(deps=None):
             end = kw.get("end", "\n")
             output.append(sep.join(str(a) for a in args) + end)
 
-        g = {"print": _print}
+        g = {"print": _print, "pa": deps.pa}
         try:
             try:
                 result = eval(code, g)
