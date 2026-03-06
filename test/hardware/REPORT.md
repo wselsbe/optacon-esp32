@@ -6,18 +6,18 @@
 
 ## Summary
 
-48 tests total: **27 passed, 21 failed**
+48 tests total: **31 passed, 10 failed, 7 xfail (known hardware faults)**
 
-| Module | Pass | Fail | Notes |
-|--------|------|------|-------|
-| start_stop | 4/4 | 0 | All passing |
-| fullwave | 3/3 | 0 | All passing |
-| signal_frequency | 3/9 | 6 | Scope can't measure at 50/500 Hz |
-| signal_amplitude | 2/3 | 1 | Triangle waveform fails |
-| gain | 2/5 | 3 | OUT+ PKPK returns None intermittently |
-| power (idle/active/all) | 3/3 | 0 | All passing |
-| power (per-pin) | 13/20 | 7 | Known hardware fault |
-| sweep | 0/1 | 1 | Sweep never executes via /api/exec |
+| Module | Pass | Fail | xfail | Notes |
+|--------|------|------|-------|-------|
+| start_stop | 4/4 | 0 | — | All passing |
+| fullwave | 3/3 | 0 | — | All passing |
+| signal_frequency | 3/9 | 6 | — | Scope can't measure at 50/500 Hz |
+| signal_amplitude | 2/3 | 1 | — | Triangle waveform fails |
+| gain | 2/5 | 3 | — | OUT+ PKPK returns None intermittently |
+| power (idle/active/all) | 3/3 | 0 | — | All passing |
+| power (per-pin) | 13/20 | 0 | 7 | Known hardware faults marked xfail |
+| sweep | 0/1 | 1 | — | sweep_analog blocks event loop |
 
 ## Passing Tests
 
@@ -56,9 +56,9 @@ sine/square at the same settings, falling below the scope's auto-measurement thr
 pass in isolation, suggesting a scope state issue from previous test iterations. The test
 creates fresh BoardClient connections per gain level, which may contribute.
 
-### Power Per-Pin (7/20 fail)
+### Power Per-Pin (7/20 xfail)
 
-All failures are genuine hardware faults — drawing 297-361mA (well above 120mA limit):
+All failures are genuine hardware faults marked as `xfail` — drawing 297-361mA (well above 120mA limit):
 
 | Pin | Current | Pin | Current |
 |-----|---------|-----|---------|
@@ -74,10 +74,11 @@ hardware issue (likely solder bridges or damaged piezo elements).
 
 ### Sweep (1/1 fail)
 
-Frequency stays at 50.1Hz throughout the 5-second sweep. The `/api/exec` endpoint fires
-`pa.sweep_analog()` in a background thread, but the measured frequency never changes.
-The exec endpoint may not have access to the running PzActuator instance, or the sweep
-blocks the web server's async event loop.
+`sweep_analog()` blocks the microdot async event loop for its full 5-second duration.
+The `/api/exec` endpoint has access to `pa` (confirmed — failure changed from stale-50Hz
+to empty-frequencies after adding `pa` to exec globals), but the blocking call starves
+the event loop so no signal is output during the sweep. Fix options: dedicated WS command
+with background thread, REPL client bypass, or non-blocking sweep on board side.
 
 ## Test Infrastructure
 
