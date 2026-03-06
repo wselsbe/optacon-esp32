@@ -2,6 +2,7 @@
 import importlib
 import json
 import os
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -19,7 +20,6 @@ def ota_module(tmp_path, monkeypatch):
 def test_device_details_helper(ota_module):
     """_device_details() returns hw_info.get_headers() result."""
     import hw_info
-    from unittest.mock import patch
 
     expected = {
         "X-Device-Serial-Number": "TEST-001",
@@ -34,7 +34,6 @@ def test_device_details_helper(ota_module):
 def test_device_details_fallback_on_error(ota_module):
     """_device_details() returns X-Device-Error header if hw_info fails."""
     import hw_info
-    from unittest.mock import patch
 
     with patch.object(hw_info, "get_headers", side_effect=Exception("no NVS")):
         result = ota_module._device_details()
@@ -44,7 +43,6 @@ def test_device_details_fallback_on_error(ota_module):
 def test_headers_included_in_http_request(ota_module):
     """Verify X-Device-* headers appear in the HTTP request string."""
     import hw_info
-    from unittest.mock import patch, MagicMock
 
     device_headers = {
         "X-Device-Serial-Number": "TEST-001",
@@ -87,7 +85,6 @@ def test_headers_included_in_http_request(ota_module):
 def test_caller_headers_override_device_details(ota_module):
     """Caller-supplied headers should override device headers."""
     import hw_info
-    from unittest.mock import patch
 
     device_headers = {
         "X-Device-Firmware-Version": "0.1.0",

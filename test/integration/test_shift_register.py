@@ -1,5 +1,6 @@
 """Integration tests for ShiftRegister class."""
 
+import pytest
 import pz_drive
 from shift_register import ShiftRegister
 
@@ -12,14 +13,10 @@ class TestPinBit:
         assert ShiftRegister._pin_bit(19) == 1 << 6
 
     def test_pin_negative_raises(self):
-        import pytest
-
         with pytest.raises(ValueError):
             ShiftRegister._pin_bit(-1)
 
     def test_pin_20_raises(self):
-        import pytest
-
         with pytest.raises(ValueError):
             ShiftRegister._pin_bit(20)
 

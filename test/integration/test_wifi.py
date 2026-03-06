@@ -4,6 +4,7 @@ import importlib
 import json
 import sys
 
+import micropython_builtins
 import pytest
 
 
@@ -26,7 +27,6 @@ def wifi_dir(tmp_path, monkeypatch):
 
 class TestConnect:
     def test_sta_with_valid_config(self, wifi_dir):
-        import micropython_builtins
 
         cfg = {"ssid": "TestNet", "password": "secret"}
         (wifi_dir / "wifi_config.json").write_text(json.dumps(cfg))
@@ -44,7 +44,6 @@ class TestConnect:
         assert wifi.mode == "sta"
 
     def test_no_config_falls_back_to_ap(self, wifi_dir):
-        import micropython_builtins
 
         wlan = micropython_builtins._wlan_instance
         wlan.ifconfig.return_value = ("192.168.4.1", "255.255.255.0", "192.168.4.1", "0.0.0.0")
@@ -56,7 +55,6 @@ class TestConnect:
         assert wifi.mode == "ap"
 
     def test_sta_timeout_falls_back_to_ap(self, wifi_dir):
-        import micropython_builtins
 
         cfg = {"ssid": "TestNet", "password": "secret"}
         (wifi_dir / "wifi_config.json").write_text(json.dumps(cfg))
@@ -97,7 +95,6 @@ class TestSaveConfig:
 
 class TestReconnect:
     def test_reconnect_calls_connect(self, wifi_dir):
-        import micropython_builtins
 
         wlan = micropython_builtins._wlan_instance
         wlan.ifconfig.return_value = ("192.168.4.1", "255.255.255.0", "192.168.4.1", "0.0.0.0")

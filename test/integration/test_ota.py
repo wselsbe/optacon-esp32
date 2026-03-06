@@ -4,6 +4,7 @@ import importlib
 import json
 import sys
 
+import esp32
 import pytest
 
 
@@ -121,7 +122,6 @@ class TestGetLog:
 
 class TestClearUpdateFlag:
     def test_clears_nvs_flag(self):
-        import esp32
         import ota
 
         # Simulate pending flag
@@ -133,7 +133,6 @@ class TestClearUpdateFlag:
         esp32.NVS.commit.assert_called()
 
     def test_no_pending_flag(self):
-        import esp32
         import ota
 
         esp32.NVS.get_i32.return_value = 0

@@ -3,6 +3,7 @@
 import importlib
 import sys
 
+import esp32
 import pytest
 
 
@@ -28,7 +29,6 @@ def hw_info():
 class TestGet:
     def test_returns_default_when_key_missing(self, hw_info):
         """get() returns default when NVS raises OSError."""
-        import esp32
         esp32.NVS.return_value.get_blob.side_effect = OSError("key not found")
         hw_info._nvs = esp32.NVS("hw_info")
 
@@ -37,7 +37,6 @@ class TestGet:
 
     def test_returns_value_from_nvs(self, hw_info):
         """get() returns decoded string when key exists in NVS."""
-        import esp32
         esp32.NVS.return_value.get_blob.side_effect = _make_blob_writer(
             {"serial_number": "OPT-001"}
         )
@@ -56,7 +55,6 @@ class TestGet:
 class TestGetAll:
     def test_returns_dict_of_known_keys(self, hw_info):
         """get_all() returns only keys that have values in NVS."""
-        import esp32
         esp32.NVS.return_value.get_blob.side_effect = _make_blob_writer(
             {"serial_number": "OPT-002", "hw_revision": "rev3"}
         )
@@ -67,7 +65,6 @@ class TestGetAll:
 
     def test_omits_missing_keys(self, hw_info):
         """get_all() omits keys that are not present in NVS."""
-        import esp32
         esp32.NVS.return_value.get_blob.side_effect = _make_blob_writer(
             {"serial_number": "OPT-003"}
         )
@@ -81,7 +78,6 @@ class TestGetAll:
 class TestGetHeaders:
     def test_returns_formatted_headers(self, hw_info):
         """get_headers() returns X-Device-* headers including firmware version."""
-        import esp32
         esp32.NVS.return_value.get_blob.side_effect = _make_blob_writer(
             {"serial_number": "OPT-004", "hw_revision": "rev1"}
         )
