@@ -45,9 +45,9 @@ def test_create_app_with_mock_deps():
 
 @pytest.mark.asyncio
 async def test_wifi_status(test_app):
-    """GET /wifi/status returns WiFi status JSON."""
+    """GET /api/wifi/status returns WiFi status JSON."""
     url, deps = test_app
-    async with aiohttp.ClientSession() as s, s.get(f"{url}/wifi/status") as r:
+    async with aiohttp.ClientSession() as s, s.get(f"{url}/api/wifi/status") as r:
         assert r.status == 200
         data = await r.json()
         assert data["mode"] == "sta"
@@ -56,9 +56,9 @@ async def test_wifi_status(test_app):
 
 @pytest.mark.asyncio
 async def test_ota_status(test_app):
-    """GET /api/ota/status returns OTA status JSON."""
+    """GET /api/device/status returns device status JSON."""
     url, deps = test_app
-    async with aiohttp.ClientSession() as s, s.get(f"{url}/api/ota/status") as r:
+    async with aiohttp.ClientSession() as s, s.get(f"{url}/api/device/status") as r:
         assert r.status == 200
         data = await r.json()
         assert data["firmware_version"] == "0.1.0"
@@ -177,10 +177,10 @@ async def test_ota_upload_firmware(test_app):
 
 @pytest.mark.asyncio
 async def test_ota_log(test_app):
-    """GET /api/ota/log returns log content."""
+    """GET /api/device/log returns log content."""
     url, deps = test_app
     deps.ota.get_log.return_value = "boot ok"
-    async with aiohttp.ClientSession() as s, s.get(f"{url}/api/ota/log") as r:
+    async with aiohttp.ClientSession() as s, s.get(f"{url}/api/device/log") as r:
         assert r.status == 200
         data = await r.json()
         assert data["log"] == "boot ok"
@@ -188,9 +188,9 @@ async def test_ota_log(test_app):
 
 @pytest.mark.asyncio
 async def test_ota_diagnostics(test_app):
-    """POST /api/ota/diagnostics sends diagnostics successfully."""
+    """POST /api/device/diagnostics sends diagnostics successfully."""
     url, deps = test_app
-    async with aiohttp.ClientSession() as s, s.post(f"{url}/api/ota/diagnostics") as r:
+    async with aiohttp.ClientSession() as s, s.post(f"{url}/api/device/diagnostics") as r:
         assert r.status == 200
         data = await r.json()
         assert data["status"] == "ok"
@@ -198,10 +198,10 @@ async def test_ota_diagnostics(test_app):
 
 @pytest.mark.asyncio
 async def test_ota_diagnostics_failure(test_app):
-    """POST /api/ota/diagnostics returns 500 on failure."""
+    """POST /api/device/diagnostics returns 500 on failure."""
     url, deps = test_app
     deps.ota.send_diagnostics.return_value = False
-    async with aiohttp.ClientSession() as s, s.post(f"{url}/api/ota/diagnostics") as r:
+    async with aiohttp.ClientSession() as s, s.post(f"{url}/api/device/diagnostics") as r:
         assert r.status == 500
         data = await r.json()
         assert "error" in data
@@ -355,54 +355,84 @@ async def test_ws_set_polarity(test_app):
 
 
 @pytest.mark.asyncio
-async def test_ws_say(test_app):
-    """WebSocket say command returns speech complete."""
+async def test_tts_say(test_app):
+    """POST /api/tts/say returns speech complete."""
     url, deps = test_app
-    async with aiohttp.ClientSession() as s, s.ws_connect(_ws_url(url)) as ws:
-        await ws.receive_json()  # initial status
-        await ws.send_json({"cmd": "say", "text": "hello"})
-        msg = await ws.receive_json()
-        assert msg["msg"] == "speech complete"
+    async with aiohttp.ClientSession() as s, s.post(
+        f"{url}/api/tts/say", data=json.dumps({"text": "hello"})
+    ) as r:
+        assert r.status == 200
+        data = await r.json()
+        assert data["msg"] == "speech complete"
 
 
 @pytest.mark.asyncio
-async def test_ws_play_music(test_app):
-    """WebSocket play_music command returns music complete."""
+async def test_tts_say_no_text(test_app):
+    """POST /api/tts/say with empty text returns 400."""
     url, deps = test_app
-    async with aiohttp.ClientSession() as s, s.ws_connect(_ws_url(url)) as ws:
-        await ws.receive_json()  # initial status
-        await ws.send_json({
-            "cmd": "play_music",
-            "notes": "C4:1 E4:1 G4:2",
-            "bpm": 120,
-        })
-        msg = await ws.receive_json()
-        assert msg["msg"] == "music complete"
+    async with aiohttp.ClientSession() as s, s.post(
+        f"{url}/api/tts/say", data=json.dumps({"text": ""})
+    ) as r:
+        assert r.status == 400
 
 
 @pytest.mark.asyncio
-async def test_ws_play_song(test_app):
-    """WebSocket play_song command plays a known song."""
+async def test_music_play(test_app):
+    """POST /api/music/play returns music complete."""
+    url, deps = test_app
+    async with aiohttp.ClientSession() as s, s.post(
+        f"{url}/api/music/play", data=json.dumps({"notes": "C4:1 E4:1 G4:2", "bpm": 120})
+    ) as r:
+        assert r.status == 200
+        data = await r.json()
+        assert data["msg"] == "music complete"
+
+
+@pytest.mark.asyncio
+async def test_music_play_no_notes(test_app):
+    """POST /api/music/play with empty notes returns 400."""
+    url, deps = test_app
+    async with aiohttp.ClientSession() as s, s.post(
+        f"{url}/api/music/play", data=json.dumps({"notes": ""})
+    ) as r:
+        assert r.status == 400
+
+
+@pytest.mark.asyncio
+async def test_music_play_song(test_app):
+    """POST /api/music/play_song plays a known song."""
     import music
 
     song_name = next(iter(music.SONGS.keys()))
     url, deps = test_app
-    async with aiohttp.ClientSession() as s, s.ws_connect(_ws_url(url)) as ws:
-        await ws.receive_json()  # initial status
-        await ws.send_json({"cmd": "play_song", "name": song_name})
-        msg = await ws.receive_json()
-        assert msg["msg"] == "music complete"
+    async with aiohttp.ClientSession() as s, s.post(
+        f"{url}/api/music/play_song", data=json.dumps({"name": song_name})
+    ) as r:
+        assert r.status == 200
+        data = await r.json()
+        assert data["msg"] == "music complete"
 
 
 @pytest.mark.asyncio
-async def test_ws_exec(test_app):
-    """WebSocket exec command evaluates code and returns output."""
+async def test_music_play_song_unknown(test_app):
+    """POST /api/music/play_song with unknown song returns 404."""
     url, deps = test_app
-    async with aiohttp.ClientSession() as s, s.ws_connect(_ws_url(url)) as ws:
-        await ws.receive_json()  # initial status
-        await ws.send_json({"cmd": "exec", "code": "2+2"})
-        msg = await ws.receive_json()
-        assert "4" in msg["output"]
+    async with aiohttp.ClientSession() as s, s.post(
+        f"{url}/api/music/play_song", data=json.dumps({"name": "nonexistent"})
+    ) as r:
+        assert r.status == 404
+
+
+@pytest.mark.asyncio
+async def test_exec(test_app):
+    """POST /api/exec evaluates code and returns output."""
+    url, deps = test_app
+    async with aiohttp.ClientSession() as s, s.post(
+        f"{url}/api/exec", data=json.dumps({"code": "2+2"})
+    ) as r:
+        assert r.status == 200
+        data = await r.json()
+        assert "4" in data["output"]
 
 
 @pytest.mark.asyncio
@@ -417,17 +447,22 @@ async def test_ws_unknown_command(test_app):
 
 
 @pytest.mark.asyncio
-async def test_ws_wifi_config(test_app):
-    """WebSocket wifi_config command calls deps.wifi.save_config."""
+async def test_wifi_config_put(test_app):
+    """PUT /api/wifi/config updates WiFi config."""
     url, deps = test_app
-    async with aiohttp.ClientSession() as s, s.ws_connect(_ws_url(url)) as ws:
-        await ws.receive_json()  # initial status
-        await ws.send_json({
-            "cmd": "wifi_config",
-            "ssid": "MyNetwork",
-            "password": "secret123",
-        })
-        msg = await ws.receive_json()
-        assert "msg" in msg
+    async with aiohttp.ClientSession() as s, s.put(
+        f"{url}/api/wifi/config", data=json.dumps({"ssid": "MyNetwork", "password": "secret123"})
+    ) as r:
+        assert r.status == 200
     deps.wifi.save_config.assert_called_once_with("MyNetwork", "secret123")
     deps.wifi.reconnect.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_wifi_config_no_ssid(test_app):
+    """PUT /api/wifi/config without ssid returns 400."""
+    url, deps = test_app
+    async with aiohttp.ClientSession() as s, s.put(
+        f"{url}/api/wifi/config", data=json.dumps({"password": "secret"})
+    ) as r:
+        assert r.status == 400
