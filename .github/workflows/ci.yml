@@ -70,8 +70,9 @@ jobs:
         with:
           name: filesystem
           path: |
-            python/music.py
-            python/web_server.py
-            python/wifi.py
-            python/ota.py
+            python/*.py
+            !python/_boot.py
+            !python/manifest.py
+            !python/frozen/**
+            !python/microdot/**
             web/
