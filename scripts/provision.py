@@ -15,6 +15,7 @@ Usage:
 Requires: esptool (pip install esptool)
 """
 import argparse
+import contextlib
 import os
 import subprocess
 import sys
@@ -153,10 +154,8 @@ def main():
 
     finally:
         os.unlink(csv_path)
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.unlink(bin_path)
-        except FileNotFoundError:
-            pass
 
 
 if __name__ == "__main__":
