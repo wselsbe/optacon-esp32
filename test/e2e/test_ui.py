@@ -277,10 +277,15 @@ def test_terminal_toggle(page: Page, page_url: str):
 # ---------------------------------------------------------------------------
 
 
+def _assert_brand(page: Page):
+    """Assert OPTACON brand text is visible (shared across all pages)."""
+    expect(page.locator(".brand")).to_have_text("OPTACON")
+
+
 def test_header_elements(page: Page, page_url: str):
     """Header has OPTACON brand text, badge, and WiFi link."""
     page.goto(page_url)
-    expect(page.locator(".brand")).to_have_text("OPTACON")
+    _assert_brand(page)
     expect(page.locator("#badge")).to_be_visible()
     expect(page.locator("#wifi-link")).to_be_visible()
 
@@ -294,3 +299,27 @@ def test_footer_visible(page: Page, page_url: str):
     """Footer is visible."""
     page.goto(page_url)
     expect(page.locator("#footer")).to_be_visible()
+
+
+# ---------------------------------------------------------------------------
+# WiFi Page
+# ---------------------------------------------------------------------------
+
+
+def test_wifi_page_loads(page: Page, page_url: str):
+    """WiFi page loads with brand and footer."""
+    page.goto(page_url + "/wifi")
+    _assert_brand(page)
+    expect(page.locator("#footer")).to_be_visible()
+
+
+# ---------------------------------------------------------------------------
+# Update Page
+# ---------------------------------------------------------------------------
+
+
+def test_update_page_loads(page: Page, page_url: str):
+    """Update page loads with brand and footer."""
+    page.goto(page_url + "/update")
+    _assert_brand(page)
+    expect(page.locator(".footer")).to_be_visible()
