@@ -56,6 +56,15 @@ MicroPython firmware for ESP32-S3 driving piezo actuators via DRV2665 + HV509 sh
   - `main.py` — Application entry point and demo functions
 - `python/_boot.py` — Custom VFS mount (overlaid onto vendor _boot.py by build.sh)
 - `python/` — Filesystem Python modules (uploaded to board, not frozen)
+  - `web_server.py` — Async HTTP/WebSocket server (microdot), serves UI + API
+  - `music.py` — Sheet music player: note sequences, built-in songs, play via PzActuator
+  - `wifi.py` — WiFi STA management, config persistence
+  - `ota.py` — OTA firmware update client
+- `web/` — Web UI files (served from board filesystem)
+  - `index.html` — Main control panel with tabbed Signal/Music/Speech interface
+  - `docs.html` — API reference documentation
+  - `wifi.html` — WiFi configuration page
+  - `update.html` — OTA firmware update page
 - `scripts/` — Docker build and flash helpers (`build.sh`, `flash.sh`)
 - `mcp_micropython.py` — MCP server for serial interaction with the board from Claude Code
 
