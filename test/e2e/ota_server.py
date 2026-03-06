@@ -43,20 +43,21 @@ class OTAMockServer:
         manifest_path = os.path.join(self.fixtures_dir, "versions.json")
         with open(manifest_path) as f:
             manifest = json.load(f)
-        # Fill in SHA-256 for firmware
+        # Fill in SHA-256 for firmware from fixtures/firmware/<ver>.bin
         for ver, info in manifest.get("firmware", {}).items():
-            bin_path = os.path.join(self.fixtures_dir, "test_firmware.bin")
+            bin_path = os.path.join(self.fixtures_dir, "firmware", f"{ver}.bin")
             if os.path.exists(bin_path):
                 with open(bin_path, "rb") as bf:
                     data = bf.read()
                     info["sha256"] = hashlib.sha256(data).hexdigest()
                     info["size"] = len(data)
-        # Fill in SHA-256 for files
+        # Fill in SHA-256 for files from fixtures/files/<ver>/<filename>
         for ver, ver_info in manifest.get("files", {}).items():
             for change in ver_info.get("changes", []):
                 file_path = os.path.join(
                     self.fixtures_dir,
                     "files",
+                    ver,
                     os.path.basename(change.get("url", "")),
                 )
                 if os.path.exists(file_path):
@@ -72,9 +73,7 @@ class OTAMockServer:
         )
         if self.error_mode == "500":
             return web.Response(status=500)
-        # Serves the same test binary for all versions; add per-version files
-        # to fixtures/ if multi-version testing is needed.
-        bin_path = os.path.join(self.fixtures_dir, "test_firmware.bin")
+        bin_path = os.path.join(self.fixtures_dir, "firmware", f"{version}.bin")
         if not os.path.exists(bin_path):
             return web.Response(status=404)
         with open(bin_path, "rb") as f:
@@ -91,7 +90,9 @@ class OTAMockServer:
         )
         if self.error_mode == "500":
             return web.Response(status=500)
-        file_path = os.path.join(self.fixtures_dir, "files", os.path.basename(filename))
+        file_path = os.path.join(
+            self.fixtures_dir, "files", version, os.path.basename(filename)
+        )
         if not os.path.exists(file_path):
             return web.Response(status=404, text="File not found")
         with open(file_path, "rb") as f:
