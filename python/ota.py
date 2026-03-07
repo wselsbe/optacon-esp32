@@ -29,11 +29,12 @@ def _append_log(path, msg):
         except OSError:
             size = 0
         if size > _MAX_LOG_SIZE:
-            # Truncate: keep last half
-            with open(path) as f:
-                f.read(size // 2)  # skip first half
+            # Truncate: keep last 4 KB instead of reading half into memory
+            keep_bytes = 4096
+            with open(path, "rb") as f:
+                f.seek(size - keep_bytes)
                 keep = f.read()
-            with open(path, "w") as f:
+            with open(path, "wb") as f:
                 f.write(keep)
         with open(path, "a") as f:
             f.write(msg + "\n")
@@ -48,7 +49,7 @@ def _ver_gt(a, b):
         bt = tuple(int(x) for x in b.split("."))
         return at > bt
     except Exception:
-        return a != b
+        return False
 
 
 def load_config():
@@ -277,11 +278,11 @@ def update_firmware(manifest, version, progress_cb=None):
     _log_update("Downloading firmware " + version + " from " + url)
     _log_update("Expected size: " + str(expected_size) + " bytes")
 
+    sock = None
     try:
         status, headers, sock = _http_get(url)
         if status != 200:
             _log_update("Download FAILED — HTTP " + str(status))
-            sock.close()
             return False
 
         # Get next OTA partition
@@ -301,7 +302,6 @@ def update_firmware(manifest, version, progress_cb=None):
             total += len(chunk)
             if total > part_size:
                 _log_update("Firmware too large: " + str(total) + " > " + str(part_size))
-                sock.close()
                 return False
             # Pad last block to 4096 if needed
             if len(chunk) < 4096:
@@ -315,6 +315,7 @@ def update_firmware(manifest, version, progress_cb=None):
                 progress_cb(total, expected_size)
 
         sock.close()
+        sock = None  # mark as closed
         _log_update("Downloaded " + str(total) + " bytes")
 
         # Verify SHA-256
@@ -338,6 +339,12 @@ def update_firmware(manifest, version, progress_cb=None):
     except Exception as e:
         _log_update("Firmware update FAILED — " + str(e))
         return False
+    finally:
+        if sock:
+            try:
+                sock.close()
+            except Exception:
+                pass
 
 
 def update_files(manifest, version, progress_cb=None):
@@ -381,23 +388,28 @@ def update_files(manifest, version, progress_cb=None):
                 progress_cb(i, len(changes), change["path"])
 
             status, headers, sock = _http_get(url)
-            if status != 200:
-                _log_update("Download FAILED — HTTP " + str(status) + " for " + change["path"])
-                sock.close()
-                raise Exception("HTTP " + str(status))
+            try:
+                if status != 200:
+                    _log_update("Download FAILED — HTTP " + str(status) + " for " + change["path"])
+                    raise Exception("HTTP " + str(status))
 
-            sha = hashlib.sha256()
-            with open(new_path, "wb") as f:
-                while True:
-                    chunk = sock.read(4096)
-                    if not chunk:
-                        break
-                    f.write(chunk)
-                    sha.update(chunk)
-            sock.close()
+                sha = hashlib.sha256()
+                with open(new_path, "wb") as f:
+                    while True:
+                        chunk = sock.read(4096)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        sha.update(chunk)
+            finally:
+                sock.close()
 
             actual_sha = sha.digest().hex()
-            if expected_sha and actual_sha != expected_sha:
+            if not expected_sha:
+                # NOTE: manifest entry missing sha256 — verification skipped.
+                # Ensure the OTA server includes sha256 for all file entries.
+                _log_update("WARNING: no SHA-256 in manifest for " + change["path"])
+            elif actual_sha != expected_sha:
                 _log_update("SHA-256 MISMATCH for " + change["path"])
                 raise Exception("SHA-256 mismatch: " + change["path"])
 
@@ -538,13 +550,22 @@ def upload_firmware(data, size):
         return False
 
 
+UPLOAD_ALLOWED_PREFIXES = ("/web/", "/music/")
+UPLOAD_ALLOWED_FILES = ("/ota_config.json",)
+
+
 def upload_file(path, data):
     """Write an uploaded file to filesystem.
 
     Args:
-        path: destination path (e.g. "/web_server.py")
+        path: destination path (e.g. "/web/index.html")
         data: bytes content
+
+    Raises:
+        ValueError: if path is not in an allowed prefix or allowed file list.
     """
+    if not any(path.startswith(p) for p in UPLOAD_ALLOWED_PREFIXES) and path not in UPLOAD_ALLOWED_FILES:
+        raise ValueError("upload path not allowed: " + path)
     _log_update("Upload file: " + path + " (" + str(len(data)) + " bytes)")
     with open(path, "wb") as f:
         f.write(data)
@@ -603,15 +624,19 @@ def send_diagnostics():
         "update_log": get_log("update"),
     }
 
+    sock = None
     try:
         body = json.dumps(diag)
         hdrs = {"Content-Type": "application/json"}
         status, _resp_hdrs, sock = _http_request("POST", url, body=body, headers=hdrs)
-        sock.close()
-
         _log_update("Diagnostics sent — HTTP " + str(status))
         return status == 200
-
     except Exception as e:
         _log_update("Diagnostics send FAILED — " + str(e))
         return False
+    finally:
+        if sock:
+            try:
+                sock.close()
+            except Exception:
+                pass
