@@ -104,8 +104,15 @@ def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
     sr.set_all(True)
     beat_ms = int(60_000 / bpm)
 
+    # Find first non-rest note frequency
+    first_freq = 220  # fallback
+    for _entry in song:
+        if _entry[0] is not None and _entry[0] != "R":
+            first_freq = int(note_freq(_entry[0]))
+            break
+
     # Configure initial frequency and start once
-    pa.set_frequency_analog(220, amplitude=amplitude, waveform=waveform)
+    pa.set_frequency_analog(first_freq, amplitude=amplitude, waveform=waveform)
     pa.start(gain=gain)
 
     try:
