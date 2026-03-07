@@ -38,6 +38,12 @@ def create_app(deps=None):
 
     app = Microdot()
 
+    def _parse_json(request):
+        try:
+            return json.loads(request.body.decode()), None
+        except (ValueError, UnicodeDecodeError):
+            return None, (json.dumps({"error": "invalid JSON"}), 400, {"Content-Type": "application/json"})
+
     def _get_status():
         """Build full status dict."""
         status = deps.pa.get_status()
@@ -89,9 +95,16 @@ def create_app(deps=None):
         elif cmd == "stop":
             deps.pa.stop()
         elif cmd == "set_pin":
-            deps.pa.shift_register.set_pin(data["pin"], data["value"])
+            pin = data.get("pin")
+            value = data.get("value")
+            if pin is None or value is None:
+                return {"error": "pin and value required"}
+            deps.pa.set_pin(pin, value)
         elif cmd == "set_all":
-            deps.pa.shift_register.set_all(data["value"])
+            value = data.get("value")
+            if value is None:
+                return {"error": "value required"}
+            deps.pa.set_all(value)
         elif cmd == "set_polarity":
             import pz_drive
 
@@ -124,7 +137,9 @@ def create_app(deps=None):
         if request.method == "GET":
             return json.dumps(deps.ota.load_config()), 200, {"Content-Type": "application/json"}
         # PUT: update config
-        data = json.loads(request.body.decode())
+        data, err = _parse_json(request)
+        if err:
+            return err
         cfg = deps.ota.load_config()
         for key in ("update_url", "auto_check"):
             if key in data:
@@ -141,7 +156,9 @@ def create_app(deps=None):
 
     @app.route("/api/ota/update/firmware", methods=["POST"])
     async def ota_update_firmware(request):
-        data = json.loads(request.body.decode())
+        data, err = _parse_json(request)
+        if err:
+            return err
         version = data.get("version")
         manifest = data.get("manifest")
         if not version or not manifest:
@@ -161,7 +178,9 @@ def create_app(deps=None):
 
     @app.route("/api/ota/update/files", methods=["POST"])
     async def ota_update_files(request):
-        data = json.loads(request.body.decode())
+        data, err = _parse_json(request)
+        if err:
+            return err
         version = data.get("version")
         manifest = data.get("manifest")
         if not version or not manifest:
@@ -238,13 +257,15 @@ def create_app(deps=None):
 
     @app.route("/api/wifi/config", methods=["PUT"])
     async def wifi_config(request):
-        data = json.loads(request.body.decode())
+        data, err = _parse_json(request)
+        if err:
+            return err
         ssid = data.get("ssid", "")
         if not ssid:
             return json.dumps({"error": "ssid required"}), 400, {"Content-Type": "application/json"}
         deps.wifi.save_config(ssid, data.get("password", ""))
         deps.wifi.reconnect()
-        return json.dumps({"msg": "WiFi reconnected", "ip": deps.wifi.ip}), 200, {
+        return json.dumps({"status": "ok", "ip": deps.wifi.ip}), 200, {
             "Content-Type": "application/json"
         }
 
@@ -254,7 +275,9 @@ def create_app(deps=None):
     async def tts_say(request):
         import sam
 
-        data = json.loads(request.body.decode())
+        data, err = _parse_json(request)
+        if err:
+            return err
         text = data.get("text", "")
         if not text:
             return json.dumps({"error": "no text provided"}), 400, {
@@ -267,7 +290,7 @@ def create_app(deps=None):
             mouth=data.get("mouth", 128),
             throat=data.get("throat", 128),
         )
-        return json.dumps({"msg": "speech complete"}), 200, {"Content-Type": "application/json"}
+        return json.dumps({"status": "ok"}), 200, {"Content-Type": "application/json"}
 
     # --- Music API (play/play_song) ---
 
@@ -275,7 +298,9 @@ def create_app(deps=None):
     async def music_play(request):
         import music
 
-        data = json.loads(request.body.decode())
+        data, err = _parse_json(request)
+        if err:
+            return err
         notes_str = data.get("notes", "")
         if not notes_str:
             return json.dumps({"error": "no notes provided"}), 400, {
@@ -298,13 +323,15 @@ def create_app(deps=None):
             waveform=data.get("waveform", "sine"),
             gain=data.get("gain", 75),
         )
-        return json.dumps({"msg": "music complete"}), 200, {"Content-Type": "application/json"}
+        return json.dumps({"status": "ok"}), 200, {"Content-Type": "application/json"}
 
     @app.route("/api/music/play_song", methods=["POST"])
     async def music_play_song(request):
         import music
 
-        data = json.loads(request.body.decode())
+        data, err = _parse_json(request)
+        if err:
+            return err
         name = data.get("name", "")
         if name not in music.SONGS:
             return json.dumps({"error": "unknown song: " + name}), 404, {
@@ -314,13 +341,15 @@ def create_app(deps=None):
             name,
             waveform=data.get("waveform", "sine"),
         )
-        return json.dumps({"msg": "music complete"}), 200, {"Content-Type": "application/json"}
+        return json.dumps({"status": "ok"}), 200, {"Content-Type": "application/json"}
 
     # --- Exec API ---
 
     @app.route("/api/exec", methods=["POST"])
     async def exec_code(request):
-        data = json.loads(request.body.decode())
+        data, err = _parse_json(request)
+        if err:
+            return err
         code = data.get("code", "")
         output = []
 
