@@ -143,8 +143,6 @@ class PzDrive:
             raise ValueError("hz must be 0-1000")
         if amplitude < 0 or amplitude > 100:
             raise ValueError("amplitude must be 0-100")
-        if not self.is_running():
-            raise RuntimeError("call start() first")
         if waveform not in self.WAVEFORMS:
             raise ValueError("waveform must be 'sine', 'triangle', or 'square'")
         amp_internal = (amplitude * 128 + 50) // 100
