@@ -115,11 +115,17 @@ class Oscilloscope:
         trace: bool = True,
         probe: int = 10,
     ):
+        # ATTN must be set before VDIV — Siglent rescales VDIV when ATTN changes
+        attn_cmd = f"{channel}:ATTN {probe}"
+        if self._state.get(f"{channel}:ATTN") != attn_cmd:
+            self._conn.write(attn_cmd)
+            self._state[f"{channel}:ATTN"] = attn_cmd
+            # Invalidate cached VDIV — scope rescaled it when ATTN changed
+            self._state.pop(f"{channel}:VDIV", None)
         self._write_if_changed(f"{channel}:VDIV", f"{channel}:VDIV {vdiv}")
         self._write_if_changed(f"{channel}:CPL", f"{channel}:CPL {coupling}")
         tra = "ON" if trace else "OFF"
         self._write_if_changed(f"{channel}:TRA", f"{channel}:TRA {tra}")
-        self._write_if_changed(f"{channel}:ATTN", f"{channel}:ATTN {probe}")
 
     def configure_timebase(self, timebase: str):
         self._write_if_changed("TDIV", f"TDIV {timebase}")
@@ -137,7 +143,9 @@ class Oscilloscope:
         self._conn.query("*OPC?")
 
     def run(self):
-        self._conn.write("ARM")
+        # Always send TRMD AUTO (bypass cache) to restart acquisition
+        self._conn.write("TRMD AUTO")
+        self._state["TRMD"] = "TRMD AUTO"
 
     def stop(self):
         self._conn.write("STOP")

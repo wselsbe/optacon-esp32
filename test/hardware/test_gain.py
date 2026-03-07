@@ -1,15 +1,4 @@
-"""Test gain level amplitude scaling on OUT+.
-
-TODO: test_gain_ordering fails — can't measure OUT+ PKPK at gain=25 (first
-iteration). The test creates a fresh BoardClient per gain level, but the scope
-may not be triggering reliably. Possible causes: OUT+ at 10V/div may be too
-coarse for low gain levels, or the scope needs a trigger on IN+ (which has a
-stable signal) instead of relying on OUT+ auto-trigger.
-
-TODO: test_gain_produces_signal fails for gain=50 and gain=100 — OUT+ PKPK
-returns None. These pass in isolation sometimes, suggesting a state/ordering
-issue from previous test iterations leaving the scope in a bad state.
-"""
+"""Test gain level amplitude scaling on OUT+."""
 
 import time
 
@@ -19,6 +8,8 @@ pytestmark = pytest.mark.hardware
 
 FREQ_HZ = 250
 GAIN_LEVELS = [25, 50, 75, 100]
+# OUT+ amplitude scales with gain — use appropriate V/div to avoid clipping
+GAIN_VDIV = {25: "500mV", 50: "2V", 75: "2V", 100: "5V"}
 
 
 def test_gain_ordering(board_url, oscilloscope, channels, configure_scope):
@@ -38,7 +29,7 @@ def test_gain_ordering(board_url, oscilloscope, channels, configure_scope):
             client.start(gain=gain)
             time.sleep(0.5)
 
-            configure_scope(FREQ_HZ, ch=ch_out)
+            configure_scope(FREQ_HZ, ch=ch_out, vdiv=GAIN_VDIV[gain])
             time.sleep(1.5)
 
             out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
@@ -71,7 +62,7 @@ def test_gain_produces_signal(board, oscilloscope, channels, configure_scope, ga
     board.start(gain=gain)
     time.sleep(0.5)
 
-    configure_scope(FREQ_HZ, ch=ch_out)
+    configure_scope(FREQ_HZ, ch=ch_out, vdiv=GAIN_VDIV[gain])
     time.sleep(1.5)
 
     out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")

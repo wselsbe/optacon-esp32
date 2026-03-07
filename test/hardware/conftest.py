@@ -169,9 +169,9 @@ def configure_scope(oscilloscope, channels):
             timebase = "1MS"
 
         target_ch = ch or channels["in_plus"]
-        # IN+ is ~3.3Vpp, OUT+ is ~45Vpp — pick sensible defaults
+        # IN+ is ~3.3Vpp, OUT+ varies by gain (3-50Vpp) — pick sensible defaults
         if vdiv is None:
-            vdiv = "1V" if target_ch == channels["in_plus"] else "10V"
+            vdiv = "1V" if target_ch == channels["in_plus"] else "2V"
         # Always configure IN+ (trigger source) so probe/vdiv are correct
         # Always configure both IN+ and target channel
         ch_in = channels["in_plus"]
