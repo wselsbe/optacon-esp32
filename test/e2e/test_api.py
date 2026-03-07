@@ -321,24 +321,24 @@ async def test_ws_set_frequency_digital(test_app):
 
 @pytest.mark.asyncio
 async def test_ws_set_pin(test_app):
-    """WebSocket set_pin calls shift_register.set_pin."""
+    """WebSocket set_pin calls pa.set_pin."""
     url, deps = test_app
     async with aiohttp.ClientSession() as s, s.ws_connect(_ws_url(url)) as ws:
         await ws.receive_json()  # initial status
         await ws.send_json({"cmd": "set_pin", "pin": 5, "value": 1})
         await ws.receive_json()  # status response
-    deps.pa.shift_register.set_pin.assert_called_once_with(5, 1)
+    deps.pa.set_pin.assert_called_once_with(5, 1)
 
 
 @pytest.mark.asyncio
 async def test_ws_set_all(test_app):
-    """WebSocket set_all calls shift_register.set_all."""
+    """WebSocket set_all calls pa.set_all."""
     url, deps = test_app
     async with aiohttp.ClientSession() as s, s.ws_connect(_ws_url(url)) as ws:
         await ws.receive_json()  # initial status
         await ws.send_json({"cmd": "set_all", "value": 1})
         await ws.receive_json()  # status response
-    deps.pa.shift_register.set_all.assert_called_once_with(1)
+    deps.pa.set_all.assert_called_once_with(1)
 
 
 @pytest.mark.asyncio
@@ -363,7 +363,7 @@ async def test_tts_say(test_app):
     ) as r:
         assert r.status == 200
         data = await r.json()
-        assert data["msg"] == "speech complete"
+        assert data["status"] == "ok"
 
 
 @pytest.mark.asyncio
@@ -385,7 +385,7 @@ async def test_music_play(test_app):
     ) as r:
         assert r.status == 200
         data = await r.json()
-        assert data["msg"] == "music complete"
+        assert data["status"] == "ok"
 
 
 @pytest.mark.asyncio
@@ -410,7 +410,7 @@ async def test_music_play_song(test_app):
     ) as r:
         assert r.status == 200
         data = await r.json()
-        assert data["msg"] == "music complete"
+        assert data["status"] == "ok"
 
 
 @pytest.mark.asyncio
