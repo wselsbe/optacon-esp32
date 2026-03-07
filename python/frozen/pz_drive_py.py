@@ -67,7 +67,7 @@ class PzDrive:
         """Configure digital FIFO mode at given frequency.
 
         Args:
-            hz: 1-500
+            hz: 1-1000
             fullwave: if True, play waveform at 2x rate with polarity toggle
             waveform: 'sine', 'triangle', or 'square'
         """
@@ -139,6 +139,12 @@ class PzDrive:
         Use during music playback for smooth note transitions.
         For rests, set amplitude=0 (ISR outputs silence at midpoint).
         """
+        if hz < 0 or hz > 1000:
+            raise ValueError("hz must be 0-1000")
+        if amplitude < 0 or amplitude > 100:
+            raise ValueError("amplitude must be 0-100")
+        if not self.is_running():
+            raise RuntimeError("call start() first")
         if waveform not in self.WAVEFORMS:
             raise ValueError("waveform must be 'sine', 'triangle', or 'square'")
         amp_internal = (amplitude * 128 + 50) // 100
@@ -179,13 +185,33 @@ class PzDrive:
     def is_running(self):
         return pz_drive.fifo_is_running() or pz_drive.pwm_is_running()
 
-    def play_wav(self, path, loop=False):
+    def set_pin(self, pin, value, latch=True):
+        self.shift_register.set_pin(pin, value, latch)
+
+    def get_pin(self, pin):
+        return self.shift_register.get_pin(pin)
+
+    def set_all(self, value, latch=True):
+        self.shift_register.set_all(value, latch)
+
+    def get_all(self):
+        return self.shift_register.get_all()
+
+    def latch(self):
+        self.shift_register.latch()
+
+    def play_wav(self, path, loop=False, gain=None):
         """Play a WAV file through the analog PWM path.
 
         Args:
             path: filesystem path to WAV file (8/16-bit PCM, mono/stereo, any rate)
             loop: if True, loop until stop() is called
+            gain: optional gain override (25, 50, 75, or 100 Vpp)
         """
+        if gain is not None:
+            if gain not in self.GAINS:
+                raise ValueError("gain must be 25, 50, 75, or 100")
+            self._gain = gain
         with open(path, "rb") as f:
             header = f.read(44)
             if len(header) < 44 or header[:4] != b"RIFF" or header[8:12] != b"WAVE":
@@ -242,8 +268,8 @@ class PzDrive:
         After the sweep completes, output holds at end_hz until stop().
 
         Args:
-            start_hz: starting frequency (1-500)
-            end_hz: ending frequency (1-500)
+            start_hz: starting frequency (1-1000)
+            end_hz: ending frequency (1-1000)
             duration_ms: sweep duration in milliseconds (1-60000)
             logarithmic: if True, logarithmic sweep; if False, linear
             waveform: 'sine', 'triangle', or 'square'
@@ -299,7 +325,7 @@ class PzDrive:
             "fullwave": self._fullwave,
             "waveform": self._waveform_name,
             "polarity": pz_drive.pol_get(),
-            "pins": list(self.shift_register.get_all()),
+            "pins": list(self.get_all()),
         }
         if self._mode == MODE_ANALOG:
             status["amplitude"] = self._amplitude
