@@ -48,6 +48,9 @@ class DRV2665:
         return pz_drive.i2c_read(reg)
 
     def _write_reg(self, reg, val):
+        # TODO: pz_drive.i2c_write() returns None (void) — no way to detect
+        # I2C errors from Python. The C binding should return esp_err_t so
+        # callers can check for bus failures (see fix/i2c-write-error-check).
         pz_drive.i2c_write(reg, val)
 
     def init_digital(self, gain=GAIN_100):
