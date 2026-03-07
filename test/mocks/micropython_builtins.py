@@ -79,12 +79,42 @@ _esp32 = _make_module("esp32", {
 # network
 # ---------------------------------------------------------------------------
 
+class MockWLAN:
+    """WLAN mock with state tracking. Methods are MagicMocks so tests can
+    override ``return_value`` (e.g. ``_wlan_instance.isconnected.return_value = False``)."""
+
+    STA_IF = 0
+    AP_IF = 1
+
+    def __init__(self, mode):
+        self._active = False
+        self.active = MagicMock(side_effect=self._active_fn)
+        self.connect = MagicMock()
+        self.disconnect = MagicMock(side_effect=self._disconnect_fn)
+        self.ifconfig = MagicMock(
+            return_value=("192.168.1.100", "255.255.255.0", "192.168.1.1", "8.8.8.8")
+        )
+        self.config = MagicMock(return_value="test_ssid")
+        self.status = MagicMock(return_value=0)
+        # isconnected uses return_value (no side_effect) so tests can override
+        # it directly via ``wlan.isconnected.return_value = True/False``.
+        # disconnect() automatically sets return_value to False.
+        self.isconnected = MagicMock(return_value=False)
+
+    def _active_fn(self, val=None):
+        if val is not None:
+            self._active = val
+        return self._active
+
+    def _disconnect_fn(self):
+        self.isconnected.return_value = False
+
+
 _network_WLAN = MagicMock(name="network.WLAN")
-_wlan_instance = MagicMock(name="network.WLAN()")
+_wlan_instance = MockWLAN(0)
+# Default: connected (matches previous mock default for existing tests)
+_wlan_instance._connected = True
 _wlan_instance.isconnected.return_value = True
-_wlan_instance.ifconfig.return_value = (
-    "192.168.1.100", "255.255.255.0", "192.168.1.1", "8.8.8.8"
-)
 _network_WLAN.return_value = _wlan_instance
 _network_hostname = MagicMock(name="network.hostname")
 
@@ -180,12 +210,11 @@ def _reset_all():
     _esp32_Partition.get_next_update = MagicMock(return_value=_next_update)
 
     # network
+    global _wlan_instance
     _network_WLAN.reset_mock()
-    _wlan_instance.reset_mock()
+    _wlan_instance = MockWLAN(0)
+    _wlan_instance._connected = True
     _wlan_instance.isconnected.return_value = True
-    _wlan_instance.ifconfig.return_value = (
-        "192.168.1.100", "255.255.255.0", "192.168.1.1", "8.8.8.8"
-    )
     _network_WLAN.return_value = _wlan_instance
     _network_hostname.reset_mock()
 

@@ -11,6 +11,7 @@ class TestInit:
         pz_drive.i2c_read.assert_called_with(0x00)
 
     def test_init_raises_when_device_not_found(self):
+        pz_drive.i2c_read.side_effect = None
         pz_drive.i2c_read.return_value = -1
         with pytest.raises(RuntimeError, match="not responding"):
             DRV2665()

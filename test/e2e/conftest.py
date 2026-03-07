@@ -6,6 +6,8 @@ import os
 import socket
 from unittest.mock import MagicMock
 
+import aiohttp
+
 # Patch microdot send_file to resolve /web/ paths to repo root BEFORE importing web_server
 import microdot
 import microdot.microdot as _microdot_mod
@@ -118,14 +120,25 @@ async def test_app(mock_deps):
     server_task = asyncio.create_task(
         app.start_server(host="127.0.0.1", port=port, debug=False)
     )
-    await asyncio.sleep(0.3)
 
-    yield f"http://127.0.0.1:{port}", mock_deps
+    url = f"http://127.0.0.1:{port}"
+    for _ in range(30):  # up to 3 seconds
+        try:
+            async with aiohttp.ClientSession() as s:
+                async with s.get(f"{url}/api/device/status") as resp:
+                    if resp.status == 200:
+                        break
+        except (aiohttp.ClientError, OSError):
+            pass
+        await asyncio.sleep(0.1)
 
-    app.shutdown()
-    server_task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await server_task
+    try:
+        yield url, mock_deps
+    finally:
+        app.shutdown()
+        server_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await server_task
 
 
 @pytest_asyncio.fixture

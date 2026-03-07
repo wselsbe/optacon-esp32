@@ -70,6 +70,46 @@ class TestSetFrequencyLive:
         args = pz_drive.pwm_set_frequency_live.call_args
         assert args.args[0] == 300
 
+    def test_amplitude_boundary_zero(self):
+        pa = PzDrive()
+        pa.set_frequency_analog(250)
+        pa.start()
+        pa.set_frequency_live(250, amplitude=0)
+
+    def test_amplitude_boundary_max(self):
+        pa = PzDrive()
+        pa.set_frequency_analog(250)
+        pa.start()
+        pa.set_frequency_live(250, amplitude=100)
+
+    def test_amplitude_above_max_raises(self):
+        pa = PzDrive()
+        pa.set_frequency_analog(250)
+        pa.start()
+        with pytest.raises(ValueError):
+            pa.set_frequency_live(250, amplitude=101)
+
+    def test_amplitude_negative_raises(self):
+        pa = PzDrive()
+        pa.set_frequency_analog(250)
+        pa.start()
+        with pytest.raises(ValueError):
+            pa.set_frequency_live(250, amplitude=-1)
+
+
+class TestSetFrequencyAnalogAmplitudeBounds:
+    @pytest.mark.xfail(reason="set_frequency_analog does not validate amplitude bounds")
+    def test_amplitude_above_100_raises(self):
+        pa = PzDrive()
+        with pytest.raises(ValueError):
+            pa.set_frequency_analog(250, amplitude=101)
+
+    @pytest.mark.xfail(reason="set_frequency_analog does not validate amplitude bounds")
+    def test_amplitude_negative_raises(self):
+        pa = PzDrive()
+        with pytest.raises(ValueError):
+            pa.set_frequency_analog(250, amplitude=-1)
+
 
 class TestStart:
     def test_no_mode_raises(self):

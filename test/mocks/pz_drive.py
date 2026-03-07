@@ -23,7 +23,22 @@ sr_stage = MagicMock()
 sr_write = MagicMock()
 
 # I2C
-i2c_read = MagicMock(return_value=0)
+
+def _i2c_read_default(reg):
+    """Return register-appropriate values for i2c_read.
+
+    Register 0x00 (STATUS): returns 2 (FIFO_EMPTY bit set) matching real HW default.
+    All other registers: returns 0.
+
+    Note: when tests need to override for all registers (e.g. ``i2c_read.return_value = -1``),
+    they must also clear ``side_effect`` (``i2c_read.side_effect = None``) so that
+    ``return_value`` takes effect.  The ``_reset()`` helper restores the default side_effect.
+    """
+    if reg == 0x00:
+        return 2  # STATUS: FIFO_EMPTY
+    return 0
+
+i2c_read = MagicMock(side_effect=_i2c_read_default)
 i2c_write = MagicMock()
 
 # Polarity
@@ -57,7 +72,7 @@ def _reset():
 
     i2c_read.reset_mock(return_value=True, side_effect=True)
     i2c_read.return_value = 0
-    i2c_read.side_effect = None
+    i2c_read.side_effect = _i2c_read_default
     i2c_write.reset_mock()
 
     pol_init.reset_mock()
