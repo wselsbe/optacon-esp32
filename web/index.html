@@ -421,11 +421,6 @@ function connect(){
   ws.onmessage=function(e){
     var d;try{d=JSON.parse(e.data)}catch(x){return}
     if(d.output!=null){termAppend(d.output||'');return}
-    if(d.msg==='speech complete'){
-      speaking=false;startStop.disabled=false;updateStartBtn();
-      showTtsMsg('Done','ok');return;
-    }
-    if(d.msg==='music complete'){setMusicPlaying(false);showMusicMsg('Done','ok');return}
     if(d.error){showErr(d.error);
       speaking=false;startStop.disabled=false;setMusicPlaying(false);updateStartBtn();return;
     }

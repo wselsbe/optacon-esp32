@@ -141,14 +141,14 @@ pre.code .k{color:#6aa4d4}
 <div class="page-subtitle">MicroPython API for driving piezo actuators via the ESP32-S3 REPL.</div>
 
 <div class="nav">
-  <a href="#doc-pzactuator" class="esp">PzDrive</a>
+  <a href="#doc-pzdrive" class="esp">PzDrive</a>
   <a href="#doc-music" class="music">music</a>
   <a href="#doc-drv2665" class="drv">DRV2665</a>
   <a href="#doc-shiftreg" class="hv">ShiftRegister</a>
 </div>
 
 <!-- PzDrive -->
-<div class="card esp" id="doc-pzactuator">
+<div class="card esp" id="doc-pzdrive">
   <div class="card-h"><b>PzDrive</b> <span>pz_drive_py</span></div>
   <div class="card-b">
     <p class="desc">
@@ -160,7 +160,7 @@ pre.code .k{color:#6aa4d4}
     <div class="section-label">Constructor</div>
     <div class="method">
       <code class="sig"><span class="mn">PzDrive</span>()</code>
-      <p class="mdesc">Initialize hardware. Call once at boot. Access the shift register via the <code>shift_register</code> attribute.</p>
+      <p class="mdesc">Initialize hardware. Call once at boot.</p>
     </div>
 
     <div class="section-label">Frequency</div>
@@ -204,8 +204,30 @@ pre.code .k{color:#6aa4d4}
       <p class="mdesc">Returns <code>True</code> if output is active.</p>
     </div>
     <div class="method">
-      <code class="sig"><span class="mn">play_wav</span>(path, loop=False)</code>
-      <p class="mdesc">Play a WAV file. Supports 8/16-bit PCM, mono or stereo, any sample rate. Set <strong>loop=True</strong> to repeat until <code>stop()</code>.</p>
+      <code class="sig"><span class="mn">play_wav</span>(path, loop=False, gain=None)</code>
+      <p class="mdesc">Play a WAV file. Supports 8/16-bit PCM, mono or stereo, any sample rate. Set <strong>loop=True</strong> to repeat until <code>stop()</code>. Optional <strong>gain</strong>: 25, 50, 75, or 100 Vpp.</p>
+    </div>
+
+    <div class="section-label">Actuator Channels</div>
+    <div class="method">
+      <code class="sig"><span class="mn">set_pin</span>(pin, value, latch=True)</code>
+      <p class="mdesc">Set a single channel (0 &ndash; 19) on or off.</p>
+    </div>
+    <div class="method">
+      <code class="sig"><span class="mn">get_pin</span>(pin)</code>
+      <p class="mdesc">Returns current state of a channel.</p>
+    </div>
+    <div class="method">
+      <code class="sig"><span class="mn">set_all</span>(value, latch=True)</code>
+      <p class="mdesc">Set all 20 channels to the same state.</p>
+    </div>
+    <div class="method">
+      <code class="sig"><span class="mn">get_all</span>()</code>
+      <p class="mdesc">Returns tuple of 20 values (0 or 1).</p>
+    </div>
+    <div class="method">
+      <code class="sig"><span class="mn">latch</span>()</code>
+      <p class="mdesc">Commit pending changes. Immediate if no ISR is running, otherwise synced to waveform events.</p>
     </div>
 
     <div class="section-label">Sweep</div>
@@ -249,7 +271,7 @@ pa.set_frequency_live(<span class="n">440</span>, amplitude=<span class="n">0</s
 
 <span class="c"># Basic cycle</span>
 pa.set_frequency_analog(<span class="n">250</span>)
-pa.shift_register.set_all(<span class="k">True</span>)    <span class="c"># enable all channels</span>
+pa.set_all(<span class="k">True</span>)                   <span class="c"># enable all channels</span>
 pa.start(gain=<span class="n">100</span>)
 pa.stop()
 
@@ -433,7 +455,7 @@ drv.standby()</pre>
     </div>
     <div class="method">
       <code class="sig"><span class="mn">set_pins</span>(values, latch=True)</code>
-      <p class="mdesc">Set pins from a list or tuple of up to 20 values.</p>
+      <p class="mdesc">Set all pins from a list or tuple of exactly 20 values.</p>
     </div>
     <div class="method">
       <code class="sig"><span class="mn">latch</span>()</code>
@@ -463,6 +485,7 @@ sr.set_pins([<span class="n">1</span>,<span class="n">0</span>,<span class="n">1
 
 <div class="footer">
   <a href="/">Control Panel</a> &middot;
+  <a href="/api">HTTP API</a> &middot;
   <a href="/wifi">WiFi</a> &middot;
   <a href="/update">Updates</a>
   <div id="ver-info" style="margin-top:4px"></div>
