@@ -132,6 +132,7 @@ pre.resp .n{color:#8cc084}
 
 <div class="page-title">HTTP API Reference</div>
 <div class="page-subtitle">REST endpoints and WebSocket commands for the Optacon ESP32-S3 web server.
+  All POST/PUT endpoints expect JSON bodies. Malformed JSON returns <code>400 {"error": "invalid JSON"}</code>.
   For the MicroPython REPL API, see <a href="/web/docs.html" style="color:var(--esp)">Python API Docs</a>.</div>
 
 <div class="nav">
@@ -273,7 +274,7 @@ pre.resp .n{color:#8cc084}
         <tr><td>ssid</td><td>string</td><td>Network name (required)</td></tr>
         <tr><td>password</td><td>string</td><td>Network password</td></tr>
       </table>
-<pre class="resp">{ <span class="k">"msg"</span>: <span class="s">"WiFi reconnected"</span>, <span class="k">"ip"</span>: <span class="s">"192.168.1.42"</span> }</pre>
+<pre class="resp">{ <span class="k">"status"</span>: <span class="s">"ok"</span>, <span class="k">"ip"</span>: <span class="s">"192.168.1.42"</span> }</pre>
     </div>
   </div>
 </div>
@@ -303,7 +304,7 @@ pre.resp .n{color:#8cc084}
         <tr><td>waveform</td><td>string</td><td>"sine", "triangle", or "square" (default: "sine")</td></tr>
         <tr><td>gain</td><td>int</td><td>25, 50, 75, or 100 Vpp (default: 75)</td></tr>
       </table>
-<pre class="resp">{ <span class="k">"msg"</span>: <span class="s">"music complete"</span> }</pre>
+<pre class="resp">{ <span class="k">"status"</span>: <span class="s">"ok"</span> }</pre>
     </div>
 
     <div class="endpoint">
@@ -314,7 +315,7 @@ pre.resp .n{color:#8cc084}
         <tr><td>name</td><td>string</td><td>Song name from <code>/api/music/songs</code> (required)</td></tr>
         <tr><td>waveform</td><td>string</td><td>"sine", "triangle", or "square" (default: "sine")</td></tr>
       </table>
-<pre class="resp">{ <span class="k">"msg"</span>: <span class="s">"music complete"</span> }</pre>
+<pre class="resp">{ <span class="k">"status"</span>: <span class="s">"ok"</span> }</pre>
     </div>
   </div>
 </div>
@@ -335,7 +336,7 @@ pre.resp .n{color:#8cc084}
         <tr><td>mouth</td><td>int</td><td>Mouth shape parameter (default: 128)</td></tr>
         <tr><td>throat</td><td>int</td><td>Throat shape parameter (default: 128)</td></tr>
       </table>
-<pre class="resp">{ <span class="k">"msg"</span>: <span class="s">"speech complete"</span> }</pre>
+<pre class="resp">{ <span class="k">"status"</span>: <span class="s">"ok"</span> }</pre>
     </div>
   </div>
 </div>
@@ -400,7 +401,7 @@ pre.resp .n{color:#8cc084}
         <tr><th>Field</th><th>Type</th><th>Description</th></tr>
         <tr><td>hz</td><td>int</td><td>0 &ndash; 1000 Hz (default: 250)</td></tr>
         <tr><td>amplitude</td><td>int</td><td>0 &ndash; 100% (default: 100)</td></tr>
-        <tr><td>waveform</td><td>string</td><td>"sine", "triangle", "square", or "dc" (default: "sine")</td></tr>
+        <tr><td>waveform</td><td>string</td><td>"sine", "triangle", or "square" (default: "sine")</td></tr>
         <tr><td>fullwave</td><td>bool</td><td>Enable fullwave polarity toggle (default: false)</td></tr>
         <tr><td>dead_time</td><td>int</td><td>ISR ticks after zero-crossing (default: 0)</td></tr>
         <tr><td>phase_advance</td><td>int</td><td>ISR ticks before zero-crossing (default: 0)</td></tr>
@@ -412,7 +413,7 @@ pre.resp .n{color:#8cc084}
       <p class="ws-desc">Configure digital FIFO mode (8 kHz sample rate).</p>
       <table class="params">
         <tr><th>Field</th><th>Type</th><th>Description</th></tr>
-        <tr><td>hz</td><td>int</td><td>1 &ndash; 500 Hz (default: 100)</td></tr>
+        <tr><td>hz</td><td>int</td><td>1 &ndash; 1000 Hz (default: 100)</td></tr>
         <tr><td>fullwave</td><td>bool</td><td>Enable fullwave (default: false)</td></tr>
         <tr><td>waveform</td><td>string</td><td>"sine", "triangle", or "square" (default: "sine")</td></tr>
       </table>
