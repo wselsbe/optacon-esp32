@@ -31,30 +31,40 @@
 
 ## Failing Tests — Analysis
 
-### Signal Frequency (6/9 fail)
+### Signal Frequency (6/9 fail → likely improved by scope fixes, pending re-run)
 
 Pattern by waveform:
 - **sine**: passes at 250Hz, fails at 50Hz and 500Hz
 - **triangle**: passes at 50Hz, fails at 250Hz and 500Hz
 - **square**: passes at 250Hz, fails at 50Hz and 500Hz
 
-The scope returns `****` (can't measure) for failing combinations. Root cause is likely
-timebase/trigger settling — the `configure_scope` fixture selects timebase by frequency
-(5MS for <=100Hz, 2MS for <=300Hz, 1MS for >300Hz) but the scope may need more settling
-time or different timebase choices for reliable measurement. The waveform-dependent pattern
-suggests the scope's frequency counter algorithm works differently for each shape.
+The scope returns `****` (can't measure) for failing combinations. The ATTN/VDIV ordering
+bug and ARM single-trigger bug (both now fixed) likely caused many of these failures —
+the scope was configured with wrong V/div scales and measuring stale data. Re-run needed
+to determine which failures persist after the scope fixes.
 
 ### Signal Amplitude — Triangle (1/3 fail)
 
 IN+ PKPK returns None for triangle waveform. Triangle may have lower amplitude than
 sine/square at the same settings, falling below the scope's auto-measurement threshold.
 
-### Gain (3/5 fail)
+### Gain (3/5 fail → fixed, pending re-run)
 
-`test_gain_ordering` fails because it can't measure OUT+ PKPK at gain=25 (first iteration).
-`test_gain_produces_signal` fails for gain=50 and gain=100 — returns None. These sometimes
-pass in isolation, suggesting a scope state issue from previous test iterations. The test
-creates fresh BoardClient connections per gain level, which may contribute.
+Root cause identified via manual MCP/REPL investigation:
+
+1. **ATTN/VDIV ordering bug** — `instruments.py` sent `VDIV` before `ATTN`. On Siglent
+   scopes, changing ATTN rescales the existing VDIV (e.g., VDIV 10V then ATTN 10 → 100V/div).
+   Fix: send ATTN first, invalidate VDIV cache when ATTN changes.
+
+2. **ARM overrides TRMD AUTO** — `run()` sent `ARM` which forces single-trigger mode.
+   Subsequent measurements read stale captured data. Fix: use `TRMD AUTO` instead of `ARM`.
+
+3. **Fixed 10V/div too coarse for low gains** — OUT+ amplitude scales with gain:
+   gain=25 → ~3.5Vpp, gain=50 → ~10Vpp, gain=75/100 → clipped at higher V/div.
+   Fix: per-gain VDIV map (500mV/2V/2V/5V), default OUT+ lowered to 2V/div.
+
+These fixes also likely resolve some signal_frequency failures (same ATTN/VDIV and trigger
+mode bugs affected all scope measurements).
 
 ### Power Per-Pin (7/20 xfail)
 
