@@ -51,10 +51,10 @@ class ShiftRegister:
         )
 
     def set_pins(self, values, latch=True):
+        if len(values) != 20:
+            raise ValueError("expected 20 values, got " + str(len(values)))
         state = 0
         for i, v in enumerate(values):
-            if i >= self.NUM_PINS:
-                break
             if v:
                 state |= 1 << (25 - i)
         self._state = state
