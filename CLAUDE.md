@@ -2,30 +2,14 @@
 
 This file provides guidance to Claude Code when working with code in this repository.
 
-## Development Commands
-
-### Local build (Windows, requires make + gcc + ESP-IDF):
+### Setup after clone
 ```bash
-# One-time setup: source ESP-IDF environment
-source ~/esp/v5.5.1/export.sh  # Git Bash
-# or: %USERPROFILE%\esp\v5.5.1\export.bat  # CMD
-
-export MICROPYTHON_DIR=C:/Projects/Optacon/micropython
-./scripts/build.sh
+# Install git pre-commit hook (auto-fixes Python with ruff, checks C with clang-format)
+ln -sf ../../scripts/pre-commit.sh .git/hooks/pre-commit
 ```
 
-### Docker build (no local toolchain needed):
-```bash
-build.cmd
-# or manually:
-MSYS_NO_PATHCONV=1 docker compose run --rm dev bash /workspace/scripts/build.sh
-```
-
-### Flash to ESP32-S3 (from Windows, default COM7):
-```bash
-flash.cmd [COM_PORT]
-# or: ./scripts/flash.sh COM7
-```
+### Building and flashing
+Use your /flash skill to build the firmware and flash to hardware
 
 ### Connect to REPL:
 ```bash
@@ -181,8 +165,7 @@ buf = sam.render("test", speed=72, pitch=64, mouth=128, throat=128)
 - **Shift register latch**: SPI writes are synchronized to waveform events (zero-crossing in fullwave, cycle start in non-fullwave) via stage/latch mechanism. If no ISR/task is running, writes are immediate.
 - **Shift register**: Two HV509 daisy-chained. 32-bit SPI word with pins 0–19 mapped to bits 25–6.
 - **I2C bus sharing**: pz_drive owns the I2C bus persistently. ESP-IDF's I2C master driver is thread-safe (mutex per transaction). FIFO task and Python register access share the same handle safely.
-- **ISR core affinity**: GPTimer ISR is pinned to core 1 via a temporary FreeRTOS task that calls both `gptimer_register_event_callbacks()` and `gptimer_enable()` on core 1 (interrupt is allocated on the calling core). This keeps the DDS ISR off core 0 where TinyUSB/USB-CDC runs. FIFO task is similarly pinned to core 1.
-- **MCP server**: `mcp_micropython.py` uses stateless per-call serial connections via `mpremote` to avoid port locking.
+- **ISR core affinity**: GPTimer ISR is pinned to core 1 via a temporary FreeRTOS task that calls both `gptimer_register_even
 
 ### Important Notes
 
