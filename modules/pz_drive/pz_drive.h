@@ -21,7 +21,7 @@ void hv509_pol_toggle(void);
 // ── drv2665.c — I2C bus + register access ───────────────────────────────
 void drv2665_bus_init(void);
 int drv2665_read_reg(uint8_t reg);
-void drv2665_write_reg(uint8_t reg, uint8_t val);
+esp_err_t drv2665_write_reg(uint8_t reg, uint8_t val);
 void drv2665_reset(void);
 esp_err_t drv2665_write_fifo_bulk(const uint8_t *data, size_t len);
 esp_err_t drv2665_write_fifo_byte(uint8_t val);

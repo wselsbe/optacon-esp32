@@ -1,7 +1,8 @@
 """E2E API and WebSocket tests for web_server.py."""
 
+import asyncio
 import json
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import aiohttp
 import pytest
@@ -205,6 +206,33 @@ async def test_ota_diagnostics_failure(test_app):
         assert r.status == 500
         data = await r.json()
         assert "error" in data
+
+
+@pytest.mark.asyncio
+async def test_ota_update_files_missing_sha256_fails(ota_mock):
+    """update_files() rejects manifest entries with missing sha256."""
+    import ota
+
+    mock, ota_url = ota_mock
+    manifest = {
+        "files": {
+            "0.2.0": {
+                "changes": [
+                    {
+                        "path": "web_server.py",
+                        "url": "files/0.2.0/web_server.py",
+                        # sha256 intentionally omitted
+                    }
+                ]
+            }
+        }
+    }
+    with patch.object(ota, "load_config", return_value={
+        "update_url": ota_url,
+        "files_version": "0.1.0",
+    }):
+        result = await asyncio.to_thread(ota.update_files, manifest, "0.2.0")
+    assert result is False
 
 
 @pytest.mark.asyncio
