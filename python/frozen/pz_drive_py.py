@@ -1,4 +1,5 @@
 import math
+import os
 
 import pz_drive
 from drv2665 import DRV2665
@@ -6,6 +7,8 @@ from shift_register import ShiftRegister
 
 MODE_DIGITAL = "digital"
 MODE_ANALOG = "analog"
+
+_WAV_MAX_SIZE = 100 * 1024  # bytes — reject files larger than this to avoid OOM
 
 
 class PzDrive:
@@ -210,6 +213,12 @@ class PzDrive:
             if gain not in self.GAINS:
                 raise ValueError("gain must be 25, 50, 75, or 100")
             self._gain = gain
+
+        # Reject files that would exhaust RAM on ESP32
+        file_size = os.stat(path)[6]
+        if file_size > _WAV_MAX_SIZE:
+            raise ValueError(f"WAV file too large (max {_WAV_MAX_SIZE // 1024} KB)")
+
         with open(path, "rb") as f:
             header = f.read(44)
             if len(header) < 44 or header[:4] != b"RIFF" or header[8:12] != b"WAVE":
@@ -218,6 +227,9 @@ class PzDrive:
             num_channels = int.from_bytes(header[22:24], "little")
             sample_rate = int.from_bytes(header[24:28], "little")
             bits_per_sample = int.from_bytes(header[34:36], "little")
+
+            if sample_rate == 0:
+                raise ValueError("invalid WAV sample rate")
 
             raw = f.read()
 

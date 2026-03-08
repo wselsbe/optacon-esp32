@@ -58,7 +58,10 @@ static MP_DEFINE_CONST_FUN_OBJ_1(pz_drive_i2c_read_obj, pz_drive_i2c_read);
 static mp_obj_t pz_drive_i2c_write(mp_obj_t reg_obj, mp_obj_t val_obj) {
     uint8_t reg = mp_obj_get_int(reg_obj);
     uint8_t val = mp_obj_get_int(val_obj);
-    drv2665_write_reg(reg, val);
+    esp_err_t err = drv2665_write_reg(reg, val);
+    if (err != ESP_OK) {
+        mp_raise_OSError(err);
+    }
     return mp_const_none;
 }
 static MP_DEFINE_CONST_FUN_OBJ_2(pz_drive_i2c_write_obj, pz_drive_i2c_write);
