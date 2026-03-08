@@ -18,7 +18,7 @@ class BoardClient:
         raise NotImplementedError
 
     def stop(self) -> dict:
-        result = self._exec("pa.stop()")
+        self._exec("pa.stop()")
         status = self.get_status()
         assert status.get("running") is False, f"Board did not stop: {status}"
         return status

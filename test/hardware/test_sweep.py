@@ -13,8 +13,8 @@ but the blocking call starves the event loop. Options to fix:
 import threading
 import time
 
-import requests
 import pytest
+import requests
 
 pytestmark = pytest.mark.hardware
 

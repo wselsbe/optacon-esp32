@@ -1,5 +1,6 @@
 """Lightweight SCPI instrument clients for hardware E2E tests."""
 
+import contextlib
 import re
 import socket
 import threading
@@ -35,15 +36,13 @@ class SCPIConnection:
                 if not chunk:
                     break
                 buf += chunk
-            except socket.timeout:
+            except TimeoutError:
                 break
 
     def disconnect(self):
         if self._sock:
-            try:
+            with contextlib.suppress(Exception):
                 self._sock.close()
-            except Exception:
-                pass
         self._sock = None
         self._buf = b""
 
@@ -68,7 +67,7 @@ class SCPIConnection:
             try:
                 response = self._readline()
                 return response.decode("ascii").strip().lstrip("\x00")
-            except socket.timeout:
+            except TimeoutError:
                 self.disconnect()
                 raise
 
