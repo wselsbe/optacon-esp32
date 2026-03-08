@@ -64,6 +64,7 @@ class TestStatus:
     def test_status_reads_reg_0(self):
         drv = DRV2665()
         pz_drive.i2c_read.reset_mock()
+        pz_drive.i2c_read.side_effect = None
         pz_drive.i2c_read.return_value = 0x02
         assert drv.status() == 0x02
         pz_drive.i2c_read.assert_called_with(0x00)

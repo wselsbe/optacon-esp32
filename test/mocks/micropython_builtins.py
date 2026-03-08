@@ -113,7 +113,6 @@ class MockWLAN:
 _network_WLAN = MagicMock(name="network.WLAN")
 _wlan_instance = MockWLAN(0)
 # Default: connected (matches previous mock default for existing tests)
-_wlan_instance._connected = True
 _wlan_instance.isconnected.return_value = True
 _network_WLAN.return_value = _wlan_instance
 _network_hostname = MagicMock(name="network.hostname")
@@ -213,7 +212,6 @@ def _reset_all():
     global _wlan_instance
     _network_WLAN.reset_mock()
     _wlan_instance = MockWLAN(0)
-    _wlan_instance._connected = True
     _wlan_instance.isconnected.return_value = True
     _network_WLAN.return_value = _wlan_instance
     _network_hostname.reset_mock()
