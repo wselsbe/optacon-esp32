@@ -124,10 +124,12 @@ async def test_app(mock_deps):
     url = f"http://127.0.0.1:{port}"
     for _ in range(30):  # up to 3 seconds
         try:
-            async with aiohttp.ClientSession() as s:
-                async with s.get(f"{url}/api/device/status") as resp:
-                    if resp.status == 200:
-                        break
+            async with (
+                aiohttp.ClientSession() as s,
+                s.get(f"{url}/api/device/status") as resp,
+            ):
+                if resp.status == 200:
+                    break
         except (aiohttp.ClientError, OSError):
             pass
         await asyncio.sleep(0.1)
