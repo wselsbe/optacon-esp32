@@ -406,9 +406,8 @@ def update_files(manifest, version, progress_cb=None):
 
             actual_sha = sha.digest().hex()
             if not expected_sha:
-                # NOTE: manifest entry missing sha256 — verification skipped.
-                # Ensure the OTA server includes sha256 for all file entries.
-                _log_update("WARNING: no SHA-256 in manifest for " + change["path"])
+                _log_update("Missing SHA-256 in manifest for " + change["path"])
+                raise Exception("missing sha256: " + change["path"])
             elif actual_sha != expected_sha:
                 _log_update("SHA-256 MISMATCH for " + change["path"])
                 raise Exception("SHA-256 mismatch: " + change["path"])
@@ -550,22 +549,13 @@ def upload_firmware(data, size):
         return False
 
 
-UPLOAD_ALLOWED_PREFIXES = ("/web/", "/music/")
-UPLOAD_ALLOWED_FILES = ("/ota_config.json",)
-
-
 def upload_file(path, data):
     """Write an uploaded file to filesystem.
 
     Args:
         path: destination path (e.g. "/web/index.html")
         data: bytes content
-
-    Raises:
-        ValueError: if path is not in an allowed prefix or allowed file list.
     """
-    if not any(path.startswith(p) for p in UPLOAD_ALLOWED_PREFIXES) and path not in UPLOAD_ALLOWED_FILES:
-        raise ValueError("upload path not allowed: " + path)
     _log_update("Upload file: " + path + " (" + str(len(data)) + " bytes)")
     with open(path, "wb") as f:
         f.write(data)
