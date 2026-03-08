@@ -40,10 +40,21 @@ def _check_rollback():
         with open("/ota_pending.json") as f:
             paths = json.load(f)
     except Exception:
-        # Fallback: scan root for .bak files (won't find subdirs)
-        for name in os.listdir("/"):
-            if name.endswith(".bak"):
-                paths.append("/" + name[:-4])
+        # Fallback: walk entire filesystem for .bak files
+        def _walk_bak(d):
+            try:
+                for name in os.listdir(d):
+                    full = d + name
+                    try:
+                        os.listdir(full)
+                        yield from _walk_bak(full + "/")
+                    except OSError:
+                        if name.endswith(".bak"):
+                            yield full[:-4]
+            except OSError:
+                pass
+
+        paths = list(_walk_bak("/"))
 
     for path in paths:
         bak_path = path + ".bak"
