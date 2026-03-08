@@ -58,10 +58,14 @@ int drv2665_read_reg(uint8_t reg) {
     return val;
 }
 
-void drv2665_write_reg(uint8_t reg, uint8_t val) {
+esp_err_t drv2665_write_reg(uint8_t reg, uint8_t val) {
     if (!s_inited) drv2665_bus_init();
     uint8_t buf[2] = {reg, val};
-    i2c_master_transmit(s_dev, buf, 2, I2C_TIMEOUT_MS);
+    esp_err_t err = i2c_master_transmit(s_dev, buf, 2, I2C_TIMEOUT_MS);
+    if (err != ESP_OK) {
+        mp_printf(&mp_plat_print, "drv2665: I2C write failed reg=0x%02x err=0x%02x\n", reg, err);
+    }
+    return err;
 }
 
 esp_err_t drv2665_write_fifo_bulk(const uint8_t *data, size_t len) {
