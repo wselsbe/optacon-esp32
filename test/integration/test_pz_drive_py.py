@@ -2,11 +2,10 @@
 
 import os
 import struct
-import tempfile
 
 import pytest
 import pz_drive
-from pz_drive_py import PzDrive, _WAV_MAX_SIZE
+from pz_drive_py import _WAV_MAX_SIZE, PzDrive
 
 
 def _make_wav(sample_rate=22050, bits_per_sample=8, num_channels=1, num_samples=100):
