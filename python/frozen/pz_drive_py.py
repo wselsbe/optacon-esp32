@@ -8,7 +8,7 @@ from shift_register import ShiftRegister
 MODE_DIGITAL = "digital"
 MODE_ANALOG = "analog"
 
-_WAV_MAX_SIZE = 100_000  # bytes — reject files larger than this to avoid OOM
+_WAV_MAX_SIZE = 100 * 1024  # bytes — reject files larger than this to avoid OOM
 
 
 class PzDrive:
@@ -217,7 +217,7 @@ class PzDrive:
         # Reject files that would exhaust RAM on ESP32
         file_size = os.stat(path)[6]
         if file_size > _WAV_MAX_SIZE:
-            raise ValueError("WAV file too large (max 100 KB)")
+            raise ValueError(f"WAV file too large (max {_WAV_MAX_SIZE // 1024} KB)")
 
         with open(path, "rb") as f:
             header = f.read(44)
