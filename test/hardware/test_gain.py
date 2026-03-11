@@ -9,7 +9,7 @@ pytestmark = pytest.mark.hardware
 FREQ_HZ = 250
 GAIN_LEVELS = [25, 50, 75, 100]
 # V/div must fit the full output swing at each gain level
-GAIN_VDIV = {25: "5V", 50: "10V", 75: "10V", 100: "20V"}
+GAIN_VDIV = {25: "5V", 50: "10V", 75: "20V", 100: "20V"}
 
 
 def test_gain_ordering(

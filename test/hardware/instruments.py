@@ -270,6 +270,10 @@ class Multimeter:
     def disconnect(self):
         self._conn.disconnect()
 
+    def set_local(self):
+        """Return to local (front panel) mode."""
+        self._conn.write("SYSTem:LOCal")
+
     def identify(self) -> str:
         return self._conn.query("*IDN?")
 

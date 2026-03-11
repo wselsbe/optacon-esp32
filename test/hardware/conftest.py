@@ -79,6 +79,7 @@ def multimeter(config):
     dmm.connect()
     dmm.configure_dc_current("0.6")
     yield dmm
+    dmm.set_local()
     dmm.disconnect()
 
 
@@ -181,11 +182,15 @@ def _screenshot_after_test(request, oscilloscope, board):
     safe_name = test_name.replace("/", "_").replace("\\", "_")
     out_dir = os.path.join(_SCREENSHOT_DIR, file_stem)
     os.makedirs(out_dir, exist_ok=True)
-    out_path = os.path.join(out_dir, f"{safe_name}.bmp")
+    out_path = os.path.join(out_dir, f"{safe_name}.png")
     try:
-        data = oscilloscope.screenshot()
-        with open(out_path, "wb") as f:
-            f.write(data)
+        import io
+
+        from PIL import Image
+
+        bmp_data = oscilloscope.screenshot()
+        img = Image.open(io.BytesIO(bmp_data))
+        img.save(out_path, "PNG")
         # Store path for pytest-html hook to pick up
         request.node._screenshot_path = out_path
     except Exception as e:

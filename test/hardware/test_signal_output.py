@@ -35,7 +35,7 @@ def test_signal_frequency(
     time.sleep(0.5)
 
     configure_channel(ch_in, vdiv="1V")
-    configure_channel(ch_out, vdiv="10V")
+    configure_channel(ch_out, vdiv="20V")
     configure_timebase(freq_hz)
     configure_trigger(ch_in)
     start_acquisition()
@@ -66,7 +66,7 @@ def test_signal_amplitude(
     time.sleep(0.5)
 
     configure_channel(ch_in, vdiv="1V")
-    configure_channel(ch_out, vdiv="10V")
+    configure_channel(ch_out, vdiv="20V")
     configure_timebase(250)
     configure_trigger(ch_in)
     start_acquisition()

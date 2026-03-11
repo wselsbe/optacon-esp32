@@ -44,7 +44,7 @@ def test_signal_appears_on_start(
     board.start()
     time.sleep(0.5)
 
-    configure_channel(ch_out, vdiv="10V")
+    configure_channel(ch_out, vdiv="20V")
     configure_channel(ch_in, vdiv="1V")
     configure_timebase(250)
     configure_trigger(ch_in)
@@ -72,7 +72,7 @@ def test_signal_disappears_on_stop(
     board.stop()
     time.sleep(1.0)
 
-    configure_channel(ch_out, vdiv="10V")
+    configure_channel(ch_out, vdiv="20V")
     configure_channel(ch_in, vdiv="1V")
     configure_timebase(250)
     configure_trigger(ch_out)
