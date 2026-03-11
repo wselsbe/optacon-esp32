@@ -52,7 +52,7 @@ def test_signal_appears_on_start(
     time.sleep(1.0)
 
     pkpk = oscilloscope.measure_float(ch_out, "PKPK")
-    assert pkpk is not None and pkpk > SIGNAL_THRESHOLD_V, (
+    assert pkpk > SIGNAL_THRESHOLD_V, (
         f"OUT+ should show signal after start, but PKPK={pkpk}V"
     )
 

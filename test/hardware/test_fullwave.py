@@ -33,13 +33,12 @@ def test_fullwave_polarity_toggles(
     time.sleep(1.0)
 
     pol_freq = oscilloscope.measure_float(ch_pol, "FREQ")
-    assert pol_freq is not None, "Could not measure polarity frequency"
     assert abs(pol_freq - FREQ_HZ) / FREQ_HZ <= tolerance, (
         f"Polarity frequency mismatch: expected {FREQ_HZ} Hz, got {pol_freq} Hz"
     )
 
     pol_pkpk = oscilloscope.measure_float(ch_pol, "PKPK")
-    assert pol_pkpk is not None and pol_pkpk > 2.0, (
+    assert pol_pkpk > 2.0, (
         f"Polarity PKPK too low for digital signal: {pol_pkpk}V"
     )
 
@@ -86,7 +85,6 @@ def test_fullwave_doubles_frequency(
 
     in_freq = oscilloscope.measure_float(ch_in, "FREQ")
     expected_freq = FREQ_HZ * 2
-    assert in_freq is not None, "Could not measure IN+ frequency"
     assert abs(in_freq - expected_freq) / expected_freq <= tolerance, (
         f"IN+ frequency in fullwave: expected {expected_freq} Hz, got {in_freq} Hz"
     )

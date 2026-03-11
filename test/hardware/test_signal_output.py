@@ -36,9 +36,6 @@ def test_signal_frequency(
     time.sleep(1.0)
 
     measured_freq = oscilloscope.measure_float(ch_in, "FREQ")
-    assert measured_freq is not None, (
-        f"Could not measure frequency on {ch_in}"
-    )
     assert abs(measured_freq - freq_hz) / freq_hz <= tolerance, (
         f"Frequency mismatch: expected {freq_hz} Hz, got {measured_freq} Hz "
         f"(tolerance {tolerance * 100}%)"
@@ -67,7 +64,7 @@ def test_signal_amplitude(
     time.sleep(1.0)
 
     in_pkpk = oscilloscope.measure_float(ch_in, "PKPK")
-    assert in_pkpk is not None and in_pkpk > 0.1, f"IN+ PKPK too low: {in_pkpk}V"
+    assert in_pkpk > 0.1, f"IN+ PKPK too low: {in_pkpk}V"
 
     out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
-    assert out_pkpk is not None and out_pkpk > 5.0, f"OUT+ PKPK too low: {out_pkpk}V"
+    assert out_pkpk > 5.0, f"OUT+ PKPK too low: {out_pkpk}V"

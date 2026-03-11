@@ -19,6 +19,14 @@ class SCPIConnection:
         self._lock = threading.Lock()
         self._buf = b""
 
+    def __enter__(self):
+        self.connect()
+        return self
+
+    def __exit__(self, *exc):
+        self.disconnect()
+        return False
+
     def connect(self):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.settimeout(self.timeout)

@@ -19,6 +19,14 @@ class BoardClient:
     def close(self):
         raise NotImplementedError
 
+    def __enter__(self):
+        self.connect()
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
     def _exec(self, code: str) -> str:
         """Execute Python code on the board, return stdout."""
         raise NotImplementedError
@@ -90,7 +98,7 @@ class WSBoardClient(BoardClient):
         return json.loads(self._ws.recv())
 
     def _exec(self, code: str) -> str:
-        return str(self._send_cmd("get_status"))
+        raise NotImplementedError("WSBoardClient uses WS commands, not _exec")
 
     def get_status(self) -> dict:
         return self._send_cmd("get_status")

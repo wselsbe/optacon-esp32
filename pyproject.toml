@@ -17,7 +17,8 @@ ignore = [
 "mcp_micropython.py" = ["SIM105"]  # try/except/pass is clearer for serial cleanup
 
 [tool.pytest.ini_options]
-testpaths = ["test/integration", "test/e2e"]
+testpaths = ["test/integration", "test/e2e", "test/hardware"]
+addopts = "-m 'not hardware'"
 asyncio_mode = "auto"
 markers = [
     "hardware: tests requiring physical lab instruments (not run in CI)",

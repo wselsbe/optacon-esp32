@@ -170,8 +170,10 @@ def board(board_url, request):
         client = WSBoardClient(ws_url)
     client.connect()
     yield client
-    client.stop()
-    client.close()
+    try:
+        client.stop()
+    finally:
+        client.close()
 
 
 _SCREENSHOT_DIR = os.path.join(_HERE, "screenshots")

@@ -13,41 +13,28 @@ GAIN_VDIV = {25: "5V", 50: "10V", 75: "20V", 100: "20V"}
 
 
 def test_gain_ordering(
-    board_url, oscilloscope, channels, clear_measurements,
+    board, oscilloscope, channels, clear_measurements,
     configure_channel, configure_timebase, configure_trigger, start_acquisition,
 ):
     """Higher gain settings should produce higher OUT+ amplitude."""
-    from test.hardware.board_client import WSBoardClient
-
     measurements = {}
-    ws_url = board_url.replace("http://", "ws://") + "/ws"
     ch_out = channels["out_plus"]
     ch_in = channels["in_plus"]
 
     for gain in GAIN_LEVELS:
-        client = WSBoardClient(ws_url)
-        client.connect()
-        try:
-            client.set_frequency_analog(hz=FREQ_HZ)
-            client.start(gain=gain)
-            time.sleep(0.5)
+        board.set_frequency_analog(hz=FREQ_HZ)
+        board.start(gain=gain)
+        time.sleep(0.5)
 
-            configure_channel(ch_in, vdiv="1V")
-            configure_channel(ch_out, vdiv=GAIN_VDIV[gain])
-            configure_timebase(FREQ_HZ)
-            configure_trigger(ch_in)
-            start_acquisition()
-            time.sleep(1.5)
+        configure_channel(ch_in, vdiv="1V")
+        configure_channel(ch_out, vdiv=GAIN_VDIV[gain])
+        configure_timebase(FREQ_HZ)
+        configure_trigger(ch_in)
+        start_acquisition()
+        time.sleep(1.5)
 
-            out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
-            if out_pkpk is None:
-                time.sleep(1.0)
-                out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
-            assert out_pkpk is not None, f"Could not measure OUT+ PKPK at gain={gain}"
-            measurements[gain] = out_pkpk
-        finally:
-            client.stop()
-            client.close()
+        out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
+        measurements[gain] = out_pkpk
 
     # Verify monotonically increasing amplitude with gain
     for i in range(len(GAIN_LEVELS) - 1):
@@ -82,9 +69,6 @@ def test_gain_produces_signal(
     time.sleep(1.5)
 
     out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
-    if out_pkpk is None:
-        time.sleep(1.0)
-        out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
-    assert out_pkpk is not None and out_pkpk > 1.5, (
+    assert out_pkpk > 1.5, (
         f"Gain {gain}: OUT+ PKPK too low ({out_pkpk}V), expected signal"
     )
