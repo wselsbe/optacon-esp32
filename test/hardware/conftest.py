@@ -172,6 +172,28 @@ def board(board_url, request):
 _SCREENSHOT_DIR = os.path.join(_HERE, "screenshots")
 
 
+_ALL_SCOPE_CHANNELS = ["C1", "C2", "C3", "C4"]
+
+
+_DEFAULT_CHANNELS = {"C2": "20V", "C4": "1V"}  # OUT+ and IN+
+
+
+@pytest.fixture(autouse=True)
+def _reset_scope_channels(oscilloscope):
+    """Reset scope to default channels before each test.
+
+    Shows OUT+ and IN+ by default (useful for power test screenshots).
+    Tests override via configure_channel as needed.
+    State cache is cleared so all settings are re-sent.
+    """
+    for ch in _ALL_SCOPE_CHANNELS:
+        oscilloscope._conn.write(f"{ch}:TRA OFF")
+    for ch, vdiv in _DEFAULT_CHANNELS.items():
+        oscilloscope._conn.write(f"{ch}:TRA ON")
+        oscilloscope._conn.write(f"{ch}:VDIV {vdiv}")
+    oscilloscope._state.clear()
+
+
 @pytest.fixture(autouse=True)
 def _screenshot_after_test(request, oscilloscope, board):
     """Take a scope screenshot after each test, before signal is stopped."""

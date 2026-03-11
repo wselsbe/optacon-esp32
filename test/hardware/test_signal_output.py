@@ -1,15 +1,9 @@
 """Test signal output verification on oscilloscope.
 
-TODO: 7/9 frequency tests fail — scope returns **** (can't measure) or reads
-stale frequency from previous test (e.g. 50.1 Hz when expecting 250 Hz).
-Root cause: set_frequency_analog via WS may not take effect between tests,
-or scope trigger/timebase not settling. Need to investigate whether adding
-a stop/start cycle between frequency changes fixes it, or whether the scope
-needs longer settling time after reconfiguration.
-
-TODO: 1/3 amplitude tests fail (triangle) — IN+ PKPK returns None.
-Triangle waveform may have lower amplitude than sine/square, falling below
-the scope's measurement threshold at current V/div settings.
+TODO: Triangle frequency measurements are flaky — scope miscounts on the
+low-amplitude IN+ signal (~2.5Vpp) due to gentle zero-crossing slopes.
+Options: measure frequency on OUT+ instead (better SNR at ~100Vpp),
+apply bandwidth limiting on IN+, or use period-based measurement.
 """
 
 import time

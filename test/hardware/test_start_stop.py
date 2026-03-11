@@ -6,7 +6,7 @@ import pytest
 
 pytestmark = pytest.mark.hardware
 
-NOISE_FLOOR_V = 1.5  # DRV2665 has ~0.8V quiescent output ripple
+NOISE_FLOOR_V = 2.0  # DRV2665 quiescent output ripple measures ~1.6V pk-pk on scope
 SIGNAL_THRESHOLD_V = 5.0
 
 

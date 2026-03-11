@@ -1,4 +1,10 @@
-"""Test fullwave mode and polarity toggling."""
+"""Test fullwave mode and polarity toggling.
+
+TODO: test_fullwave_doubles_frequency is flaky — scope frequency counter
+miscounts on rectified sine (|sin|) due to ringing at zero-crossing cusps.
+Reads ~850 Hz instead of expected 500 Hz. May need different measurement
+approach (e.g. measure polarity freq and assert 2x, or use DC coupling).
+"""
 
 import time
 
@@ -9,7 +15,10 @@ pytestmark = pytest.mark.hardware
 FREQ_HZ = 250
 
 
-def test_fullwave_polarity_toggles(board, oscilloscope, channels, tolerance):
+def test_fullwave_polarity_toggles(
+    board, oscilloscope, channels, tolerance, clear_measurements,
+    configure_channel, configure_timebase, configure_trigger, start_acquisition,
+):
     """In fullwave mode, polarity channel should toggle at signal frequency."""
     ch_pol = channels["polarity"]
 
@@ -17,11 +26,10 @@ def test_fullwave_polarity_toggles(board, oscilloscope, channels, tolerance):
     board.start()
     time.sleep(0.5)
 
-    # Polarity is a digital signal — must use DC coupling
-    oscilloscope.configure_channel(ch_pol, vdiv="2V", coupling="D1M", probe=10)
-    oscilloscope.configure_timebase("2MS")
-    oscilloscope.configure_trigger(ch_pol, level="2V", slope="POS")
-    oscilloscope.run()
+    configure_channel(ch_pol, vdiv="2V", coupling="D1M")
+    configure_timebase(FREQ_HZ)
+    configure_trigger(ch_pol, level="2V", coupling="D1M")
+    start_acquisition()
     time.sleep(1.0)
 
     pol_freq = oscilloscope.measure_float(ch_pol, "FREQ")
@@ -36,7 +44,10 @@ def test_fullwave_polarity_toggles(board, oscilloscope, channels, tolerance):
     )
 
 
-def test_non_fullwave_polarity_static(board, oscilloscope, channels):
+def test_non_fullwave_polarity_static(
+    board, oscilloscope, channels, clear_measurements,
+    configure_channel, configure_timebase, configure_trigger, start_acquisition,
+):
     """In non-fullwave mode, polarity channel should be static (no toggling)."""
     ch_pol = channels["polarity"]
 
@@ -44,11 +55,10 @@ def test_non_fullwave_polarity_static(board, oscilloscope, channels):
     board.start()
     time.sleep(0.5)
 
-    # Polarity is a digital signal — must use DC coupling
-    oscilloscope.configure_channel(ch_pol, vdiv="2V", coupling="D1M", probe=10)
-    oscilloscope.configure_timebase("2MS")
-    oscilloscope.configure_trigger(ch_pol, level="2V", slope="POS")
-    oscilloscope.run()
+    configure_channel(ch_pol, vdiv="2V", coupling="D1M")
+    configure_timebase(FREQ_HZ)
+    configure_trigger(ch_pol, level="2V", coupling="D1M")
+    start_acquisition()
     time.sleep(1.0)
 
     pol_pkpk = oscilloscope.measure_float(ch_pol, "PKPK")
