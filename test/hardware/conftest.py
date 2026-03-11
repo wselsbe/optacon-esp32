@@ -1,4 +1,9 @@
-"""Hardware E2E test fixtures — real board + real instruments."""
+"""Hardware E2E test fixtures — real board + real instruments.
+
+TODO: Hide scope on-screen messages ("Enable test is off!", "Fine adjustment")
+in screenshots. MENU OFF suppresses popups but also hides the channel info sidebar.
+Investigate per-message suppression or send MENU OFF only before SCDP screenshot.
+"""
 
 import json
 import os
@@ -184,14 +189,18 @@ def _reset_scope_channels(oscilloscope):
 
     Shows OUT+ and IN+ by default (useful for power test screenshots).
     Tests override via configure_channel as needed.
-    State cache is cleared so all settings are re-sent.
     """
+    # Turn off all channels, invalidating their cached state
     for ch in _ALL_SCOPE_CHANNELS:
-        oscilloscope._conn.write(f"{ch}:TRA OFF")
+        oscilloscope._write_if_changed(f"{ch}:TRA", f"{ch}:TRA OFF")
+        # Invalidate VDIV cache — scope may ignore VDIV while trace is OFF
+        oscilloscope._state.pop(f"{ch}:VDIV", None)
+        oscilloscope._state.pop(f"{ch}:ATTN", None)
+        oscilloscope._state.pop(f"{ch}:CPL", None)
+    # Enable default channels with proper settings
     for ch, vdiv in _DEFAULT_CHANNELS.items():
-        oscilloscope._conn.write(f"{ch}:TRA ON")
-        oscilloscope._conn.write(f"{ch}:VDIV {vdiv}")
-    oscilloscope._state.clear()
+        oscilloscope._write_if_changed(f"{ch}:TRA", f"{ch}:TRA ON")
+        oscilloscope._write_if_changed(f"{ch}:VDIV", f"{ch}:VDIV {vdiv}")
 
 
 @pytest.fixture(autouse=True)

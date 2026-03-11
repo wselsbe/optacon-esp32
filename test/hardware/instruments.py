@@ -75,21 +75,47 @@ class SCPIConnection:
                     time.sleep(0.5)
 
     def read_binary(self, command: str) -> bytes:
-        """Send command and read binary response (non-blocking drain)."""
+        """Send command and read binary response (BMP size-aware).
+
+        Reads the BMP header to determine total file size, then reads
+        until all bytes are received. Falls back to timeout-based drain
+        if the header can't be parsed.
+        """
         with self._lock:
             self._ensure_connected()
-            self._sock.setblocking(False)
+            self._buf = b""
+            self._sock.settimeout(5)
             try:
                 self._sock.sendall(f"{command}\n".encode("ascii"))
-                time.sleep(1)  # let scope prepare the response
                 data = b""
-                while True:
-                    try:
-                        time.sleep(0.01)
-                        chunk = self._sock.recv(8000)
-                        data += chunk
-                    except BlockingIOError:
+                # Read until we have at least the BMP header (first 6 bytes)
+                while len(data) < 6:
+                    chunk = self._sock.recv(65536)
+                    if not chunk:
                         break
+                    data += chunk
+                # Parse BMP file size from header (bytes 2-5, little-endian)
+                expected_size = None
+                if len(data) >= 6 and data[:2] == b"BM":
+                    expected_size = int.from_bytes(data[2:6], "little")
+                if expected_size and expected_size > 0:
+                    # Read remaining bytes with known target size
+                    while len(data) < expected_size:
+                        chunk = self._sock.recv(65536)
+                        if not chunk:
+                            break
+                        data += chunk
+                else:
+                    # Fallback: timeout-based drain for non-BMP responses
+                    self._sock.settimeout(1)
+                    try:
+                        while True:
+                            chunk = self._sock.recv(65536)
+                            if not chunk:
+                                break
+                            data += chunk
+                    except TimeoutError:
+                        pass
                 return data
             finally:
                 self._sock.settimeout(self.timeout)
@@ -145,6 +171,9 @@ class Oscilloscope:
         trace: bool = True,
         probe: int = 10,
     ):
+        # TRA must be ON before setting VDIV — scope ignores VDIV while trace is OFF
+        tra = "ON" if trace else "OFF"
+        self._write_if_changed(f"{channel}:TRA", f"{channel}:TRA {tra}")
         # ATTN must be set before VDIV — Siglent rescales VDIV when ATTN changes
         attn_cmd = f"{channel}:ATTN {probe}"
         if self._state.get(f"{channel}:ATTN") != attn_cmd:
@@ -154,8 +183,6 @@ class Oscilloscope:
             self._state.pop(f"{channel}:VDIV", None)
         self._write_if_changed(f"{channel}:VDIV", f"{channel}:VDIV {vdiv}")
         self._write_if_changed(f"{channel}:CPL", f"{channel}:CPL {coupling}")
-        tra = "ON" if trace else "OFF"
-        self._write_if_changed(f"{channel}:TRA", f"{channel}:TRA {tra}")
 
     def configure_timebase(self, timebase: str):
         self._write_if_changed("TDIV", f"TDIV {timebase}")
