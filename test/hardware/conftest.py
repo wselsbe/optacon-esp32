@@ -1,8 +1,8 @@
 """Hardware E2E test fixtures — real board + real instruments.
 
-TODO: Hide scope on-screen messages ("Enable test is off!", "Fine adjustment")
-in screenshots. MENU OFF suppresses popups but also hides the channel info sidebar.
-Investigate per-message suppression or send MENU OFF only before SCDP screenshot.
+Scope message suppression: "Enable test is off!" hidden by enabling pass/fail
+(PFEN ON) at connect. "Fine adjustment" overlay (triggered by VDIV/TDIV SCPI
+commands) auto-dismisses after ~3s — screenshot fixture waits before capture.
 """
 
 import json
@@ -56,6 +56,8 @@ def oscilloscope(config):
     host, port = _parse_address(config["sds"])
     scope = Oscilloscope(host, port)
     scope.connect()
+    # Enable pass/fail test to suppress "Enable test is off!" popup in screenshots
+    scope._conn.write("PFEN ON")
     yield scope
     scope.disconnect()
 
@@ -221,6 +223,11 @@ def _screenshot_after_test(request, oscilloscope, board):
 
         from PIL import Image
 
+        import time
+
+        # Wait for scope info messages to auto-dismiss before capturing.
+        # VDIV/TDIV SCPI commands trigger a "Fine adjustment" overlay (~4s).
+        time.sleep(4)
         bmp_data = oscilloscope.screenshot()
         img = Image.open(io.BytesIO(bmp_data))
         img.save(out_path, "PNG")
