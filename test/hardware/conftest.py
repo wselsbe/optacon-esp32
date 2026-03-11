@@ -56,10 +56,18 @@ def oscilloscope(config):
 
 
 @pytest.fixture(scope="session")
-def power_supply(config):
+def power_supply(config, psu_channel):
     host, port = _parse_address(config["spd"])
     psu = PowerSupply(host, port)
     psu.connect()
+    voltage = config.get("power_supply_voltage", 5.0)
+    current_limit = config.get("power_supply_current_limit", 0.5)
+    was_on = psu.is_output_on(psu_channel)
+    psu.ensure_output_on(psu_channel, voltage, current_limit)
+    if not was_on:
+        import time
+
+        time.sleep(3)  # let board boot after power-on
     yield psu
     psu.disconnect()
 
@@ -104,7 +112,7 @@ def _discover_board(hostname: str) -> str:
 
 
 @pytest.fixture(scope="session")
-def board_url(config):
+def board_url(config, power_supply):
     import urllib.request
 
     hostname = config["board_hostname"]
@@ -158,7 +166,7 @@ def board(board_url, request):
 def configure_scope(oscilloscope, channels):
     """Configure oscilloscope for signal measurement at a given frequency."""
 
-    def _setup(freq_hz, ch=None, vdiv=None):
+    def _setup(freq_hz, ch=None, vdiv=None, coupling="D1M"):
         if freq_hz <= 60:
             timebase = "10MS"
         elif freq_hz <= 200:
@@ -175,15 +183,16 @@ def configure_scope(oscilloscope, channels):
         # Always configure IN+ (trigger source) so probe/vdiv are correct
         # Always configure both IN+ and target channel
         ch_in = channels["in_plus"]
-        oscilloscope.configure_channel(ch_in, vdiv="1V", coupling="D1M", probe=10)
+        oscilloscope.configure_channel(ch_in, vdiv="1V", coupling=coupling, probe=10)
         if target_ch != ch_in:
-            oscilloscope.configure_channel(target_ch, vdiv=vdiv, coupling="D1M", probe=10)
+            oscilloscope.configure_channel(target_ch, vdiv=vdiv, coupling=coupling, probe=10)
         # Disable unused channels to avoid stale state
         for ch_name, ch_id in channels.items():
             if ch_id not in (ch_in, target_ch) and ch_name != "polarity":
                 oscilloscope.configure_channel(ch_id, vdiv="10V", trace=False)
         oscilloscope.configure_timebase(timebase)
-        oscilloscope.configure_trigger(ch_in, level="0.5V", slope="POS")
+        trig_level = "0V" if coupling == "A1M" else "0.5V"
+        oscilloscope.configure_trigger(ch_in, level=trig_level, slope="POS")
         oscilloscope.wait_ready()
         oscilloscope.run()
 

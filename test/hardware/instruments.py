@@ -60,22 +60,33 @@ class SCPIConnection:
         line, self._buf = self._buf.split(b"\n", 1)
         return line
 
-    def query(self, command: str) -> str:
+    def query(self, command: str, retries: int = 1) -> str:
         with self._lock:
-            self._ensure_connected()
-            self._sock.sendall(f"{command}\n".encode("ascii"))
-            try:
-                response = self._readline()
-                return response.decode("ascii").strip().lstrip("\x00")
-            except TimeoutError:
-                self.disconnect()
-                raise
+            for attempt in range(1 + retries):
+                self._ensure_connected()
+                try:
+                    self._sock.sendall(f"{command}\n".encode("ascii"))
+                    response = self._readline()
+                    return response.decode("ascii").strip().lstrip("\x00")
+                except (ConnectionResetError, ConnectionError, TimeoutError):
+                    self.disconnect()
+                    if attempt >= retries:
+                        raise
+                    time.sleep(0.5)
 
-    def write(self, command: str):
+    def write(self, command: str, retries: int = 1):
         with self._lock:
-            self._ensure_connected()
-            self._sock.sendall(f"{command}\n".encode("ascii"))
-            time.sleep(0.05)
+            for attempt in range(1 + retries):
+                self._ensure_connected()
+                try:
+                    self._sock.sendall(f"{command}\n".encode("ascii"))
+                    time.sleep(0.05)
+                    return
+                except (ConnectionResetError, ConnectionError):
+                    self.disconnect()
+                    if attempt >= retries:
+                        raise
+                    time.sleep(0.5)
 
 
 class Oscilloscope:
@@ -203,6 +214,24 @@ class PowerSupply:
     def measure_power(self, channel: str) -> float:
         result = self._conn.query(f"MEASure:POWEr? {channel}")
         return float(result)
+
+    def is_output_on(self, channel: str, threshold: float = 1.0) -> bool:
+        """Check if output is on by measuring voltage (> threshold means on)."""
+        try:
+            voltage = self.measure_voltage(channel)
+            return voltage > threshold
+        except Exception:
+            return False
+
+    def ensure_output_on(self, channel: str, voltage: float, current_limit: float):
+        """Set voltage/current and enable output if not already on."""
+        if current_limit > 1.0:
+            raise ValueError(f"Current limit {current_limit}A exceeds 1A safety cap")
+        if self.is_output_on(channel):
+            return
+        self.set_voltage(channel, voltage)
+        self.set_current(channel, current_limit)
+        self.set_output(channel, True)
 
 
 class Multimeter:

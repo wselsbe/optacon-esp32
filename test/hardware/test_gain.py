@@ -8,8 +8,17 @@ pytestmark = pytest.mark.hardware
 
 FREQ_HZ = 250
 GAIN_LEVELS = [25, 50, 75, 100]
-# OUT+ amplitude scales with gain — use appropriate V/div to avoid clipping
-GAIN_VDIV = {25: "500mV", 50: "2V", 75: "2V", 100: "5V"}
+# amplitude=55 drives IN+ to ~2.5Vpp single-ended, which slightly overdrives
+# the DRV2665 1.8Vpp differential input. However, there is unwanted signal
+# coupling on IN- (~0.8Vpp from boost converter noise) that reduces the
+# effective differential swing. This needs to be addressed in a future
+# hardware revision (better IN- decoupling cap or layout).
+AMPLITUDE = 55
+# OUT+ has a ~30V DC bias from the boost converter — AC coupling isolates
+# the signal component for accurate PKPK measurement.
+COUPLING = "A1M"
+# V/div must fit the full output swing at each gain level
+GAIN_VDIV = {25: "5V", 50: "10V", 75: "10V", 100: "10V"}
 
 
 def test_gain_ordering(board_url, oscilloscope, channels, configure_scope):
@@ -25,11 +34,13 @@ def test_gain_ordering(board_url, oscilloscope, channels, configure_scope):
         try:
             ch_out = channels["out_plus"]
 
-            client.set_frequency_analog(hz=FREQ_HZ)
+            client.set_frequency_analog(hz=FREQ_HZ, amplitude=AMPLITUDE)
             client.start(gain=gain)
             time.sleep(0.5)
 
-            configure_scope(FREQ_HZ, ch=ch_out, vdiv=GAIN_VDIV[gain])
+            configure_scope(
+                FREQ_HZ, ch=ch_out, vdiv=GAIN_VDIV[gain], coupling=COUPLING
+            )
             time.sleep(1.5)
 
             out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
@@ -58,11 +69,11 @@ def test_gain_produces_signal(board, oscilloscope, channels, configure_scope, ga
     """Each gain setting should produce a measurable signal on OUT+."""
     ch_out = channels["out_plus"]
 
-    board.set_frequency_analog(hz=FREQ_HZ)
+    board.set_frequency_analog(hz=FREQ_HZ, amplitude=AMPLITUDE)
     board.start(gain=gain)
     time.sleep(0.5)
 
-    configure_scope(FREQ_HZ, ch=ch_out, vdiv=GAIN_VDIV[gain])
+    configure_scope(FREQ_HZ, ch=ch_out, vdiv=GAIN_VDIV[gain], coupling=COUPLING)
     time.sleep(1.5)
 
     out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
