@@ -19,16 +19,24 @@ import requests
 pytestmark = pytest.mark.hardware
 
 
-def test_sweep_frequency_increases(board_url, board, oscilloscope, channels, configure_scope):
+def test_sweep_frequency_increases(
+    board_url, board, oscilloscope, channels, clear_measurements,
+    configure_channel, configure_timebase, configure_trigger, start_acquisition,
+):
     """During a sweep from 50-500 Hz, measured frequency should increase over time."""
     ch_in = channels["in_plus"]
+    ch_out = channels["out_plus"]
 
     # Start signal first so scope can trigger
     board.set_frequency_analog(hz=50)
     board.start()
     time.sleep(0.5)
 
-    configure_scope(250)
+    configure_channel(ch_in, vdiv="1V")
+    configure_channel(ch_out, vdiv="20V")
+    configure_timebase(250)
+    configure_trigger(ch_in)
+    start_acquisition()
     time.sleep(0.5)
 
     # Start sweep via exec API (fire-and-forget — sweep blocks for 5s)

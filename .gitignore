@@ -28,3 +28,8 @@ scripts/*.pid
 
 # Hardware test config (contains local lab IPs)
 test/hardware/config.json
+
+# Hardware test results (generated per-run)
+test/hardware/report.html
+test/hardware/screenshots/
+test/hardware/assets/

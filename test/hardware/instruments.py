@@ -74,6 +74,26 @@ class SCPIConnection:
                         raise
                     time.sleep(0.5)
 
+    def read_binary(self, command: str) -> bytes:
+        """Send command and read binary response (non-blocking drain)."""
+        with self._lock:
+            self._ensure_connected()
+            self._sock.setblocking(False)
+            try:
+                self._sock.sendall(f"{command}\n".encode("ascii"))
+                time.sleep(1)  # let scope prepare the response
+                data = b""
+                while True:
+                    try:
+                        time.sleep(0.01)
+                        chunk = self._sock.recv(8000)
+                        data += chunk
+                    except BlockingIOError:
+                        break
+                return data
+            finally:
+                self._sock.settimeout(self.timeout)
+
     def write(self, command: str, retries: int = 1):
         with self._lock:
             for attempt in range(1 + retries):
@@ -168,6 +188,10 @@ class Oscilloscope:
         if len(parts) >= 2:
             return parts[1]
         return result
+
+    def screenshot(self) -> bytes:
+        """Capture screen as BMP image."""
+        return self._conn.read_binary("SCDP")
 
     def measure_float(self, channel: str, parameter: str) -> float | None:
         val = self.measure(channel, parameter)

@@ -7,6 +7,12 @@ import subprocess
 class BoardClient:
     """Base board client with shared assertions."""
 
+    # DRV2665 full-scale is 1.8Vpp differential; amplitude=55 drives ~2.5Vpp on
+    # IN+, slightly overdriving the input. There is unwanted ~0.8Vpp coupling on
+    # IN- (cause unknown) which reduces the effective differential swing. To be
+    # reviewed in a future hardware revision.
+    DEFAULT_AMPLITUDE = 55
+
     def connect(self):
         raise NotImplementedError
 
@@ -33,7 +39,7 @@ class BoardClient:
     def set_frequency_analog(
         self,
         hz: int,
-        amplitude: int = 100,
+        amplitude: int = DEFAULT_AMPLITUDE,
         waveform: str = "sine",
         fullwave: bool = False,
     ) -> dict:
@@ -104,7 +110,7 @@ class WSBoardClient(BoardClient):
     def set_frequency_analog(
         self,
         hz: int,
-        amplitude: int = 100,
+        amplitude: int = BoardClient.DEFAULT_AMPLITUDE,
         waveform: str = "sine",
         fullwave: bool = False,
     ) -> dict:

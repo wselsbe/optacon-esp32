@@ -133,6 +133,12 @@ def board_url(config, power_supply):
     pytest.fail(f"Board at {url} is not responding to /api/device/status")
 
 
+def pytest_configure(config):
+    """Auto-enable HTML report for hardware tests."""
+    if not config.option.htmlpath:
+        config.option.htmlpath = os.path.join(_HERE, "report.html")
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--board-client",
@@ -162,11 +168,69 @@ def board(board_url, request):
     client.close()
 
 
-@pytest.fixture
-def configure_scope(oscilloscope, channels):
-    """Configure oscilloscope for signal measurement at a given frequency."""
+_SCREENSHOT_DIR = os.path.join(_HERE, "screenshots")
 
-    def _setup(freq_hz, ch=None, vdiv=None, coupling="D1M"):
+
+@pytest.fixture(autouse=True)
+def _screenshot_after_test(request, oscilloscope, board):
+    """Take a scope screenshot after each test, before signal is stopped."""
+    yield
+    parts = request.node.nodeid.split("::")
+    file_stem = os.path.splitext(os.path.basename(parts[0]))[0]
+    test_name = parts[1] if len(parts) > 1 else "unknown"
+    safe_name = test_name.replace("/", "_").replace("\\", "_")
+    out_dir = os.path.join(_SCREENSHOT_DIR, file_stem)
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, f"{safe_name}.bmp")
+    try:
+        data = oscilloscope.screenshot()
+        with open(out_path, "wb") as f:
+            f.write(data)
+        # Store path for pytest-html hook to pick up
+        request.node._screenshot_path = out_path
+    except Exception as e:
+        import warnings
+
+        warnings.warn(f"Screenshot failed: {e}", stacklevel=2)
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    if report.when == "teardown":
+        screenshot_path = getattr(item, "_screenshot_path", None)
+        if screenshot_path and os.path.exists(screenshot_path):
+            from pytest_html import extras
+
+            rel_path = os.path.relpath(screenshot_path, _HERE)
+            extra = getattr(report, "extras", [])
+            extra.append(extras.html(
+                f'<div class="image"><img src="{rel_path}" '
+                f'style="max-width:800px" alt="scope screenshot"></div>'
+            ))
+            report.extras = extra
+
+
+@pytest.fixture
+def configure_channel(oscilloscope):
+    """Configure a single oscilloscope channel.
+
+    AC coupling by default: OUT+ has ~30V DC bias, IN+ has ~1.6V DC bias.
+    Use coupling="D1M" for polarity channel (digital signal).
+    """
+
+    def _setup(ch, vdiv, coupling="A1M", probe=10):
+        oscilloscope.configure_channel(ch, vdiv=vdiv, coupling=coupling, probe=probe)
+
+    return _setup
+
+
+@pytest.fixture
+def configure_timebase(oscilloscope):
+    """Set oscilloscope timebase from frequency."""
+
+    def _setup(freq_hz):
         if freq_hz <= 60:
             timebase = "10MS"
         elif freq_hz <= 200:
@@ -175,25 +239,36 @@ def configure_scope(oscilloscope, channels):
             timebase = "2MS"
         else:
             timebase = "1MS"
-
-        target_ch = ch or channels["in_plus"]
-        # IN+ is ~3.3Vpp, OUT+ varies by gain (3-50Vpp) — pick sensible defaults
-        if vdiv is None:
-            vdiv = "1V" if target_ch == channels["in_plus"] else "2V"
-        # Always configure IN+ (trigger source) so probe/vdiv are correct
-        # Always configure both IN+ and target channel
-        ch_in = channels["in_plus"]
-        oscilloscope.configure_channel(ch_in, vdiv="1V", coupling=coupling, probe=10)
-        if target_ch != ch_in:
-            oscilloscope.configure_channel(target_ch, vdiv=vdiv, coupling=coupling, probe=10)
-        # Disable unused channels to avoid stale state
-        for ch_name, ch_id in channels.items():
-            if ch_id not in (ch_in, target_ch) and ch_name != "polarity":
-                oscilloscope.configure_channel(ch_id, vdiv="10V", trace=False)
         oscilloscope.configure_timebase(timebase)
-        trig_level = "0V" if coupling == "A1M" else "0.5V"
-        oscilloscope.configure_trigger(ch_in, level=trig_level, slope="POS")
+
+    return _setup
+
+
+@pytest.fixture
+def configure_trigger(oscilloscope):
+    """Set trigger source and level. Level auto-picked from coupling if not given."""
+
+    def _setup(ch, level=None, slope="POS", coupling="A1M"):
+        if level is None:
+            level = "0V" if coupling == "A1M" else "0.5V"
+        oscilloscope.configure_trigger(ch, level=level, slope=slope)
+
+    return _setup
+
+
+@pytest.fixture
+def start_acquisition(oscilloscope):
+    """Wait for pending operations and start acquisition."""
+
+    def _setup():
         oscilloscope.wait_ready()
         oscilloscope.run()
 
     return _setup
+
+
+@pytest.fixture
+def clear_measurements(oscilloscope):
+    """Clear all scope measurements after the test."""
+    yield
+    oscilloscope._conn.write("PACL")

@@ -17,6 +17,7 @@ def test_fullwave_polarity_toggles(board, oscilloscope, channels, tolerance):
     board.start()
     time.sleep(0.5)
 
+    # Polarity is a digital signal — must use DC coupling
     oscilloscope.configure_channel(ch_pol, vdiv="2V", coupling="D1M", probe=10)
     oscilloscope.configure_timebase("2MS")
     oscilloscope.configure_trigger(ch_pol, level="2V", slope="POS")
@@ -43,6 +44,7 @@ def test_non_fullwave_polarity_static(board, oscilloscope, channels):
     board.start()
     time.sleep(0.5)
 
+    # Polarity is a digital signal — must use DC coupling
     oscilloscope.configure_channel(ch_pol, vdiv="2V", coupling="D1M", probe=10)
     oscilloscope.configure_timebase("2MS")
     oscilloscope.configure_trigger(ch_pol, level="2V", slope="POS")
@@ -55,7 +57,10 @@ def test_non_fullwave_polarity_static(board, oscilloscope, channels):
     )
 
 
-def test_fullwave_doubles_frequency(board, oscilloscope, channels, tolerance):
+def test_fullwave_doubles_frequency(
+    board, oscilloscope, channels, tolerance, clear_measurements,
+    configure_channel, configure_timebase, configure_trigger, start_acquisition,
+):
     """In fullwave mode, IN+ frequency should be 2x the set frequency (|sin|)."""
     ch_in = channels["in_plus"]
 
@@ -63,10 +68,10 @@ def test_fullwave_doubles_frequency(board, oscilloscope, channels, tolerance):
     board.start()
     time.sleep(0.5)
 
-    oscilloscope.configure_channel(ch_in, vdiv="1V", coupling="D1M", probe=10)
-    oscilloscope.configure_timebase("2MS")
-    oscilloscope.configure_trigger(ch_in, level="0.5V", slope="POS")
-    oscilloscope.run()
+    configure_channel(ch_in, vdiv="1V")
+    configure_timebase(FREQ_HZ)
+    configure_trigger(ch_in)
+    start_acquisition()
     time.sleep(1.0)
 
     in_freq = oscilloscope.measure_float(ch_in, "FREQ")
