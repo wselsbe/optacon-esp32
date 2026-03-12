@@ -122,13 +122,11 @@ class TestSetFrequencyLive:
 
 
 class TestSetFrequencyAnalogAmplitudeBounds:
-    @pytest.mark.xfail(reason="set_frequency_analog does not validate amplitude bounds")
     def test_amplitude_above_100_raises(self):
         pa = PzDrive()
         with pytest.raises(ValueError):
             pa.set_frequency_analog(250, amplitude=101)
 
-    @pytest.mark.xfail(reason="set_frequency_analog does not validate amplitude bounds")
     def test_amplitude_negative_raises(self):
         pa = PzDrive()
         with pytest.raises(ValueError):

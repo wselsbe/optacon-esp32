@@ -1,0 +1,15 @@
+{
+  "sds": "192.168.30.236:5025",
+  "spd": "192.168.30.134:5025",
+  "sdm": "192.168.30.17:5024",
+  "board_hostname": "esp-optacon",
+  "oscilloscope_channels": {
+    "out_plus": "C2",
+    "polarity": "C3",
+    "in_plus": "C4"
+  },
+  "power_supply_channel": "CH1",
+  "power_supply_voltage": 5.0,
+  "power_supply_current_limit": 1.0,
+  "tolerance": 0.20
+}

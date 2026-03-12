@@ -14,6 +14,9 @@ import microdot.microdot as _microdot_mod
 import pytest
 import pytest_asyncio
 
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_SCREENSHOT_DIR = os.path.join(_HERE, "screenshots")
+
 _repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _original_send_file = microdot.send_file
 
@@ -182,3 +185,50 @@ def page_url(mock_deps):
     loop.call_soon_threadsafe(loop.stop)
     thread.join(timeout=2)
     loop.close()
+
+
+@pytest.fixture
+def _pw_screenshot(request, page):
+    """Take a Playwright screenshot after each UI test.
+
+    Not autouse — applied via pytest_collection_modifyitems to tests using page.
+    """
+    yield
+    parts = request.node.nodeid.split("::")
+    file_stem = os.path.splitext(os.path.basename(parts[0]))[0]
+    test_name = parts[1] if len(parts) > 1 else "unknown"
+    safe_name = test_name.replace("/", "_").replace("\\", "_")
+    out_dir = os.path.join(_SCREENSHOT_DIR, file_stem)
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, f"{safe_name}.png")
+    try:
+        page.screenshot(path=out_path, full_page=True)
+        request.node._screenshot_path = out_path
+    except Exception:
+        pass
+
+
+def pytest_collection_modifyitems(items):
+    """Auto-apply _pw_screenshot fixture to tests that use the page fixture."""
+    for item in items:
+        if "page" in item.fixturenames:
+            item.fixturenames.append("_pw_screenshot")
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    if report.when == "teardown":
+        screenshot_path = getattr(item, "_screenshot_path", None)
+        if screenshot_path and os.path.exists(screenshot_path):
+            from pytest_html import extras
+
+            report_dir = os.path.dirname(item.config.option.htmlpath or "")
+            rel_path = os.path.relpath(screenshot_path, report_dir)
+            extra = getattr(report, "extras", [])
+            extra.append(extras.html(
+                f'<div class="image"><img src="{rel_path}" '
+                f'style="max-width:800px" alt="screenshot"></div>'
+            ))
+            report.extras = extra
