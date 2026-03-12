@@ -7,7 +7,7 @@ Add hardware tests that verify OTA update functionality on real hardware: firmwa
 ## Decisions
 
 - **Mock server:** Reuse `OTAMockServer` from `test/e2e/ota_server.py`, bound to `0.0.0.0` so the board can reach it over the network.
-- **Server discovery:** Auto-detect the Pi's LAN IP by resolving the board's IP first, then finding the local interface on the same /24 subnet. Algorithm: get board IP from `board_url`, enumerate local interfaces via `netifaces` or `ip route get <board-ip>`, pick the source address.
+- **Server discovery:** Use `socket.gethostname()` / `socket.getfqdn()` to get the Pi's hostname, then resolve it to an IP. Simple and sufficient since the Pi and board are on the same LAN.
 - **Firmware binary:** Use the latest locally built firmware (`micropython.bin`). Since `boot_cfg.FIRMWARE_VERSION` is frozen into the build, the version string won't change after update — tests verify the OTA mechanism (download, SHA verify, partition write, reboot), not the version bump. This is a known limitation documented in the tests.
 - **Bad firmware:** Garbage binary (random bytes) with a matching SHA-256 in the manifest. This means `ota.py` downloads and flashes it successfully, but the ESP32 bootloader rejects the invalid image on boot and reverts to the previous partition. This tests the bootloader-level rollback path, not the download verification path.
 - **File rollback trigger:** Serve a broken `web_server.py` (syntax error). The board's frozen `main.py` imports `web_server` at the top level (line 5), before `clear_update_flag()` (line 98). The import crash leaves the NVS flag set. A second reboot via `mpremote reset` (soft reset via serial) triggers `boot.py` rollback. Fallback: if soft reset fails, power cycle via PSU fixture.
@@ -36,7 +36,7 @@ Add hardware tests that verify OTA update functionality on real hardware: firmwa
 
 **`ota_server`** (session-scoped):
 - Starts `OTAMockServer` on `0.0.0.0:<random-port>`
-- Auto-detects Pi's LAN IP: resolve board IP → find local interface on same /24 subnet
+- Gets Pi's IP via `socket.gethostname()` resolution
 - Yields `(mock, url)` where `url = "http://<pi-ip>:<port>"`
 - Tears down after session
 
