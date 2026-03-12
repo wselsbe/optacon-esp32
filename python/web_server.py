@@ -283,6 +283,10 @@ def create_app(deps=None):
             return json.dumps({"error": "no text provided"}), 400, {
                 "Content-Type": "application/json"
             }
+        # NOTE: sam.say() is a blocking C module call that will block the async
+        # event loop for the duration of speech synthesis + playback. This is an
+        # inherent limitation — SAM renders and plays audio synchronously via the
+        # pz_drive ISR. No async workaround is possible without C-level changes.
         sam.say(
             text,
             speed=data.get("speed", 72),
@@ -317,6 +321,10 @@ def create_app(deps=None):
                     "Content-Type": "application/json"
                 }
             song.append((note if note != "R" else "R", beats))
+        # NOTE: music.play() blocks the async event loop for the entire song
+        # duration. It uses time.sleep_ms() internally for note timing and drives
+        # the piezo via pz_drive C calls. No async workaround is feasible without
+        # rewriting the player to yield between notes.
         music.play(
             song,
             bpm=data.get("bpm", 120),
@@ -337,6 +345,7 @@ def create_app(deps=None):
             return json.dumps({"error": "unknown song: " + name}), 404, {
                 "Content-Type": "application/json"
             }
+        # NOTE: music.play_song() blocks the event loop (see music.play note above).
         music.play_song(
             name,
             waveform=data.get("waveform", "sine"),

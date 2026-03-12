@@ -95,6 +95,9 @@ def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
         staccato_ratio: fraction of note duration to sound (0.0-1.0)
         loop: if True, repeat until KeyboardInterrupt
     """
+    if bpm < 1:
+        raise ValueError("bpm must be positive")
+
     import pz_drive
     from pz_drive_py import PzDrive
 

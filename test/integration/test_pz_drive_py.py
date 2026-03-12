@@ -1,8 +1,32 @@
 """Integration tests for PzDrive class."""
 
+import os
+import struct
+
 import pytest
 import pz_drive
-from pz_drive_py import PzDrive
+from pz_drive_py import _WAV_MAX_SIZE, PzDrive
+
+
+def _make_wav(sample_rate=22050, bits_per_sample=8, num_channels=1, num_samples=100):
+    """Build a minimal valid WAV file in memory."""
+    bytes_per_sample = bits_per_sample // 8
+    data_size = num_samples * num_channels * bytes_per_sample
+    header = bytearray(44)
+    header[0:4] = b"RIFF"
+    struct.pack_into("<I", header, 4, 36 + data_size)
+    header[8:12] = b"WAVE"
+    header[12:16] = b"fmt "
+    struct.pack_into("<I", header, 16, 16)  # fmt chunk size
+    struct.pack_into("<H", header, 20, 1)   # PCM
+    struct.pack_into("<H", header, 22, num_channels)
+    struct.pack_into("<I", header, 24, sample_rate)
+    struct.pack_into("<I", header, 28, sample_rate * num_channels * bytes_per_sample)
+    struct.pack_into("<H", header, 32, num_channels * bytes_per_sample)
+    struct.pack_into("<H", header, 34, bits_per_sample)
+    header[36:40] = b"data"
+    struct.pack_into("<I", header, 40, data_size)
+    return bytes(header) + b"\x80" * data_size
 
 
 class TestSetFrequencyAnalog:
@@ -69,6 +93,46 @@ class TestSetFrequencyLive:
         pz_drive.pwm_set_frequency_live.assert_called_once()
         args = pz_drive.pwm_set_frequency_live.call_args
         assert args.args[0] == 300
+
+    def test_amplitude_boundary_zero(self):
+        pa = PzDrive()
+        pa.set_frequency_analog(250)
+        pa.start()
+        pa.set_frequency_live(250, amplitude=0)
+
+    def test_amplitude_boundary_max(self):
+        pa = PzDrive()
+        pa.set_frequency_analog(250)
+        pa.start()
+        pa.set_frequency_live(250, amplitude=100)
+
+    def test_amplitude_above_max_raises(self):
+        pa = PzDrive()
+        pa.set_frequency_analog(250)
+        pa.start()
+        with pytest.raises(ValueError):
+            pa.set_frequency_live(250, amplitude=101)
+
+    def test_amplitude_negative_raises(self):
+        pa = PzDrive()
+        pa.set_frequency_analog(250)
+        pa.start()
+        with pytest.raises(ValueError):
+            pa.set_frequency_live(250, amplitude=-1)
+
+
+class TestSetFrequencyAnalogAmplitudeBounds:
+    @pytest.mark.xfail(reason="set_frequency_analog does not validate amplitude bounds")
+    def test_amplitude_above_100_raises(self):
+        pa = PzDrive()
+        with pytest.raises(ValueError):
+            pa.set_frequency_analog(250, amplitude=101)
+
+    @pytest.mark.xfail(reason="set_frequency_analog does not validate amplitude bounds")
+    def test_amplitude_negative_raises(self):
+        pa = PzDrive()
+        with pytest.raises(ValueError):
+            pa.set_frequency_analog(250, amplitude=-1)
 
 
 class TestStart:
@@ -169,3 +233,42 @@ class TestSweepAnalog:
         pa = PzDrive()
         with pytest.raises(ValueError, match="must differ"):
             pa.sweep_analog(250, 250, 1000)
+
+
+class TestPlayWav:
+    def _write_tmp(self, data, tmp_path):
+        p = os.path.join(str(tmp_path), "test.wav")
+        with open(p, "wb") as f:
+            f.write(data)
+        return p
+
+    def test_valid_wav_plays(self, tmp_path):
+        pa = PzDrive()
+        path = self._write_tmp(_make_wav(), tmp_path)
+        pa.play_wav(path)
+        pz_drive.pwm_play_samples.assert_called_once()
+
+    def test_file_too_large_raises(self, tmp_path):
+        pa = PzDrive()
+        data = _make_wav(num_samples=_WAV_MAX_SIZE + 1)
+        path = self._write_tmp(data, tmp_path)
+        with pytest.raises(ValueError, match="too large"):
+            pa.play_wav(path)
+
+    def test_sample_rate_zero_raises(self, tmp_path):
+        pa = PzDrive()
+        path = self._write_tmp(_make_wav(sample_rate=0), tmp_path)
+        with pytest.raises(ValueError, match="sample rate"):
+            pa.play_wav(path)
+
+    def test_invalid_header_raises(self, tmp_path):
+        pa = PzDrive()
+        path = self._write_tmp(b"not a wav file at all!!", tmp_path)
+        with pytest.raises(ValueError, match="not a valid WAV"):
+            pa.play_wav(path)
+
+    def test_unsupported_bits_per_sample_raises(self, tmp_path):
+        pa = PzDrive()
+        path = self._write_tmp(_make_wav(bits_per_sample=32), tmp_path)
+        with pytest.raises(ValueError, match="unsupported bits_per_sample"):
+            pa.play_wav(path)
