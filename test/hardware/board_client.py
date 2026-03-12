@@ -1,11 +1,14 @@
 """Board client implementations: WebSocket API and REPL (mpremote)."""
 
 import json
+import logging
 import subprocess
 
 
 class BoardClient:
     """Base board client with shared assertions."""
+
+    _log = logging.getLogger("board")
 
     # DRV2665 full-scale is 1.8Vpp differential; amplitude=55 drives ~2.5Vpp on
     # IN+, slightly overdriving the input. There is unwanted ~0.8Vpp coupling on
@@ -35,6 +38,7 @@ class BoardClient:
         self._exec("pa.stop()")
         status = self.get_status()
         assert status.get("running") is False, f"Board did not stop: {status}"
+        self._log.info("stop signal")
         return status
 
     def start(self, gain: int = 100) -> dict:
@@ -42,6 +46,7 @@ class BoardClient:
         status = self.get_status()
         assert status.get("running") is True, f"Board did not start: {status}"
         assert status.get("gain") == gain, f"Board did not accept gain={gain}: {status}"
+        self._log.info("start signal, gain=%d", gain)
         return status
 
     def set_frequency_analog(
@@ -62,14 +67,20 @@ class BoardClient:
         assert status.get("fullwave") == fullwave, (
             f"Board did not accept fullwave={fullwave}: {status}"
         )
+        self._log.info(
+            "set analog frequency %d Hz, amplitude %d, %s, fullwave=%s",
+            hz, amplitude, waveform, fullwave,
+        )
         return status
 
     def set_pin(self, pin: int, value: int) -> dict:
         self._exec(f"pa.shift_register.set_pin({pin}, {value})")
+        self._log.info("set pin %d = %d", pin, value)
         return self.get_status()
 
     def set_all(self, value: int) -> dict:
         self._exec(f"pa.shift_register.set_all({value})")
+        self._log.info("set all = %d", value)
         return self.get_status()
 
     def get_status(self) -> dict:
@@ -78,6 +89,8 @@ class BoardClient:
 
 class WSBoardClient(BoardClient):
     """Board client using WebSocket API."""
+
+    _log = logging.getLogger("board.ws")
 
     def __init__(self, url: str):
         from websocket import WebSocket
@@ -107,12 +120,14 @@ class WSBoardClient(BoardClient):
     def stop(self) -> dict:
         status = self._send_cmd("stop")
         assert status.get("running") is False, f"Board did not stop: {status}"
+        self._log.info("stop signal")
         return status
 
     def start(self, gain: int = 100) -> dict:
         status = self._send_cmd("start", gain=gain)
         assert status.get("running") is True, f"Board did not start: {status}"
         assert status.get("gain") == gain, f"Board did not accept gain={gain}: {status}"
+        self._log.info("start signal, gain=%d", gain)
         return status
 
     def set_frequency_analog(
@@ -135,17 +150,25 @@ class WSBoardClient(BoardClient):
         assert status.get("fullwave") == fullwave, (
             f"Board did not accept fullwave={fullwave}: {status}"
         )
+        self._log.info(
+            "set analog frequency %d Hz, amplitude %d, %s, fullwave=%s",
+            hz, amplitude, waveform, fullwave,
+        )
         return status
 
     def set_pin(self, pin: int, value: int) -> dict:
+        self._log.info("set pin %d = %d", pin, value)
         return self._send_cmd("set_pin", pin=pin, value=value)
 
     def set_all(self, value: int) -> dict:
+        self._log.info("set all = %d", value)
         return self._send_cmd("set_all", value=value)
 
 
 class REPLBoardClient(BoardClient):
     """Board client using mpremote REPL (serial connection)."""
+
+    _log = logging.getLogger("board.repl")
 
     def __init__(self, port: str | None = None):
         self._port = port
