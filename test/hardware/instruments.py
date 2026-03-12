@@ -1,6 +1,7 @@
 """Lightweight SCPI instrument clients for hardware E2E tests."""
 
 import contextlib
+import logging
 import re
 import socket
 import threading
@@ -150,6 +151,8 @@ class Oscilloscope:
     for operations to complete before measuring.
     """
 
+    _log = logging.getLogger("instruments.oscilloscope")
+
     def __init__(self, host: str, port: int = 5025):
         self._conn = SCPIConnection(host, port)
         self._state: dict[str, str] = {}
@@ -194,9 +197,15 @@ class Oscilloscope:
             self._state.pop(f"{channel}:VDIV", None)
         self._write_if_changed(f"{channel}:VDIV", f"{channel}:VDIV {vdiv}")
         self._write_if_changed(f"{channel}:CPL", f"{channel}:CPL {coupling}")
+        coupling_label = {"A1M": "AC", "D1M": "DC"}.get(coupling, coupling)
+        self._log.info(
+            "configure channel %s for %s/div, %s coupling, %sx probe",
+            channel, vdiv, coupling_label, probe,
+        )
 
     def configure_timebase(self, timebase: str):
         self._write_if_changed("TDIV", f"TDIV {timebase}")
+        self._log.info("configure timebase %s/div", timebase)
 
     def configure_trigger(self, source: str, level: str, slope: str = "POS"):
         self._write_if_changed("TRLV", f"{source}:TRLV {level}")
@@ -205,6 +214,7 @@ class Oscilloscope:
         self._write_if_changed("TRSE", trse)
         # Use auto trigger mode so scope acquires even without trigger event
         self._write_if_changed("TRMD", "TRMD AUTO")
+        self._log.info("configure trigger on %s at %s, %s slope", source, level, slope)
 
     def wait_ready(self):
         """Wait for all pending operations to complete."""
@@ -234,15 +244,21 @@ class Oscilloscope:
     def measure_float(self, channel: str, parameter: str) -> float | None:
         val = self.measure(channel, parameter)
         if "****" in val or not val:
+            self._log.warning("measure %s on %s → **** (overflow)", parameter, channel)
             return None
         m = self._NUMERIC_RE.search(val)
         if m is None:
+            self._log.warning("measure %s on %s → %s (unparseable)", parameter, channel, val)
             return None
-        return float(m.group())
+        result = float(m.group())
+        self._log.info("measure %s on %s → %s", parameter, channel, val.strip())
+        return result
 
 
 class PowerSupply:
     """Siglent SPD power supply — output control and measurement."""
+
+    _log = logging.getLogger("instruments.powersupply")
 
     def __init__(self, host: str, port: int = 5025):
         self._conn = SCPIConnection(host, port)
@@ -258,24 +274,33 @@ class PowerSupply:
 
     def set_output(self, channel: str, state: bool):
         self._conn.write(f"OUTPut {channel},{'ON' if state else 'OFF'}")
+        self._log.info("set output %s %s", channel, "ON" if state else "OFF")
 
     def set_voltage(self, channel: str, voltage: float):
         self._conn.write(f"{channel}:VOLTage {voltage:.3f}")
+        self._log.info("set voltage %s %.3f V", channel, voltage)
 
     def set_current(self, channel: str, current: float):
         self._conn.write(f"{channel}:CURRent {current:.3f}")
+        self._log.info("set current limit %s %.3f A", channel, current)
 
     def measure_voltage(self, channel: str) -> float:
         result = self._conn.query(f"MEASure:VOLTage? {channel}")
-        return float(result)
+        value = float(result)
+        self._log.info("measure voltage %s → %.3f V", channel, value)
+        return value
 
     def measure_current(self, channel: str) -> float:
         result = self._conn.query(f"MEASure:CURRent? {channel}")
-        return float(result)
+        value = float(result)
+        self._log.info("measure current %s → %.3f A", channel, value)
+        return value
 
     def measure_power(self, channel: str) -> float:
         result = self._conn.query(f"MEASure:POWEr? {channel}")
-        return float(result)
+        value = float(result)
+        self._log.info("measure power %s → %.3f W", channel, value)
+        return value
 
     def is_output_on(self, channel: str, threshold: float = 1.0) -> bool:
         """Check if output is on by measuring voltage (> threshold means on)."""
@@ -299,6 +324,8 @@ class PowerSupply:
 class Multimeter:
     """Siglent SDM multimeter — precision current measurement."""
 
+    _log = logging.getLogger("instruments.multimeter")
+
     def __init__(self, host: str, port: int = 5024):
         self._conn = SCPIConnection(host, port, drain_banner=True)
 
@@ -317,6 +344,7 @@ class Multimeter:
 
     def configure_dc_current(self, range: str = "6"):
         self._conn.write(f"CONFigure:CURRent:DC {range}")
+        self._log.info("configure DC current, range %s", range)
 
     def configure_dc_voltage(self, range: str = "AUTO"):
         if range.upper() == "AUTO":
@@ -324,11 +352,16 @@ class Multimeter:
             self._conn.write("VOLTage:DC:RANGe:AUTO ON")
         else:
             self._conn.write(f"CONFigure:VOLTage:DC {range}")
+        self._log.info("configure DC voltage, range %s", range)
 
     def read(self) -> float:
         result = self._conn.query("READ?")
-        return float(result)
+        value = float(result)
+        self._log.info("read → %s", value)
+        return value
 
     def measure_dc_current(self, range: str = "6") -> float:
         result = self._conn.query(f"MEASure:CURRent:DC? {range}")
-        return float(result)
+        value = float(result)
+        self._log.info("measure DC current → %s A", value)
+        return value
