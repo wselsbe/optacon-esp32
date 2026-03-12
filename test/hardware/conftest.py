@@ -189,22 +189,18 @@ _DEFAULT_CHANNELS = {"C2": "20V", "C4": "1V"}  # OUT+ and IN+
 
 @pytest.fixture(autouse=True)
 def _reset_scope_channels(oscilloscope):
-    """Reset scope to default channels before each test.
+    """Converge scope to default channels before each test.
 
-    Shows OUT+ and IN+ by default (useful for power test screenshots).
-    Tests override via configure_channel as needed.
+    Uses cached state to skip redundant SCPI writes — if channels already
+    match defaults from the previous test, no commands are sent.
     """
-    # Turn off all channels, invalidating their cached state
     for ch in _ALL_SCOPE_CHANNELS:
-        oscilloscope._write_if_changed(f"{ch}:TRA", f"{ch}:TRA OFF")
-        # Invalidate VDIV cache — scope may ignore VDIV while trace is OFF
-        oscilloscope._state.pop(f"{ch}:VDIV", None)
-        oscilloscope._state.pop(f"{ch}:ATTN", None)
-        oscilloscope._state.pop(f"{ch}:CPL", None)
-    # Enable default channels with proper settings
-    for ch, vdiv in _DEFAULT_CHANNELS.items():
-        oscilloscope._write_if_changed(f"{ch}:TRA", f"{ch}:TRA ON")
-        oscilloscope._write_if_changed(f"{ch}:VDIV", f"{ch}:VDIV {vdiv}")
+        if ch in _DEFAULT_CHANNELS:
+            vdiv = _DEFAULT_CHANNELS[ch]
+            oscilloscope._write_if_changed(f"{ch}:TRA", f"{ch}:TRA ON")
+            oscilloscope._write_if_changed(f"{ch}:VDIV", f"{ch}:VDIV {vdiv}")
+        else:
+            oscilloscope._write_if_changed(f"{ch}:TRA", f"{ch}:TRA OFF")
 
 
 @pytest.fixture(autouse=True)
@@ -220,14 +216,16 @@ def _screenshot_after_test(request, oscilloscope, board):
     out_path = os.path.join(out_dir, f"{safe_name}.png")
     try:
         import io
+        import time
 
         from PIL import Image
 
-        import time
-
-        # Wait for scope info messages to auto-dismiss before capturing.
-        # VDIV/TDIV SCPI commands trigger a "Fine adjustment" overlay (~4s).
-        time.sleep(4)
+        # Wait for "Fine adjustment" overlay triggered by VDIV/TDIV commands.
+        # Only sleeps the remaining time since the last triggering command.
+        OVERLAY_DURATION = 4.5
+        remaining = OVERLAY_DURATION - (time.monotonic() - oscilloscope._overlay_triggered)
+        if remaining > 0:
+            time.sleep(remaining)
         bmp_data = oscilloscope.screenshot()
         img = Image.open(io.BytesIO(bmp_data))
         img.save(out_path, "PNG")

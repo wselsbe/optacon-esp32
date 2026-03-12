@@ -153,6 +153,7 @@ class Oscilloscope:
     def __init__(self, host: str, port: int = 5025):
         self._conn = SCPIConnection(host, port)
         self._state: dict[str, str] = {}
+        self._overlay_triggered: float = 0
 
     def connect(self):
         self._conn.connect()
@@ -170,6 +171,8 @@ class Oscilloscope:
         if self._state.get(key) != command:
             self._conn.write(command)
             self._state[key] = command
+            if "VDIV" in key or key == "TDIV" or key == "TRLV":
+                self._overlay_triggered = time.monotonic()
 
     def configure_channel(
         self,
