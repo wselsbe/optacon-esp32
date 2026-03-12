@@ -246,7 +246,8 @@ def pytest_runtest_makereport(item, call):
         if screenshot_path and os.path.exists(screenshot_path):
             from pytest_html import extras
 
-            rel_path = os.path.relpath(screenshot_path, _HERE)
+            report_dir = os.path.dirname(item.config.option.htmlpath or "")
+            rel_path = os.path.relpath(screenshot_path, report_dir)
             extra = getattr(report, "extras", [])
             extra.append(extras.html(
                 f'<div class="image"><img src="{rel_path}" '

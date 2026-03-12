@@ -18,7 +18,7 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["test/integration", "test/e2e", "test/hardware"]
-addopts = "-m 'not hardware'"
+addopts = "-m 'not hardware' --html=test/report.html"
 asyncio_mode = "auto"
 markers = [
     "hardware: tests requiring physical lab instruments (not run in CI)",
