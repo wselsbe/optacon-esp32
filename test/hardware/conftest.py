@@ -5,14 +5,19 @@ Scope message suppression: "Enable test is off!" hidden by enabling pass/fail
 commands) auto-dismisses after ~3s — screenshot fixture waits before capture.
 """
 
+import asyncio
 import json
 import os
 import subprocess
+import threading
 
 import pytest
 
+from test.e2e.ota_server import OTAMockServer
 from test.hardware.board_client import REPLBoardClient, WSBoardClient
+from test.hardware.board_http import BoardHTTPClient
 from test.hardware.instruments import Multimeter, Oscilloscope, PowerSupply
+from test.hardware.ota_helpers import get_local_ip
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _CONFIG_PATH = os.path.join(_HERE, "config.json")
@@ -188,12 +193,16 @@ _DEFAULT_CHANNELS = {"C2": "20V", "C4": "1V"}  # OUT+ and IN+
 
 
 @pytest.fixture(autouse=True)
-def _reset_scope_channels(oscilloscope):
+def _reset_scope_channels(request):
     """Converge scope to default channels before each test.
 
     Uses cached state to skip redundant SCPI writes — if channels already
     match defaults from the previous test, no commands are sent.
+    Only runs for tests that use the 'board' fixture (signal tests).
     """
+    if "board" not in request.fixturenames:
+        return
+    oscilloscope = request.getfixturevalue("oscilloscope")
     for ch in _ALL_SCOPE_CHANNELS:
         if ch in _DEFAULT_CHANNELS:
             vdiv = _DEFAULT_CHANNELS[ch]
@@ -204,8 +213,15 @@ def _reset_scope_channels(oscilloscope):
 
 
 @pytest.fixture(autouse=True)
-def _screenshot_after_test(request, oscilloscope, board):
-    """Take a scope screenshot after each test, before signal is stopped."""
+def _screenshot_after_test(request):
+    """Take a scope screenshot after each test, before signal is stopped.
+
+    Only runs for tests that use the 'board' fixture (signal tests).
+    """
+    if "board" not in request.fixturenames:
+        yield
+        return
+    oscilloscope = request.getfixturevalue("oscilloscope")
     yield
     parts = request.node.nodeid.split("::")
     file_stem = os.path.splitext(os.path.basename(parts[0]))[0]
@@ -316,3 +332,73 @@ def clear_measurements(oscilloscope):
     """Clear all scope measurements after the test."""
     yield
     oscilloscope._conn.write("PACL")
+
+
+# --- OTA test fixtures ---
+
+
+@pytest.fixture(scope="session")
+def ota_server(board_url, tmp_path_factory):
+    """Start mock OTA server on LAN, yield (mock, url).
+
+    The server binds to 0.0.0.0 so the board can reach it.
+    Uses a temp directory for fixture files to avoid polluting E2E fixtures.
+    """
+    from aiohttp import web
+
+    fixtures_dir = str(tmp_path_factory.mktemp("ota_fixtures"))
+    mock = OTAMockServer(fixtures_dir=fixtures_dir)
+    loop = asyncio.new_event_loop()
+    runner = web.AppRunner(mock.app)
+    loop.run_until_complete(runner.setup())
+    site = web.TCPSite(runner, "0.0.0.0", 0)
+    loop.run_until_complete(site.start())
+    port = site._server.sockets[0].getsockname()[1]
+    ip = get_local_ip()
+    url = f"http://{ip}:{port}"
+
+    # Run event loop in background thread
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+
+    yield mock, url
+
+    loop.call_soon_threadsafe(loop.stop)
+    thread.join(timeout=5)
+    loop.run_until_complete(runner.cleanup())
+    loop.close()
+
+
+@pytest.fixture(scope="session")
+def board_http(board_url):
+    """HTTP client for board API."""
+    return BoardHTTPClient(board_url)
+
+
+@pytest.fixture(scope="session")
+def ota_baseline(board_http, ota_server):
+    """Capture board's initial OTA state for rollback assertions.
+
+    Also configures update_url to point to mock server and restores
+    the original config on teardown.
+    """
+    mock, server_url = ota_server
+    config = board_http.get_ota_config()
+    original_url = config.get("update_url", "")
+    original_files_version = config.get("files_version", "unknown")
+    status = board_http.get_device_status()
+    original_firmware_version = status.get("firmware_version", "unknown")
+
+    # Point board at mock server
+    board_http.put_ota_config({"update_url": server_url})
+
+    baseline = {
+        "firmware_version": original_firmware_version,
+        "files_version": original_files_version,
+        "update_url": original_url,
+    }
+
+    yield baseline
+
+    # Restore original config
+    board_http.put_ota_config({"update_url": original_url})
