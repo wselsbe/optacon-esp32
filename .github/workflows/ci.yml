@@ -40,7 +40,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r test/requirements.txt
-      - run: pytest test/integration/ -v
+      - run: pytest test/integration/ -v -m 'not hardware'
 
   test-e2e:
     name: E2E tests
@@ -52,7 +52,7 @@ jobs:
           python-version: "3.12"
       - run: pip install -r test/requirements.txt
       - run: playwright install --with-deps chromium
-      - run: pytest test/e2e/ -v
+      - run: pytest test/e2e/ -v -m 'not hardware'
 
   build:
     name: Build firmware
