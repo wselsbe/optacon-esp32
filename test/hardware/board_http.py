@@ -10,7 +10,7 @@ _log = logging.getLogger("board.http")
 class BoardHTTPClient:
     """Wraps the board's HTTP API for OTA operations."""
 
-    def __init__(self, base_url: str, timeout: float = 30.0):
+    def __init__(self, base_url: str, timeout: float = 120.0):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
