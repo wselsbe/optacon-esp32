@@ -189,6 +189,7 @@ def create_app(deps=None):
             }
         ok = deps.ota.update_files(manifest, version)
         if ok:
+            _schedule_reset()
             return (
                 json.dumps({"status": "ok", "message": "Files updated. Rebooting..."}),
                 200,

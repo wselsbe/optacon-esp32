@@ -29,6 +29,14 @@ def _check_rollback():
     if not pending:
         return
 
+    if pending == 1:
+        # First boot after file update — give main.py a chance to clear flag.
+        # Bump to 2 so if this boot crashes, next boot will roll back.
+        nvs.set_i32("file_upd", 2)
+        nvs.commit()
+        _log("File update pending flag SET — first boot, allowing update")
+        return
+
     _log("File update pending flag SET — rolling back")
     rolled = 0
 
