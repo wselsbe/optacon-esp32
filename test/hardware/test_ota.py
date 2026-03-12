@@ -12,11 +12,13 @@ Tests verify the OTA mechanism (download, verify, flash, reboot),
 not the version bump.
 """
 
+import contextlib
 import hashlib
 import os
 import shutil
 import subprocess
 import time
+import urllib.error
 import urllib.request
 
 import pytest
@@ -148,10 +150,8 @@ def _trigger_soft_reset():
 
     May fail silently if serial port is busy (e.g. MCP server holding it).
     """
-    try:
+    with contextlib.suppress(subprocess.TimeoutExpired, FileNotFoundError):
         subprocess.run(["mpremote", "reset"], timeout=10, capture_output=True)
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
 
 
 def _board_is_reachable(board_url, timeout=5):
@@ -302,7 +302,7 @@ class TestOTAFailure:
         mock.error_mode = "500"
 
         # Attempt file update — should fail
-        with pytest.raises(Exception):
+        with pytest.raises(urllib.error.HTTPError):
             # Board API returns HTTP 500 when update_files() fails internally
             board_http.ota_update_files(manifest, files_ver)
 
@@ -353,9 +353,9 @@ class TestOTAFailure:
 
         # Attempt firmware update — should fail with HTTP 500
         # because esp_ota_end() rejects the invalid binary
-        with pytest.raises(Exception) as exc_info:
+        with pytest.raises(urllib.error.HTTPError) as exc_info:
             board_http.ota_update_firmware(manifest, fw_ver)
-        assert "500" in str(exc_info.value), f"Expected HTTP 500, got: {exc_info.value}"
+        assert exc_info.value.code == 500, f"Expected HTTP 500, got: {exc_info.value}"
 
         # Board should still be responsive (no reboot occurred)
         status = board_http.get_device_status()
