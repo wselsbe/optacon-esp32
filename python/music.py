@@ -25,7 +25,7 @@ Usage:
     play(my_song, bpm=120)
 """
 
-import time
+import asyncio
 
 # ---------------------------------------------------------------------------
 # Note-to-frequency table (A4 = 440 Hz, equal temperament)
@@ -75,8 +75,22 @@ def note_freq(name):
 
 _PWM_SAMPLE_RATE = 32000
 
+_playing = False
+_cancelled = False
 
-def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
+
+def is_playing():
+    """Return True if a song is currently playing."""
+    return _playing
+
+
+def stop():
+    """Request cancellation of the current song."""
+    global _cancelled
+    _cancelled = True
+
+
+async def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
          staccato_ratio=0.9, loop=False):
     """Play a song: list of note tuples.
 
@@ -97,6 +111,10 @@ def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
     """
     if bpm < 1:
         raise ValueError("bpm must be positive")
+
+    global _playing, _cancelled
+    _playing = True
+    _cancelled = False
 
     import pz_drive
     from pz_drive_py import PzDrive
@@ -135,7 +153,9 @@ def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
 
                 if is_rest:
                     pa.set_frequency_live(1, amplitude=0, waveform=waveform)
-                    time.sleep_ms(dur_ms)
+                    await asyncio.sleep_ms(dur_ms)
+                    if _cancelled:
+                        break
                     prev_freq = 0
                 else:
                     freq = note_freq(note)
@@ -171,21 +191,27 @@ def play(song, bpm=72, gain=100, waveform="sine", amplitude=100,
                             freq, amplitude=note_amp, waveform=waveform
                         )
 
-                    time.sleep_ms(sound_ms)
+                    await asyncio.sleep_ms(sound_ms)
+                    if _cancelled:
+                        break
                     prev_freq = freq
 
                     if gap_ms > 0:
                         pa.set_frequency_live(
                             freq, amplitude=0, waveform=waveform
                         )
-                        time.sleep_ms(gap_ms)
+                        await asyncio.sleep_ms(gap_ms)
+                        if _cancelled:
+                            break
 
-            if not loop:
+            if _cancelled or not loop:
                 break
     except KeyboardInterrupt:
         pass
     finally:
         pa.stop()
+        _playing = False
+        _cancelled = False
 
 
 # ---------------------------------------------------------------------------
@@ -344,7 +370,7 @@ SONGS = {
 }
 
 
-def play_song(name, **kwargs):
+async def play_song(name, **kwargs):
     """Play a named song. Extra kwargs override defaults."""
     if name not in SONGS:
         raise ValueError(
@@ -354,4 +380,4 @@ def play_song(name, **kwargs):
     data, default_bpm, default_gain = SONGS[name]
     kwargs.setdefault("bpm", default_bpm)
     kwargs.setdefault("gain", default_gain)
-    play(data, **kwargs)
+    await play(data, **kwargs)
