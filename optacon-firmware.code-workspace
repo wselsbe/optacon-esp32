@@ -20,7 +20,7 @@
         "C_Cpp.default.cStandard": "c11",
 
         // ── Python ──────────────────────────────────────────────────
-        "python.defaultInterpreterPath": "python3",
+        "python.defaultInterpreterPath": "${workspaceFolder:optacon-firmware}/.venv/Scripts/python.exe",
 
         // ── File associations ───────────────────────────────────────
         "files.associations": {
