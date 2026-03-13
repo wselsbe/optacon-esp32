@@ -94,6 +94,8 @@ def create_app(deps=None):
             deps.pa.start(gain=data.get("gain", 100))
         elif cmd == "stop":
             deps.pa.stop()
+            import music
+            music.stop()
         elif cmd == "set_pin":
             pin = data.get("pin")
             value = data.get("value")
@@ -322,11 +324,7 @@ def create_app(deps=None):
                     "Content-Type": "application/json"
                 }
             song.append((note if note != "R" else "R", beats))
-        # NOTE: music.play() blocks the async event loop for the entire song
-        # duration. It uses time.sleep_ms() internally for note timing and drives
-        # the piezo via pz_drive C calls. No async workaround is feasible without
-        # rewriting the player to yield between notes.
-        music.play(
+        await music.play(
             song,
             bpm=data.get("bpm", 120),
             waveform=data.get("waveform", "sine"),
@@ -346,8 +344,7 @@ def create_app(deps=None):
             return json.dumps({"error": "unknown song: " + name}), 404, {
                 "Content-Type": "application/json"
             }
-        # NOTE: music.play_song() blocks the event loop (see music.play note above).
-        music.play_song(
+        await music.play_song(
             name,
             waveform=data.get("waveform", "sine"),
         )
