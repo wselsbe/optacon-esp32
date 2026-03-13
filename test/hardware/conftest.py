@@ -308,10 +308,12 @@ def configure_timebase(oscilloscope):
 def configure_trigger(oscilloscope):
     """Set trigger source and level. Level auto-picked from coupling if not given."""
 
-    def _setup(ch, level=None, slope="POS", coupling="A1M"):
+    def _setup(ch, level=None, slope="POS", coupling="A1M", trigger_coupling="DC"):
         if level is None:
             level = "0V" if coupling == "A1M" else "0.5V"
-        oscilloscope.configure_trigger(ch, level=level, slope=slope)
+        oscilloscope.configure_trigger(
+            ch, level=level, slope=slope, coupling=trigger_coupling,
+        )
 
     return _setup
 
