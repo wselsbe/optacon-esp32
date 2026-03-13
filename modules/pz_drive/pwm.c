@@ -73,7 +73,7 @@ static volatile uint8_t s_waveform = WAVEFORM_SINE;
 // ─── Sample playback state ──────────────────────────────────────────────────
 static const uint8_t *s_sample_buf = NULL;
 static volatile uint32_t s_sample_len = 0;  // buffer length in samples
-static volatile uint32_t s_sample_pos = 0;  // fixed-point position (16.16)
+static volatile uint64_t s_sample_pos = 0;  // fixed-point position (32.16)
 static volatile uint32_t s_sample_step = 0; // fixed-point step per ISR tick
 static volatile bool s_sample_loop = false;
 static volatile bool s_sample_mode = false; // true = sample playback, false = DDS
@@ -105,8 +105,8 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
                                          const gptimer_alarm_event_data_t *edata, void *user_data) {
     // ── Sample playback mode ────────────────────────────────────────────
     if (s_sample_mode) {
-        uint32_t pos = s_sample_pos;
-        uint32_t idx = pos >> 16;
+        uint64_t pos = s_sample_pos;
+        uint32_t idx = (uint32_t)(pos >> 16);
         if (idx >= s_sample_len) {
             if (s_sample_loop) {
                 pos = 0;
@@ -124,7 +124,7 @@ static bool IRAM_ATTR timer_isr_callback(gptimer_handle_t timer,
         // Linear interpolation between adjacent samples
         uint8_t s0 = s_sample_buf[idx];
         uint8_t s1 = (idx + 1 < s_sample_len) ? s_sample_buf[idx + 1] : s0;
-        uint32_t frac = (pos >> 8) & 0xFF; // 8-bit fractional part
+        uint32_t frac = ((uint32_t)pos >> 8) & 0xFF; // 8-bit fractional part
         uint32_t duty = s0 + (((int32_t)(s1 - s0) * (int32_t)frac) >> 8);
 
         // Scale to resolution
