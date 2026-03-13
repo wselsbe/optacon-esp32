@@ -6,8 +6,6 @@ Reads ~850 Hz instead of expected 500 Hz. May need different measurement
 approach (e.g. measure polarity freq and assert 2x, or use DC coupling).
 """
 
-import time
-
 import pytest
 
 pytestmark = pytest.mark.hardware
@@ -24,16 +22,14 @@ def test_fullwave_polarity_toggles(
 
     board.set_frequency_analog(hz=FREQ_HZ, fullwave=True)
     board.start()
-    time.sleep(0.5)
 
     configure_channel(ch_pol, vdiv="2V", coupling="D1M")
     configure_timebase(FREQ_HZ)
     configure_trigger(ch_pol, level="2V", coupling="D1M")
     start_acquisition()
-    time.sleep(1.0)
 
     pol_freq = oscilloscope.measure_float(ch_pol, "FREQ")
-    assert abs(pol_freq - FREQ_HZ) / FREQ_HZ <= tolerance, (
+    assert pol_freq == pytest.approx(FREQ_HZ, rel=tolerance), (
         f"Polarity frequency mismatch: expected {FREQ_HZ} Hz, got {pol_freq} Hz"
     )
 
@@ -52,13 +48,11 @@ def test_non_fullwave_polarity_static(
 
     board.set_frequency_analog(hz=FREQ_HZ, fullwave=False)
     board.start()
-    time.sleep(0.5)
 
     configure_channel(ch_pol, vdiv="2V", coupling="D1M")
     configure_timebase(FREQ_HZ)
     configure_trigger(ch_pol, level="2V", coupling="D1M")
     start_acquisition()
-    time.sleep(1.0)
 
     pol_pkpk = oscilloscope.measure_float(ch_pol, "PKPK")
     assert pol_pkpk is None or pol_pkpk < 1.5, (
@@ -75,16 +69,14 @@ def test_fullwave_doubles_frequency(
 
     board.set_frequency_analog(hz=FREQ_HZ, fullwave=True)
     board.start()
-    time.sleep(0.5)
 
     configure_channel(ch_in, vdiv="1V")
     configure_timebase(FREQ_HZ)
     configure_trigger(ch_in)
     start_acquisition()
-    time.sleep(1.0)
 
     in_freq = oscilloscope.measure_float(ch_in, "FREQ")
     expected_freq = FREQ_HZ * 2
-    assert abs(in_freq - expected_freq) / expected_freq <= tolerance, (
+    assert in_freq == pytest.approx(expected_freq, rel=tolerance), (
         f"IN+ frequency in fullwave: expected {expected_freq} Hz, got {in_freq} Hz"
     )

@@ -3,6 +3,7 @@
 import json
 import logging
 import subprocess
+import time
 
 
 class BoardClient:
@@ -43,6 +44,8 @@ class BoardClient:
 
     def start(self, gain: int = 100) -> dict:
         self._exec(f"pa.start(gain={gain})")
+        # Let DRV2665 output settle before scope measurements
+        time.sleep(0.5)
         status = self.get_status()
         assert status.get("running") is True, f"Board did not start: {status}"
         assert status.get("gain") == gain, f"Board did not accept gain={gain}: {status}"
@@ -125,6 +128,8 @@ class WSBoardClient(BoardClient):
 
     def start(self, gain: int = 100) -> dict:
         status = self._send_cmd("start", gain=gain)
+        # Let DRV2665 output settle before scope measurements
+        time.sleep(0.5)
         assert status.get("running") is True, f"Board did not start: {status}"
         assert status.get("gain") == gain, f"Board did not accept gain={gain}: {status}"
         self._log.info("start signal, gain=%d", gain)

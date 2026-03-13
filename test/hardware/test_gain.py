@@ -1,7 +1,5 @@
 """Test gain level amplitude scaling on OUT+."""
 
-import time
-
 import pytest
 
 pytestmark = pytest.mark.hardware
@@ -24,14 +22,12 @@ def test_gain_ordering(
     for gain in GAIN_LEVELS:
         board.set_frequency_analog(hz=FREQ_HZ)
         board.start(gain=gain)
-        time.sleep(0.5)
 
         configure_channel(ch_in, vdiv="1V")
         configure_channel(ch_out, vdiv=GAIN_VDIV[gain])
         configure_timebase(FREQ_HZ)
         configure_trigger(ch_in)
         start_acquisition()
-        time.sleep(1.5)
 
         out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
         measurements[gain] = out_pkpk
@@ -59,14 +55,12 @@ def test_gain_produces_signal(
 
     board.set_frequency_analog(hz=FREQ_HZ)
     board.start(gain=gain)
-    time.sleep(0.5)
 
     configure_channel(ch_in, vdiv="1V")
     configure_channel(ch_out, vdiv=GAIN_VDIV[gain])
     configure_timebase(FREQ_HZ)
     configure_trigger(ch_in)
     start_acquisition()
-    time.sleep(1.5)
 
     out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
     assert out_pkpk > 1.5, (

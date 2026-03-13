@@ -6,8 +6,6 @@ Options: measure frequency on OUT+ instead (better SNR at ~100Vpp),
 apply bandwidth limiting on IN+, or use period-based measurement.
 """
 
-import time
-
 import pytest
 
 pytestmark = pytest.mark.hardware
@@ -26,17 +24,15 @@ def test_signal_frequency(
 
     board.set_frequency_analog(hz=freq_hz, waveform=waveform)
     board.start()
-    time.sleep(0.5)
 
     configure_channel(ch_in, vdiv="1V")
     configure_channel(ch_out, vdiv="20V")
     configure_timebase(freq_hz)
     configure_trigger(ch_in)
     start_acquisition()
-    time.sleep(1.0)
 
     measured_freq = oscilloscope.measure_float(ch_in, "FREQ")
-    assert abs(measured_freq - freq_hz) / freq_hz <= tolerance, (
+    assert measured_freq == pytest.approx(freq_hz, rel=tolerance), (
         f"Frequency mismatch: expected {freq_hz} Hz, got {measured_freq} Hz "
         f"(tolerance {tolerance * 100}%)"
     )
@@ -54,14 +50,12 @@ def test_signal_amplitude(
 
     board.set_frequency_analog(hz=250, waveform=waveform)
     board.start()
-    time.sleep(0.5)
 
     configure_channel(ch_in, vdiv="1V")
     configure_channel(ch_out, vdiv="20V")
     configure_timebase(250)
     configure_trigger(ch_in)
     start_acquisition()
-    time.sleep(1.0)
 
     in_pkpk = oscilloscope.measure_float(ch_in, "PKPK")
     assert in_pkpk > 0.1, f"IN+ PKPK too low: {in_pkpk}V"

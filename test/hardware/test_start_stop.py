@@ -18,13 +18,12 @@ def test_no_signal_before_start(
     ch_out = channels["out_plus"]
 
     board.stop()
-    time.sleep(0.5)
+    time.sleep(0.5)  # let DRV2665 output decay after stop
 
     configure_channel(ch_out, vdiv="10V")
     configure_timebase(250)
     configure_trigger(ch_out)
     start_acquisition()
-    time.sleep(1.0)
 
     pkpk = oscilloscope.measure_float(ch_out, "PKPK")
     assert pkpk is None or pkpk < NOISE_FLOOR_V, (
@@ -42,14 +41,12 @@ def test_signal_appears_on_start(
 
     board.set_frequency_analog(hz=250)
     board.start()
-    time.sleep(0.5)
 
     configure_channel(ch_out, vdiv="20V")
     configure_channel(ch_in, vdiv="1V")
     configure_timebase(250)
     configure_trigger(ch_in)
     start_acquisition()
-    time.sleep(1.0)
 
     pkpk = oscilloscope.measure_float(ch_out, "PKPK")
     assert pkpk > SIGNAL_THRESHOLD_V, (
@@ -67,17 +64,15 @@ def test_signal_disappears_on_stop(
 
     board.set_frequency_analog(hz=250)
     board.start()
-    time.sleep(1.0)
 
     board.stop()
-    time.sleep(1.0)
+    time.sleep(1.0)  # let DRV2665 output decay after stop
 
     configure_channel(ch_out, vdiv="20V")
     configure_channel(ch_in, vdiv="1V")
     configure_timebase(250)
     configure_trigger(ch_out)
     start_acquisition()
-    time.sleep(1.0)
 
     out_pkpk = oscilloscope.measure_float(ch_out, "PKPK")
     assert out_pkpk is None or out_pkpk < NOISE_FLOOR_V, (

@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import threading
+import time
 
 import pytest
 
@@ -325,6 +326,8 @@ def start_acquisition(oscilloscope):
     def _setup():
         oscilloscope.wait_ready()
         oscilloscope.run()
+        # Accumulate enough waveform cycles for stable measurements
+        time.sleep(1.0)
 
     return _setup
 
