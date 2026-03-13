@@ -207,14 +207,21 @@ class Oscilloscope:
         self._write_if_changed("TDIV", f"TDIV {timebase}")
         self._log.info("configure timebase %s/div", timebase)
 
-    def configure_trigger(self, source: str, level: str, slope: str = "POS"):
+    def configure_trigger(
+        self, source: str, level: str, slope: str = "POS",
+        coupling: str = "DC",
+    ):
         self._write_if_changed("TRLV", f"{source}:TRLV {level}")
         self._write_if_changed("TRSL", f"{source}:TRSL {slope}")
+        self._write_if_changed("TRCP", f"{source}:TRCP {coupling}")
         trse = "TRSE EDGE,SR," + source + ",HT,OFF"
         self._write_if_changed("TRSE", trse)
         # Use auto trigger mode so scope acquires even without trigger event
         self._write_if_changed("TRMD", "TRMD AUTO")
-        self._log.info("configure trigger on %s at %s, %s slope", source, level, slope)
+        self._log.info(
+            "configure trigger on %s at %s, %s slope, %s coupling",
+            source, level, slope, coupling,
+        )
 
     def wait_ready(self):
         """Wait for all pending operations to complete."""
