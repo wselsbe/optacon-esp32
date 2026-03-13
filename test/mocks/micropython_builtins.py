@@ -12,6 +12,14 @@ from unittest.mock import MagicMock
 if not hasattr(time, "sleep_ms"):
     time.sleep_ms = lambda ms: time.sleep(ms / 1000)
 
+# MicroPython's asyncio has sleep_ms; CPython's does not
+import asyncio as _asyncio
+
+if not hasattr(_asyncio, "sleep_ms"):
+    async def _async_sleep_ms(ms):
+        await _asyncio.sleep(ms / 1000)
+    _asyncio.sleep_ms = _async_sleep_ms
+
 if not hasattr(time, "ticks_ms"):
     time.ticks_ms = lambda: int(time.time() * 1000) & 0x3FFFFFFF
 
